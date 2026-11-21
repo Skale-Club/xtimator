@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * Credits plan 2026-11-20 - continueOrPauseForCredits: a run checks credits
@@ -43,7 +43,12 @@ const CTX = {
   next: 'generate_estimate' as const,
 }
 
-/** A fake Inngest step: runs steps inline; waitForEvent answers from a queue. */
+/**
+ * A fake Inngest step: runs steps inline; waitForEvent answers from a queue
+ * (an event) or, when the queue is empty, times out. The system clock is faked
+ * and advances by the wait's timeout on a timeout (and a minute on an event),
+ * so a run that never gets credits reaches its deadline.
+ */
 function fakeStep(waits: Array<unknown | null>) {
   const ids: string[] = []
   const waitOpts: Array<{ event: string; timeout: string; if?: string }> = []
@@ -58,7 +63,12 @@ function fakeStep(waits: Array<unknown | null>) {
       waitForEvent: async (id: string, opts: { event: string; timeout: string; if?: string }) => {
         ids.push(id)
         waitOpts.push(opts)
-        return waits.length ? waits.shift()! : null
+        if (waits.length) {
+          vi.setSystemTime(Date.now() + 60_000)
+          return waits.shift()!
+        }
+        vi.setSystemTime(Date.now() + Number(opts.timeout.replace('m', '')) * 60_000)
+        return null
       },
     },
   }
@@ -68,6 +78,11 @@ const journal = () => recordPipelineEvent.mock.calls.map((c) => c[0] as Record<s
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.useFakeTimers({ toFake: ['Date'] })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('continueOrPauseForCredits', () => {
@@ -113,9 +128,50 @@ describe('continueOrPauseForCredits', () => {
     await continueOrPauseForCredits(step, CTX)
     expect(waitOpts[0].event).toBe('billing/credits.granted')
     expect(waitOpts[0].if).toBe('async.data.companyId == "co-1"')
-    const minutes = Number(waitOpts[0].timeout.replace('m', ''))
-    expect(minutes).toBeGreaterThan(7 * 24 * 60 - 5)
-    expect(minutes).toBeLessThanOrEqual(7 * 24 * 60)
+    // A bounded wait (one hour while the pause is young), never one 7-day wait.
+    expect(waitOpts[0].timeout).toBe('60m')
+  })
+
+  it('a top-up that landed while no wait was registered is found when the wait times out', async () => {
+    canContinueRun
+      .mockResolvedValueOnce({ ok: false }) // first check
+      .mockResolvedValueOnce({ ok: false }) // after the auto top-up attempt
+      .mockResolvedValueOnce({ ok: true }) // re-check after the first timeout
+    const { step, waitOpts } = fakeStep([]) // no event ever arrives
+    expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
+    expect(waitOpts).toHaveLength(1)
+    expect(journal().at(-1)).toMatchObject({ status: 'started', metadata: { resumed: true } })
+  })
+
+  it('keeps polling on timeouts until credits show up, with bounded waits and unique step ids', async () => {
+    canContinueRun.mockResolvedValue({ ok: false })
+    // Credits appear on the 5th re-check (after four empty timeouts).
+    canContinueRun
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: true })
+    const { step, waitOpts, ids } = fakeStep([])
+    expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
+    expect(waitOpts).toHaveLength(5)
+    for (const o of waitOpts) expect(o.timeout).toBe('60m')
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toContain('credits-wait-generate_estimate-4')
+    expect(ids).toContain('credits-recheck-generate_estimate-4')
+  })
+
+  it('polls hourly for the first day, then every six hours, until the 7-day expiry (bounded step count)', async () => {
+    canContinueRun.mockResolvedValue({ ok: false })
+    const { step, waitOpts } = fakeStep([])
+    expect(await continueOrPauseForCredits(step, CTX)).toBe('expired')
+    const minutes = waitOpts.map((o) => Number(o.timeout.replace('m', '')))
+    expect(Math.max(...minutes)).toBeLessThanOrEqual(360)
+    expect(minutes.slice(0, 24).every((m) => m === 60)).toBe(true)
+    expect(minutes.length).toBeLessThan(60)
+    expect(minutes.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(7 * 24 * 60 - 360)
   })
 
   it('credits arrive: re-checks, journals a plain started row (resumed) and continues', async () => {
@@ -138,6 +194,19 @@ describe('continueOrPauseForCredits', () => {
     expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
     expect(waitOpts).toHaveLength(2)
     expect(journal().filter((r) => r.errorCode === AWAITING_CREDITS)).toHaveLength(1)
+  })
+
+  it('a run paused before the polling loop shipped replays its old boolean recheck without breaking', async () => {
+    canContinueRun.mockResolvedValue({ ok: false })
+    const { step, waitOpts } = fakeStep([])
+    const run = step.run
+    // Old code memoized `credits-recheck-<next>-0` as a bare boolean.
+    step.run = (async (id: string, fn: () => Promise<unknown>) =>
+      id === 'credits-recheck-generate_estimate-0' ? false : run(id, fn)) as typeof step.run
+    expect(await continueOrPauseForCredits(step, CTX)).toBe('expired')
+    const minutes = waitOpts.map((o) => Number(o.timeout.replace('m', '')))
+    expect(minutes.every((m) => Number.isFinite(m) && m > 0)).toBe(true)
+    expect(minutes.length).toBeLessThan(60)
   })
 
   it('no credits within the window: journals the expiry (failed + credit_pause_expired) and stops', async () => {

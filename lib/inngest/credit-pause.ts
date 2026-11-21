@@ -18,7 +18,12 @@ import { EVENT_CREDITS_GRANTED } from '@/lib/inngest/events'
  *     for this company. Waiting holds no concurrency slot.
  *   - credits arrive: re-check (a grant that only paid down debt leaves the
  *     balance empty, so it keeps waiting), journal a plain `started` row
- *     (resumed) and continue. What was already done (transcript, analyzed
+ *     (resumed) and continue. The wait is a bounded loop, not one 7-day wait:
+ *     the pause is journalled in one step and the wait registered in a later
+ *     one, so a top-up landing in between (or between two waits) would be
+ *     missed and the run would sit until expiry. Each wait therefore times out
+ *     after at most an hour (six hours once the pause is over a day old) and
+ *     re-checks the balance, the same check that decided to pause. What was already done (transcript, analyzed
  *     photos) is reused, never redone or charged again.
  *   - no credits within `creditPauseDays`: the pause expires (journal `failed`
  *     with `credit_pause_expired`); the project keeps its transcript and
@@ -49,8 +54,14 @@ export type PauseContext = {
   next: PauseStep
 }
 
-/** How many times one pause may wake on a grant that left the balance empty. */
-const MAX_WAKES = 6
+/** Hard bound on loop iterations (a safety net; the deadline normally ends it). */
+const MAX_WAKES = 400
+
+const HOUR_MS = 3_600_000
+/** Poll every hour for the first day of a pause, then every six hours: bounds the step count. */
+function pollIntervalMs(elapsedMs: number): number {
+  return elapsedMs < 24 * HOUR_MS ? HOUR_MS : 6 * HOUR_MS
+}
 
 function timeoutFor(ms: number): string {
   return `${Math.max(1, Math.ceil(ms / 60000))}m`
@@ -100,20 +111,35 @@ export async function continueOrPauseForCredits(
       metadata: { paused: true, next: ctx.next, expiresAt },
     })
     await notifyPaused(ctx, expiresAt)
-    return { expiresAt }
+    return { expiresAt, pausedAt }
   })
 
   const deadline = Date.parse(pause.expiresAt)
+  // The clock is read inside memoized steps only (a bare Date.now() would be
+  // re-stamped on every Inngest replay). The recheck step both re-checks the
+  // balance and stamps `now` for the next iteration.
+  const startedAt = Number.isFinite(pause.pausedAt) ? pause.pausedAt : deadline - 7 * 86_400_000
+  let now = startedAt
   for (let wake = 0; wake < MAX_WAKES; wake++) {
-    const remaining = deadline - (await step.run(`credits-now-${ctx.next}-${wake}`, async () => Date.now()))
+    const remaining = deadline - now
     if (remaining <= 0) break
-    const granted = await step.waitForEvent(`credits-wait-${ctx.next}-${wake}`, {
+    await step.waitForEvent(`credits-wait-${ctx.next}-${wake}`, {
       event: EVENT_CREDITS_GRANTED,
-      timeout: timeoutFor(remaining),
+      timeout: timeoutFor(Math.min(remaining, pollIntervalMs(now - startedAt))),
       if: `async.data.companyId == "${ctx.companyId}"`,
     })
-    if (!granted) break
-    const ok = await step.run(`credits-recheck-${ctx.next}-${wake}`, () => hasCredits(ctx.companyId))
+    // Granted OR timed out: either way, look at the balance (a timeout is what
+    // catches a top-up that landed while no wait was registered).
+    const check = await step.run(`credits-recheck-${ctx.next}-${wake}`, async () => ({
+      ok: await hasCredits(ctx.companyId),
+      now: Date.now(),
+    }))
+    // A run paused before this loop shipped may replay an old memoized recheck
+    // under the same step id, which returned a bare boolean. Treat it as "no
+    // clock reading" and move the clock forward by one interval.
+    const legacy = typeof check !== 'object' || check === null
+    const ok = legacy ? (check as unknown) === true : check.ok === true
+    now = legacy || !Number.isFinite(check.now) ? now + pollIntervalMs(now - startedAt) : check.now
     if (ok) {
       await step.run(`credits-resume-${ctx.next}`, async () => {
         await recordPipelineEvent({
