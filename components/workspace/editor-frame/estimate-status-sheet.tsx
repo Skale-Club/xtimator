@@ -15,13 +15,13 @@ import { relativeAgo, shortDate } from '@/components/workspace/estimate/analytic
 import { deriveInterest } from '@/lib/estimate/analytics/contracts'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
-import { deriveEstimateStatus } from './estimate-status'
 
 export interface EstimateStatusSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   estimateId: string
   createdAt: string
+  /** Kept for callers; the status no longer depends on it. */
   sentAt: string | null
   viewCount: number
   lastViewedAt: string | null
@@ -58,7 +58,7 @@ const DOT_DONE: Record<StepTone, string> = {
 
 function ProgressLine({ steps }: { steps: Step[] }) {
   return (
-    <ol className="grid grid-cols-4" data-testid="status-progress">
+    <ol className="grid grid-cols-3" data-testid="status-progress">
       {steps.map((step, i) => (
         <li key={step.key} data-step={step.key} data-done={step.done ? 'true' : 'false'} className="relative flex min-w-0 flex-col items-center gap-1.5 px-0.5 text-center">
           {i > 0 && (
@@ -99,7 +99,7 @@ function ProgressLine({ steps }: { steps: Step[] }) {
 }
 
 /**
- * The editor's status sheet: a compact progress line (Created, Shared, Opened,
+ * The editor's status sheet: a compact progress line (Created, Opened,
  * Answered), the place to record the client's answer, and a short engagement
  * summary that leads to the full analytics drawer. Bottom sheet on phones,
  * centred card from sm up.
@@ -109,7 +109,6 @@ export function EstimateStatusSheet({
   onOpenChange,
   estimateId,
   createdAt,
-  sentAt,
   viewCount,
   lastViewedAt,
   clientResponse,
@@ -122,14 +121,10 @@ export function EstimateStatusSheet({
   const { t } = useTranslation()
   const [ownDrawerOpen, setOwnDrawerOpen] = useState(false)
 
-  const status = deriveEstimateStatus({ sentAt, viewCount, clientResponse })
   const answered = clientResponse === 'accepted' || clientResponse === 'declined'
-  // Same rule as deriveEstimateStatus: copying the link does not set sent_at, a view proves it was shared.
-  const shared = Boolean(sentAt) || viewCount > 0
 
   const steps: Step[] = [
     { key: 'created', label: t('Created'), done: true, lines: [shortDate(createdAt)], tone: 'primary' },
-    { key: 'shared', label: t('Shared'), done: shared, lines: sentAt ? [shortDate(sentAt)] : [], tone: 'primary' },
     {
       key: 'opened',
       label: t('Opened'),
@@ -178,12 +173,7 @@ export function EstimateStatusSheet({
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 pt-3 pb-5">
             <ProgressLine steps={steps} />
 
-            {status === 'draft' ? (
-              <p className="text-[13.5px] text-muted-foreground">
-                {t('Not shared yet. The client’s answer shows up here after you share the estimate.')}
-              </p>
-            ) : (
-              <>
+            <>
                 {!signedOnline && (
                   <p className="text-[13.5px] text-muted-foreground">
                     {t('Got the answer by phone or in person? Record it here.')}
@@ -227,8 +217,7 @@ export function EstimateStatusSheet({
                     {t('Open analytics')}
                   </Button>
                 </div>
-              </>
-            )}
+            </>
           </div>
         </BottomSheetContent>
       </Dialog>

@@ -16,25 +16,25 @@ const H = 3_600_000
 describe('toEstimateListStatus', () => {
   const base = { sent_at: null, view_count: 0, last_viewed_at: null, client_response: null, responded_at: null }
 
-  it('is draft with no send and no views', () => {
+  it('is unopened with no views', () => {
     const s = toEstimateListStatus(base, NOW)
-    expect(s.state).toBe('draft')
+    expect(s.state).toBe('unopened')
     expect(s.hot).toBe(false)
     expect(s.openedNoAnswer).toBe(false)
     expect(s.lastActivityAt).toBeNull()
   })
 
-  it('counts views as sent and flags opened-no-answer', () => {
+  it('is viewed once opened and flags opened-no-answer', () => {
     const s = toEstimateListStatus({ ...base, view_count: 1, last_viewed_at: ago(2 * H) }, NOW)
-    expect(s.state).toBe('sent')
+    expect(s.state).toBe('viewed')
     expect(s.views).toBe(1)
     expect(s.openedNoAnswer).toBe(true)
     expect(s.lastActivityAt).toBe(ago(2 * H))
   })
 
-  it('is sent (not opened) when only sent_at is set', () => {
+  it('a send alone keeps it unopened (no draft / shared state)', () => {
     const s = toEstimateListStatus({ ...base, sent_at: ago(5 * H) }, NOW)
-    expect(s.state).toBe('sent')
+    expect(s.state).toBe('unopened')
     expect(s.openedNoAnswer).toBe(false)
   })
 
@@ -88,7 +88,7 @@ describe('indexEstimateListStatuses / withEstimateStatus', () => {
     expect(Object.keys(idx)).toEqual(['p1'])
     expect(idx.p1.views).toBe(0)
     const merged = withEstimateStatus([{ id: 'p1' }, { id: 'p2' }], idx)
-    expect(merged[0].estimate_status?.state).toBe('sent')
+    expect(merged[0].estimate_status?.state).toBe('unopened')
     expect(merged[1].estimate_status).toBeUndefined()
   })
 })

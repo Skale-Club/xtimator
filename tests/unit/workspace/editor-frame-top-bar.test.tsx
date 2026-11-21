@@ -86,20 +86,22 @@ describe('EditorTopBar', () => {
     expect(link.textContent).toBe('Projects')
   })
 
-  it('shows no status chip for a draft', () => {
-    renderBar(baseSlot())
+  it('always shows the status chip, even before the client opens it', () => {
+    renderBar(baseSlot({ onOpenStatus: () => {} }))
     expect(screen.queryByText('Draft')).toBeNull()
-    expect(screen.queryByRole('button', { name: /Estimate status/ })).toBeNull()
+    expect(
+      within(screen.getByTestId('editor-top-bar-row-a')).getByRole('button', { name: 'Estimate status: Not opened yet' }),
+    ).toBeTruthy()
   })
 
-  it('shows the status chip once sent, in both the phone and desktop spots', () => {
+  it('shows the status chip in both the phone and desktop spots', () => {
     const onOpenStatus = vi.fn()
-    renderBar(baseSlot({ sentAt: SENT, onOpenStatus }))
+    renderBar(baseSlot({ sentAt: SENT, viewCount: 2, onOpenStatus }))
     const phone = within(screen.getByTestId('editor-top-bar-row-a'))
     const desktop = within(screen.getByTestId('editor-top-bar-inline'))
-    fireEvent.click(phone.getByRole('button', { name: /Estimate status: Sent/ }))
+    fireEvent.click(phone.getByRole('button', { name: /Estimate status: Viewed 2×/ }))
     expect(onOpenStatus).toHaveBeenCalledTimes(1)
-    expect(desktop.getByRole('button', { name: /Estimate status: Sent/ })).toBeTruthy()
+    expect(desktop.getByRole('button', { name: /Estimate status: Viewed 2×/ })).toBeTruthy()
     expect(screen.queryByTestId('editor-top-bar-row2')).toBeNull()
   })
 

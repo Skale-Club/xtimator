@@ -8,43 +8,44 @@ import {
 afterEach(cleanup)
 
 describe('deriveEstimateStatus', () => {
-  it('is draft with nothing sent and no views', () => {
-    expect(deriveEstimateStatus({})).toBe('draft')
-    expect(deriveEstimateStatus({ sentAt: null, viewCount: 0, clientResponse: null })).toBe('draft')
+  it('is unopened until the client opens it', () => {
+    expect(deriveEstimateStatus({})).toBe('unopened')
+    expect(deriveEstimateStatus({ sentAt: null, viewCount: 0, clientResponse: null })).toBe('unopened')
   })
 
-  it('is sent when sentAt is set', () => {
-    expect(deriveEstimateStatus({ sentAt: '2026-11-16T09:00:00Z' })).toBe('sent')
+  it('ignores sentAt: there is no draft or shared state', () => {
+    expect(deriveEstimateStatus({ sentAt: '2026-11-16T09:00:00Z' })).toBe('unopened')
+    expect(deriveEstimateStatus({ sentAt: '2026-11-16T09:00:00Z', viewCount: 1 })).toBe('viewed')
   })
 
-  it('is sent when only viewed (link copied, never marked sent)', () => {
-    expect(deriveEstimateStatus({ sentAt: null, viewCount: 2 })).toBe('sent')
+  it('is viewed once the client opened it', () => {
+    expect(deriveEstimateStatus({ viewCount: 2 })).toBe('viewed')
   })
 
-  it('accepted and declined win over sent', () => {
-    expect(deriveEstimateStatus({ sentAt: 'x', viewCount: 3, clientResponse: 'accepted' })).toBe('accepted')
-    expect(deriveEstimateStatus({ sentAt: 'x', clientResponse: 'declined' })).toBe('declined')
+  it('accepted and declined win over views', () => {
+    expect(deriveEstimateStatus({ viewCount: 3, clientResponse: 'accepted' })).toBe('accepted')
+    expect(deriveEstimateStatus({ clientResponse: 'declined' })).toBe('declined')
   })
 
   it('ignores unknown client responses', () => {
-    expect(deriveEstimateStatus({ clientResponse: 'maybe' })).toBe('draft')
+    expect(deriveEstimateStatus({ clientResponse: 'maybe' })).toBe('unopened')
   })
 })
 
 describe('EstimateStatusChip labels', () => {
-  it('draft', () => {
+  it('not opened yet', () => {
     render(<EstimateStatusChip />)
-    expect(screen.getByText('Draft')).toBeTruthy()
+    expect(screen.getByText('Not opened yet')).toBeTruthy()
   })
 
-  it('sent without views', () => {
+  it('a send alone does not change the label', () => {
     render(<EstimateStatusChip sentAt="2026-11-16T09:00:00Z" viewCount={0} />)
-    expect(screen.getByText('Sent')).toBeTruthy()
+    expect(screen.getByText('Not opened yet')).toBeTruthy()
   })
 
-  it('sent with views', () => {
+  it('viewed with a send shows only the views', () => {
     render(<EstimateStatusChip sentAt="2026-11-16T09:00:00Z" viewCount={3} />)
-    expect(screen.getByText('Sent · viewed 3×')).toBeTruthy()
+    expect(screen.getByText('Viewed 3×')).toBeTruthy()
   })
 
   it('viewed without sentAt', () => {
@@ -69,9 +70,9 @@ describe('EstimateStatusChip labels', () => {
   })
 
   it('is a button with an aria-label only when clickable', () => {
-    const { rerender } = render(<EstimateStatusChip sentAt="x" />)
+    const { rerender } = render(<EstimateStatusChip viewCount={2} />)
     expect(screen.queryByRole('button')).toBeNull()
-    rerender(<EstimateStatusChip sentAt="x" onClick={() => {}} />)
-    expect(screen.getByRole('button', { name: 'Estimate status: Sent' })).toBeTruthy()
+    rerender(<EstimateStatusChip viewCount={2} onClick={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Estimate status: Viewed 2×' })).toBeTruthy()
   })
 })

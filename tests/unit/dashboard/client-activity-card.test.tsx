@@ -72,11 +72,11 @@ describe('EstimateListStatusPill', () => {
   const NOW = new Date()
   const base = { sent_at: null, view_count: 0, last_viewed_at: null, client_response: null, responded_at: null }
 
-  it('renders Draft and Sent', () => {
+  it('renders Not opened yet, with or without a send', () => {
     const { rerender } = render(<EstimateListStatusPill status={toEstimateListStatus(base, NOW)} />)
-    expect(screen.getByTestId('estimate-list-status').textContent).toBe('Draft')
+    expect(screen.getByTestId('estimate-list-status').textContent).toBe('Not opened yet')
     rerender(<EstimateListStatusPill status={toEstimateListStatus({ ...base, sent_at: NOW.toISOString() }, NOW)} />)
-    expect(screen.getByTestId('estimate-list-status').textContent).toBe('Sent')
+    expect(screen.getByTestId('estimate-list-status').textContent).toBe('Not opened yet')
   })
 
   it('renders Viewed N× with relative time, no Hot when only opened once', () => {

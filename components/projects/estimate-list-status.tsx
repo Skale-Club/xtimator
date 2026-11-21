@@ -9,15 +9,15 @@ import { INTEREST_REASON_LABELS } from '@/lib/estimate/analytics/contracts'
 import type { EstimateListState, EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
 const TONE: Record<EstimateListState, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  sent: 'bg-primary/10 text-primary',
+  unopened: 'bg-muted text-muted-foreground',
+  viewed: 'bg-primary/10 text-primary',
   accepted: 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]',
   declined: 'bg-[hsl(var(--destructive-text)/0.12)] text-[hsl(var(--destructive-text))]',
 }
 
 const DOT: Record<EstimateListState, string> = {
-  draft: 'bg-muted-foreground/60',
-  sent: 'bg-primary',
+  unopened: 'bg-muted-foreground/60',
+  viewed: 'bg-primary',
   accepted: 'bg-[hsl(var(--success))]',
   declined: 'bg-[hsl(var(--destructive-text))]',
 }
@@ -50,15 +50,14 @@ export function EstimateListStatusPill({
   if (!status) return null
 
   let label: string
-  if (status.state === 'draft') label = t('Draft')
-  else if (status.state === 'accepted' || status.state === 'declined') {
+  if (status.state === 'accepted' || status.state === 'declined') {
     const name = status.state === 'accepted' ? t('Accepted') : t('Declined')
     const date = status.respondedAt ? formatDate(status.respondedAt, { month: 'short', day: 'numeric' }) : ''
     label = date ? `${name} · ${date}` : name
-  } else if (status.views > 0) {
+  } else if (status.state === 'viewed') {
     const ago = relative(status.lastViewedAt)
     label = `${t('Viewed')} ${status.views}×${ago ? ` · ${ago}` : ''}`
-  } else label = t('Sent')
+  } else label = t('Not opened yet')
 
   const hotTitle = status.hot
     ? [t('Hot'), ...status.hotReasons.map((r) => t(INTEREST_REASON_LABELS[r]))].join(' · ')

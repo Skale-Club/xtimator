@@ -4,23 +4,25 @@ import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'declined'
+/**
+ * Where the estimate stands, told only by what the client did. There is no
+ * draft / shared state: the link works from the first minute and content only
+ * locks when the client answers (owner decision 2026-11-21).
+ */
+export type EstimateStatus = 'unopened' | 'viewed' | 'accepted' | 'declined'
 
 interface StatusInput {
+  /** Kept for callers; no longer changes the status (send events live in the analytics timeline). */
   sentAt?: string | null
   viewCount?: number
   clientResponse?: string | null
 }
 
-/**
- * Where the estimate stands with the client. Copying the share link does not
- * set sent_at, but a view proves it was shared, so views count as "sent".
- */
 export function deriveEstimateStatus(i: StatusInput): EstimateStatus {
   if (i.clientResponse === 'accepted') return 'accepted'
   if (i.clientResponse === 'declined') return 'declined'
-  if (i.sentAt || (i.viewCount ?? 0) > 0) return 'sent'
-  return 'draft'
+  if ((i.viewCount ?? 0) > 0) return 'viewed'
+  return 'unopened'
 }
 
 function shortDate(iso?: string | null): string {
@@ -30,8 +32,8 @@ function shortDate(iso?: string | null): string {
 }
 
 const TONE: Record<EstimateStatus, { pill: string; dot: string }> = {
-  draft: { pill: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/60' },
-  sent: { pill: 'bg-primary/10 text-primary', dot: 'bg-primary' },
+  unopened: { pill: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/60' },
+  viewed: { pill: 'bg-primary/10 text-primary', dot: 'bg-primary' },
   accepted: { pill: 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]', dot: 'bg-[hsl(var(--success))]' },
   declined: { pill: 'bg-[hsl(var(--destructive-text)/0.12)] text-[hsl(var(--destructive-text))]', dot: 'bg-[hsl(var(--destructive-text))]' },
 }
@@ -45,7 +47,6 @@ interface EstimateStatusChipProps extends StatusInput {
 }
 
 export function EstimateStatusChip({
-  sentAt,
   viewCount = 0,
   clientResponse,
   respondedAt,
@@ -53,16 +54,15 @@ export function EstimateStatusChip({
   locked = false,
 }: EstimateStatusChipProps) {
   const { t } = useTranslation()
-  const status = deriveEstimateStatus({ sentAt, viewCount, clientResponse })
+  const status = deriveEstimateStatus({ viewCount, clientResponse })
   const date = shortDate(respondedAt)
   const showLock = locked && status !== 'declined'
 
   let label: string
-  if (status === 'draft') label = locked ? t('Locked') : t('Draft')
-  else if (status === 'accepted') label = date ? `${t('Accepted')} · ${date}` : t('Accepted')
+  if (status === 'accepted') label = date ? `${t('Accepted')} · ${date}` : t('Accepted')
   else if (status === 'declined') label = date ? `${t('Declined')} · ${date}` : t('Declined')
-  else if (sentAt) label = viewCount > 0 ? `${t('Sent')} · ${t('viewed')} ${viewCount}×` : t('Sent')
-  else label = `${t('Viewed')} ${viewCount}×`
+  else if (status === 'viewed') label = `${t('Viewed')} ${viewCount}×`
+  else label = locked ? t('Locked') : t('Not opened yet')
 
   const tone = TONE[status]
   const className = cn(

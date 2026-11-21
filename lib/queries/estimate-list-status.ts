@@ -15,7 +15,8 @@ import { deriveInterest, type InterestReason } from '@/lib/estimate/analytics/co
  * inline here so this file stays importable from server code.
  */
 
-export type EstimateListState = 'draft' | 'sent' | 'accepted' | 'declined'
+/** Only what the client did: no draft / shared state (owner decision 2026-11-21). */
+export type EstimateListState = 'unopened' | 'viewed' | 'accepted' | 'declined'
 
 export interface EstimateListStatus {
   state: EstimateListState
@@ -92,10 +93,10 @@ export function toEstimateListStatus(
   signals?: EngagementSignals,
 ): EstimateListStatus {
   const views = Math.max(0, Number(row.view_count) || 0)
-  let state: EstimateListState = 'draft'
+  let state: EstimateListState = 'unopened'
   if (row.client_response === 'accepted') state = 'accepted'
   else if (row.client_response === 'declined') state = 'declined'
-  else if (row.sent_at || views > 0) state = 'sent'
+  else if (views > 0) state = 'viewed'
 
   const interest = deriveInterest({
     opens: views,
@@ -114,7 +115,7 @@ export function toEstimateListStatus(
     hot,
     hotReasons: hot ? interest.reasons.slice(0, 3) : [],
     lastActivityAt: laterOf(row.last_viewed_at, row.responded_at),
-    openedNoAnswer: views > 0 && state === 'sent',
+    openedNoAnswer: state === 'viewed',
   }
 }
 

@@ -27,17 +27,18 @@ function step(key: string) {
 }
 
 describe('EstimateStatusSheet', () => {
-  it('shows the four-step progress line and no engagement block for a draft', () => {
+  it('shows Created, Opened, Answered and the analytics entry before any open', () => {
     render(<EstimateStatusSheet {...base} />)
     expect(screen.getByRole('heading', { name: 'Estimate status' })).toBeTruthy()
-    for (const key of ['created', 'shared', 'opened', 'answered']) expect(step(key)).toBeTruthy()
+    for (const key of ['created', 'opened', 'answered']) expect(step(key)).toBeTruthy()
+    expect(screen.queryByText('Shared')).toBeNull()
     expect(step('created').getAttribute('data-done')).toBe('true')
-    expect(step('shared').getAttribute('data-done')).toBe('false')
-    expect(screen.queryByRole('button', { name: 'Open analytics' })).toBeNull()
-    expect(screen.getByText(/Not shared yet/)).toBeTruthy()
+    expect(step('opened').getAttribute('data-done')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Open analytics' })).toBeTruthy()
+    expect(screen.queryByText(/Not shared yet/)).toBeNull()
   })
 
-  it('counts Shared as done when the link was only copied but the client opened it', () => {
+  it('marks Opened done once the client opened it', () => {
     render(
       <EstimateStatusSheet
         {...base}
@@ -45,7 +46,6 @@ describe('EstimateStatusSheet', () => {
         lastViewedAt={new Date(Date.now() - 3 * 3_600_000).toISOString()}
       />,
     )
-    expect(step('shared').getAttribute('data-done')).toBe('true')
     expect(step('opened').getAttribute('data-done')).toBe('true')
     expect(step('answered').getAttribute('data-done')).toBe('false')
   })

@@ -11,7 +11,7 @@ import { formatCurrency } from '@/lib/utils/format'
 import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 import { PausedChip } from '@/components/billing/paused-chip'
-import { EstimateStatusChip, deriveEstimateStatus } from './estimate-status'
+import { EstimateStatusChip } from './estimate-status'
 import { useGenerationStatus, type GenerationStatus } from '@/components/workspace/generation-status-context'
 import { GenerationChip, GenerationProgressLine, useGenerationSnapshot } from '@/components/capture/generation-progress-banner'
 
@@ -54,17 +54,10 @@ function SaveState({ slot }: { slot: VersionSlot }) {
   )
 }
 
-/** Drafts show no chip at all. Locked content shows a lock (the status sheet says why). */
+/** Always shown, so status and analytics are reachable on every estimate. Locked content shows a lock (the status sheet says why). */
 function StatusChip({ slot }: { slot: VersionSlot }) {
-  const status = deriveEstimateStatus({
-    sentAt: slot.sentAt,
-    viewCount: slot.viewCount,
-    clientResponse: slot.clientResponse,
-  })
-  if (status === 'draft' && !slot.isLocked) return null
   return (
     <EstimateStatusChip
-      sentAt={slot.sentAt}
       viewCount={slot.viewCount}
       clientResponse={slot.clientResponse}
       respondedAt={slot.respondedAt}
