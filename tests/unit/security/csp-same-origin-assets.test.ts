@@ -79,6 +79,11 @@ describe('Phase 190 URL-04 — CSP and the same-origin asset proxy', () => {
       'https://*.supabase.co',
       'https://*.supabase.in',
       'https://*.googleusercontent.com',
+      // Marketing tags (GTM, GA4, Meta Pixel, Clarity) - marketing pages only.
+      'https://www.google-analytics.com',
+      'https://www.googletagmanager.com',
+      'https://www.facebook.com',
+      'https://*.clarity.ms',
     ])
 
     // No `https://xtimator.com` (or any same-origin host spelled out) — that
@@ -95,6 +100,11 @@ describe('Phase 190 URL-04 — CSP and the same-origin asset proxy', () => {
       'https://*.supabase.co',
       'https://*.supabase.in',
       'https://*.googleusercontent.com',
+      // Marketing tags (GTM, GA4, Meta Pixel, Clarity) - marketing pages only.
+      'https://www.google-analytics.com',
+      'https://www.googletagmanager.com',
+      'https://www.facebook.com',
+      'https://*.clarity.ms',
     ])
   })
 

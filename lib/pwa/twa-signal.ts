@@ -14,7 +14,7 @@ export const TWA_COOKIE_VALUE = '1'
 /** ~1 year. */
 export const TWA_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
-const TWA_REFERRER_PREFIX = 'android-app://com.xtimator.app'
+export const TWA_REFERRER_PREFIX = 'android-app://com.xtimator.app'
 
 /** Neutral, link-free copy shown instead of any purchase prompt inside the TWA. */
 export const TWA_OUT_OF_CREDITS_COPY =

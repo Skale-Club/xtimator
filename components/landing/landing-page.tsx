@@ -9,6 +9,7 @@ import type { LandingStats } from '@/lib/landing/stats'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
 import { GetTheAppSection } from '@/components/landing/get-the-app-section'
+import { MarketingTags } from '@/components/marketing/marketing-tags'
 
 const AuthDialog = dynamic(() =>
   import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
@@ -123,6 +124,8 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true,
           <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} showStoreBadge={showStoreBadge} />
         </div>
       </div>
+
+      <MarketingTags />
 
       {authOpen && (
         <AuthDialog

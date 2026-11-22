@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { AppIcon } from '@/components/ui/app-icon'
 import { GooglePlayBadge } from '@/components/landing/google-play-badge'
+import { CookieSettingsLink } from '@/components/marketing/cookie-settings-link'
 
 /**
  * Reusable site footer — mirrors the landing LandingFooter visually but uses
@@ -108,6 +109,9 @@ export function SiteFooter({ branding }: SiteFooterProps) {
                 >
                   Delete Account
                 </Link>
+              </li>
+              <li>
+                <CookieSettingsLink className="inline-block py-1.5 transition-colors hover:text-white" />
               </li>
               <li>
                 <Link

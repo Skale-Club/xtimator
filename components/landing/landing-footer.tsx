@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { AppIcon } from '@/components/ui/app-icon'
 import { GooglePlayBadge } from '@/components/landing/google-play-badge'
+import { CookieSettingsLink } from '@/components/marketing/cookie-settings-link'
 
 interface LandingFooterProps {
   appName: string
@@ -63,6 +64,9 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth, showStoreBadge = t
                 </li>
                 <li>
                   <Link href="/terms-of-service" className="inline-block py-1.5 transition-colors hover:text-white">Terms of Service</Link>
+                </li>
+                <li>
+                  <CookieSettingsLink className="inline-block py-1.5 transition-colors hover:text-white" />
                 </li>
                 <li>
                   <Link href="/demo/entry" className="inline-block py-1.5 transition-colors hover:text-white">See Demo</Link>

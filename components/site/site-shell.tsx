@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { SiteHeader, type SiteHeaderBranding } from './site-header'
 import { SiteFooter } from './site-footer'
+import { MarketingTags } from '@/components/marketing/marketing-tags'
 
 /**
  * Reusable dark-themed marketing/legal shell. Mirrors the landing page's
@@ -41,6 +42,7 @@ export function SiteShell({ branding, children }: SiteShellProps) {
       {/* 4rem header + the PWA status-bar inset SiteHeader absorbs */}
       <div className="pt-[calc(4rem_+_env(safe-area-inset-top,_0px))]">{children}</div>
       <SiteFooter branding={branding} />
+      <MarketingTags />
     </div>
   )
 }
