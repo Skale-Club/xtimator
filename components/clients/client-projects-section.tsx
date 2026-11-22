@@ -7,6 +7,7 @@ import { DataTable, type Column } from '@/components/ui/data-table'
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge'
 import { formatMoney } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
 export interface ClientProjectRow {
   id: string
@@ -15,6 +16,8 @@ export interface ClientProjectRow {
   status: string
   total?: number | null
   created_at: string
+  /** Client-side standing of the current estimate (lib/queries/estimate-list-status.ts). */
+  estimate_status?: EstimateListStatus | null
 }
 
 interface ClientProjectsSectionProps {
@@ -57,7 +60,7 @@ export function ClientProjectsSection({
     {
       key: 'status',
       header: t('Status'),
-      cell: (project) => <ProjectStatusBadge status={project.status} />,
+      cell: (project) => <ProjectStatusBadge status={project.status} estimate={project.estimate_status} />,
     },
     {
       key: 'total',
@@ -169,7 +172,7 @@ function ClientProjectCard({
           </p>
         </div>
         <div className="flex items-center justify-between gap-3">
-          <ProjectStatusBadge status={project.status} />
+          <ProjectStatusBadge status={project.status} estimate={project.estimate_status} />
           <span className="font-semibold">
             {formatMoney(project.total, currencyCode, {
               minimumFractionDigits: 0,

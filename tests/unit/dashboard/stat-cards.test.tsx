@@ -29,7 +29,7 @@ describe('StatCards', () => {
   it('renders 4 stat cards', () => {
     render(<StatCards stats={mockStats} />)
     expect(screen.getByText('Total Projects')).toBeDefined()
-    expect(screen.getByText('Pending Estimates')).toBeDefined()
+    expect(screen.getByText('Awaiting answer')).toBeDefined()
     expect(screen.getByText('Accepted')).toBeDefined()
     expect(screen.getByText('Total Revenue')).toBeDefined()
   })

@@ -25,7 +25,12 @@ function fakeClient(opts: { estimates: Row[]; changeOrders: Row[] }) {
       if (table === 'change_orders') changeOrderFilters.push([c, v])
       return chain
     }
-    chain.is = () => chain
+    // Root-column is() filters apply (e.g. client_response is null); relationship filters
+    // such as projects.archived_at are not modelled here.
+    chain.is = (c: string, v: unknown) => {
+      if (!c.includes('.')) predicates.push((r) => (r[c] ?? null) === v)
+      return chain
+    }
     chain.in = (c: string, v: unknown[]) => {
       predicates.push((r) => v.includes(r[c]))
       return chain

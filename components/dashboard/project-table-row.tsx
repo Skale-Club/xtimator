@@ -35,7 +35,7 @@ export function ProjectTableRow({ project }: ProjectTableRowProps) {
       </TableCell>
       <TableCell>{project.project_type ?? '\u2014'}</TableCell>
       <TableCell>
-        <StatusBadge status={project.status} />
+        <StatusBadge status={project.status} estimate={project.estimate_status} />
       </TableCell>
       <TableCell>
         {formatMoney(project.total, project.currency_code, {

@@ -20,6 +20,7 @@ import { EstimateAnalyticsButton } from '@/components/projects/estimate-list-sta
 import { AwaitingAnswerToggle } from '@/components/projects/awaiting-answer-filter'
 import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 import { ProjectThumb } from '@/components/projects/project-thumb'
+import { matchesStatusTab } from '@/lib/projects/estimate-state'
 
 export interface ProjectTableRow {
   id: string
@@ -414,7 +415,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
           statusTabs?.map((tab, index) => ({
             key: tab.value,
             label: t(tab.label),
-            match: index === 0 ? undefined : (project: TProject) => project.status === tab.value,
+            match: index === 0 ? undefined : (project: TProject) => matchesStatusTab(tab.value, project),
           }))
         }
         filterValue={viewTabs ? viewValue : undefined}

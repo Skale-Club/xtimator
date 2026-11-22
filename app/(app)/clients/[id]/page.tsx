@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getClientById, getClientProjects } from '@/lib/queries/clients'
+import { getEstimateListStatuses, withEstimateStatus } from '@/lib/queries/estimate-list-status'
 import { ClientHeader } from '@/components/clients/client-header'
 import { ClientInfoGrid } from '@/components/clients/client-info-grid'
 import { ClientProjectsSection } from '@/components/clients/client-projects-section'
@@ -30,7 +31,11 @@ export default async function ClientDetailPage({
   const client = await getClientById(supabase, id)
   if (!client) notFound()
 
-  const projects = await getClientProjects(supabase, id)
+  const [listedProjects, estimateStatuses] = await Promise.all([
+    getClientProjects(supabase, id),
+    getEstimateListStatuses(supabase, company.id),
+  ])
+  const projects = withEstimateStatus(listedProjects, estimateStatuses)
 
   const currencyCode = (company.currency_code as string) ?? 'USD'
   const totalValue = projects.reduce((sum, p) => sum + (p.total ?? 0), 0)

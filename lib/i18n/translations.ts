@@ -264,6 +264,9 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'System': 'Sistema',
     'Views, accepts, declines, expirations.':
       'Visualizações, aceitos, recusas, expirações.',
+    'Credits, trial and plan changes.': 'Créditos, teste e mudanças de plano.',
+    'Team members — coming soon': 'Membros da equipe — em breve',
+    'Inviting teammates is on the way.': 'Em breve você poderá convidar sua equipe.',
     'Payments received and refunded.': 'Pagamentos recebidos e reembolsados.',
     'Trial expiring, expired, converted.':
       'Período de teste expirando, expirado, convertido.',
@@ -766,6 +769,9 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'System': 'Sistema',
     'Views, accepts, declines, expirations.':
       'Vistas, aceptaciones, rechazos, expiraciones.',
+    'Credits, trial and plan changes.': 'Créditos, prueba y cambios de plan.',
+    'Team members — coming soon': 'Miembros del equipo — próximamente',
+    'Inviting teammates is on the way.': 'Pronto podrá invitar a su equipo.',
     'Payments received and refunded.': 'Pagos recibidos y reembolsados.',
     'Trial expiring, expired, converted.':
       'Período de prueba expirando, expirado, convertido.',

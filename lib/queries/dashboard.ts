@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
 export interface DashboardStats {
   totalProjects: number
@@ -22,6 +23,8 @@ export interface ProjectWithClient {
   /** Project thumbnail: 'auto' | 'photo' | 'upload' | 'none'; the key renders via storageProxyPath. */
   cover_mode?: string
   cover_thumb_path?: string | null
+  /** Client-side standing of the current estimate (lib/queries/estimate-list-status.ts). */
+  estimate_status?: EstimateListStatus | null
 }
 
 export async function getDashboardStats(
@@ -45,14 +48,16 @@ export async function getDashboardStats(
       .eq('company_id', companyId)
       .is('archived_at', null)
       .is('deleted_at', null),
-    // Pending estimates belong to active projects, matching the project count.
+    // "Awaiting answer": every current estimate on an active project the client has not
+    // answered yet (not opened or viewed). Not keyed on estimates.status: a viewed estimate
+    // is no longer 'draft'/'sent' and used to drop out of the count.
     // An inner join is required: filtering a left embed keeps hidden root rows.
     supabase
       .from('estimates')
       .select('id, projects!estimates_project_id_fkey!inner(id)', { count: 'exact', head: true })
       .eq('company_id', companyId)
       .eq('is_current', true)
-      .in('status', ['draft', 'sent'])
+      .is('client_response', null)
       .is('projects.archived_at', null)
       .is('projects.deleted_at', null),
     // Accepted estimates (current version, client accepted)

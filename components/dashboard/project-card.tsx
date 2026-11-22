@@ -49,7 +49,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           </p>
         </div>
         <div className="flex items-center justify-between">
-          <StatusBadge status={project.status} />
+          <StatusBadge status={project.status} estimate={project.estimate_status} />
           <span className="font-semibold">
             {formatMoney(project.total, project.currency_code, {
               minimumFractionDigits: 0,

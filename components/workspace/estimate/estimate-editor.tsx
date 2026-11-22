@@ -946,8 +946,8 @@ export function EstimateEditor({
 
   const handleSaveDraft = useCallback(async () => {
     const ok = await runSave()
-    if (ok) toast.success('Draft saved')
-  }, [runSave])
+    if (ok) toast.success(t('Saved'))
+  }, [runSave, t])
 
   const handleSend = useCallback(async () => {
     if (!isContentReadOnly && state.isDirty) await runSave()

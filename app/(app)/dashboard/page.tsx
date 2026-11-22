@@ -8,6 +8,7 @@ import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-cli
 import { ProjectList } from '@/components/dashboard/project-list'
 import { scheduleCoverBackfill } from '@/lib/projects/cover'
 import { getPausedCaptures, withPausedStatus } from '@/lib/queries/credit-pauses'
+import { getEstimateListStatuses, withEstimateStatus } from '@/lib/queries/estimate-list-status'
 import { ListCard } from '@/components/ui/list-page'
 import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
 import { DashboardWelcome } from '@/components/dashboard/dashboard-welcome'
@@ -78,7 +79,8 @@ async function DashboardStats({ companyId, currencyCode }: { companyId: string; 
 async function DashboardProjects({ companyId }: { companyId: string }) {
   const supabase = await createClient()
   const [listed, paused] = await Promise.all([getProjects(supabase, companyId), getPausedCaptures(companyId)])
-  const projects = withPausedStatus(listed, paused)
+  const estimateStatuses = await getEstimateListStatuses(supabase, companyId)
+  const projects = withEstimateStatus(withPausedStatus(listed, paused), estimateStatuses)
   // Automatic thumbnails are generated after the response, a few per visit.
   await scheduleCoverBackfill(companyId, listed)
   // Same glass card as the Projects, Clients and Price Book screens.

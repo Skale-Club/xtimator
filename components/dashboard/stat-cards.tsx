@@ -22,7 +22,7 @@ export function StatCards({ stats, currencyCode = DEFAULT_CURRENCY_CODE }: StatC
       />
       <StatCard
         icon={Clock}
-        label="Pending Estimates"
+        label="Awaiting answer"
         value={stats.pendingEstimates}
         index={1}
         tone="amber"

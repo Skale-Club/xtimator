@@ -9,12 +9,14 @@ import { T } from '@/components/i18n/t'
 
 // The status tabs live inside the table (one owner for every filter), so
 // "Clear filters" resets the tab together with the search.
-const STATUS_TABS = [
+// The tabs use the estimate vocabulary (XTM-D-20261121-no-draft-state) and filter by the
+// same derived state the status badge shows (lib/projects/estimate-state.ts).
+export const STATUS_TABS = [
   { value: 'all', label: 'All' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'estimate_ready', label: 'Estimate ready' },
-  { value: 'sent', label: 'Sent' },
-  { value: 'paid', label: 'Paid' },
+  { value: 'unopened', label: 'Not opened yet' },
+  { value: 'viewed', label: 'Viewed' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'declined', label: 'Declined' },
 ] as const
 
 interface ProjectListProps {

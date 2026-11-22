@@ -136,15 +136,17 @@ function createVisibilityFixture() {
     { id: 'other-company', company_id: 'company-2', archived_at: null, deleted_at: null },
   ]
   const estimates = [
-    { project_id: 'active-draft', company_id: 'company-1', is_current: true, status: 'draft' },
-    { project_id: 'active-sent', company_id: 'company-1', is_current: true, status: 'sent' },
-    { project_id: 'archived', company_id: 'company-1', is_current: true, status: 'draft' },
-    { project_id: 'trashed', company_id: 'company-1', is_current: true, status: 'sent' },
-    { project_id: 'both', company_id: 'company-1', is_current: true, status: 'draft' },
-    { project_id: 'missing', company_id: 'company-1', is_current: true, status: 'draft' },
-    { project_id: 'active-draft', company_id: 'company-1', is_current: false, status: 'draft' },
-    { project_id: 'active-draft', company_id: 'company-1', is_current: true, status: 'viewed' },
-    { project_id: 'other-company', company_id: 'company-2', is_current: true, status: 'draft' },
+    { project_id: 'active-draft', company_id: 'company-1', is_current: true, status: 'draft', client_response: null },
+    // A viewed estimate is still awaiting an answer (it used to drop out of the count).
+    { project_id: 'active-sent', company_id: 'company-1', is_current: true, status: 'viewed', client_response: null },
+    { project_id: 'archived', company_id: 'company-1', is_current: true, status: 'draft', client_response: null },
+    { project_id: 'trashed', company_id: 'company-1', is_current: true, status: 'sent', client_response: null },
+    { project_id: 'both', company_id: 'company-1', is_current: true, status: 'draft', client_response: null },
+    { project_id: 'missing', company_id: 'company-1', is_current: true, status: 'draft', client_response: null },
+    { project_id: 'active-draft', company_id: 'company-1', is_current: false, status: 'draft', client_response: null },
+    // Answered by the client: never awaiting an answer.
+    { project_id: 'active-draft', company_id: 'company-1', is_current: true, status: 'declined', client_response: 'declined' },
+    { project_id: 'other-company', company_id: 'company-2', is_current: true, status: 'draft', client_response: null },
     // Revenue/accepted behavior remains historical, independent of visibility.
     { project_id: 'archived', company_id: 'company-1', is_current: true, status: 'accepted', client_response: 'accepted', total: 500 },
   ]
@@ -187,7 +189,7 @@ function createVisibilityFixture() {
 }
 
 describe('pending estimate project visibility', () => {
-  it('counts only current draft/sent estimates for visible projects of this company', async () => {
+  it('counts every current unanswered estimate (not opened or viewed) for visible projects of this company', async () => {
     const { supabase } = createVisibilityFixture()
     const stats = await getDashboardStats(supabase, 'company-1')
     expect(stats.pendingEstimates).toBe(2)

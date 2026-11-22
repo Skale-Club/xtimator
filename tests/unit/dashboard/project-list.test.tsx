@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ProjectList } from '@/components/dashboard/project-list'
 import type { ProjectWithClient } from '@/lib/queries/dashboard'
+import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
 // Mock next/link
 vi.mock('next/link', () => ({
@@ -43,10 +44,17 @@ function makeProject(overrides: Partial<ProjectWithClient> = {}): ProjectWithCli
   }
 }
 
+function est(state: 'unopened' | 'viewed' | 'accepted' | 'declined'): EstimateListStatus {
+  return {
+    estimateId: null, state, views: state === 'unopened' ? 0 : 1, lastViewedAt: null, respondedAt: null,
+    hot: false, hotReasons: [], lastActivityAt: null, openedNoAnswer: state === 'viewed', signStarted: false,
+  }
+}
+
 const sampleProjects: ProjectWithClient[] = [
-  makeProject({ id: '1', name: 'Kitchen Remodel', status: 'draft', client: { id: 'c1', name: 'John Smith' } }),
-  makeProject({ id: '2', name: 'Bathroom Tile', status: 'sent', client: { id: 'c2', name: 'Jane Doe' } }),
-  makeProject({ id: '3', name: 'Deck Build', status: 'estimate_ready', client: { id: 'c3', name: 'Bob Jones' } }),
+  makeProject({ id: '1', name: 'Kitchen Remodel', status: 'draft', client: { id: 'c1', name: 'John Smith' }, estimate_status: est('unopened') }),
+  makeProject({ id: '2', name: 'Bathroom Tile', status: 'sent', client: { id: 'c2', name: 'Jane Doe' }, estimate_status: est('viewed') }),
+  makeProject({ id: '3', name: 'Deck Build', status: 'estimate_ready', client: { id: 'c3', name: 'Bob Jones' }, estimate_status: est('accepted') }),
 ]
 
 describe('ProjectList', () => {
@@ -85,10 +93,10 @@ describe('ProjectList', () => {
 
   it('status filter shows only matching projects', () => {
     render(<ProjectList projects={sampleProjects} />)
-    const estimateReadyFilterTab = screen.getByRole('tab', { name: 'Estimate ready' })
+    const estimateReadyFilterTab = screen.getByRole('tab', { name: 'Accepted' })
     fireEvent.click(estimateReadyFilterTab)
 
-    // Deck Build is estimate_ready
+    // Deck Build is accepted
     expect(screen.getAllByText('Deck Build').length).toBeGreaterThanOrEqual(1)
     // Others should be filtered out
     expect(screen.queryAllByText('Kitchen Remodel').length).toBe(0)
