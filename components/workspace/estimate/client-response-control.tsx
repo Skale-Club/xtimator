@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { SignatureDetailsSheet } from './signature-details-sheet'
 
 export type ClientResponseValue = 'accepted' | 'declined' | null
 
@@ -30,6 +31,8 @@ interface ClientResponseControlProps {
   respondedAt: string | null
   /** A signature row exists: the answer came from the public page and is final. */
   signedOnline: boolean
+  /** Version shown; when set, the "Signed online" label opens the signature details. */
+  estimateId?: string
   /** Unsaved edits / save in flight: marking would lock content mid-save. */
   disabled?: boolean
   onRecord: (response: ClientResponseValue) => Promise<void>
@@ -53,6 +56,7 @@ export function ClientResponseControl({
   clientResponse,
   respondedAt,
   signedOnline,
+  estimateId,
   disabled,
   onRecord,
   alwaysShowLabel = false,
@@ -60,18 +64,36 @@ export function ClientResponseControl({
   const { t } = useTranslation()
   const [pending, setPending] = useState<ClientResponseValue | 'clear' | null>(null)
   const [busy, setBusy] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const answered = clientResponse === 'accepted' || clientResponse === 'declined'
   const date = shortDate(respondedAt)
   const stateLabel = clientResponse === 'accepted' ? t('Accepted') : clientResponse === 'declined' ? t('Declined') : null
 
   if (signedOnline) {
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground">
+    const label = (
+      <>
         <CheckCircle2 className="h-3.5 w-3.5" />
         {t('Signed online')}
         {date ? ` · ${date}` : ''}
-      </span>
+      </>
+    )
+    if (!estimateId) {
+      return <span className="inline-flex shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground">{label}</span>
+    }
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setDetailsOpen(true)}
+          title={t('View signature details')}
+          aria-label={`${t('Signed online')}${date ? ` · ${date}` : ''}. ${t('Signature details')}`}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted-foreground underline-offset-2 transition-colors hover:bg-muted hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {label}
+        </button>
+        <SignatureDetailsSheet estimateId={estimateId} open={detailsOpen} onOpenChange={setDetailsOpen} />
+      </>
     )
   }
 

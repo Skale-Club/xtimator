@@ -25,12 +25,13 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEstimateWithContext, type EstimateWithSections } from '@/lib/queries/estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
+import { loadLatestSignedSnapshot, loadSignatureEvidence } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { serverStorage } from '@/lib/storage/server'
 import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
 import { resolvePdfPhotos } from '@/lib/pdf/resolve-pdf-photos'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
+import type { SignatureEvidence } from '@/lib/estimate/signature-evidence'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { isSupportedLanguage, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -69,6 +70,9 @@ export interface EstimatePdfContext {
    *  image), threaded from the widened loadLatestSignedSnapshot query.
    *  null = unsigned estimate: renderers must show NO signature block. */
   signature: DocumentSignature | null
+  /** Evidence behind the signature (IP, device, fingerprint) for the certificate page.
+   *  null = unsigned, or signed before evidence existed: no certificate page. */
+  signatureEvidence: SignatureEvidence | null
   project: EstimateContextResult['project']
   /** NonNullable: the `if (!result || !result.company) return null` guard in
    * resolveEstimatePdfContext already makes this sound at runtime, but that
@@ -119,6 +123,16 @@ export async function resolveEstimatePdfContext(
           signatureDataUrl: signedSnapshotRow.signature_data,
         }
       : null
+  // Certificate page: loaded only when a signature row exists, from the same service
+  // client. A failed read degrades to "no certificate page", never to a failed PDF.
+  let signatureEvidence: SignatureEvidence | null = null
+  if (signedSnapshotRow) {
+    try {
+      signatureEvidence = await loadSignatureEvidence(signatureServiceClient, liveEstimate.id)
+    } catch {
+      signatureEvidence = null
+    }
+  }
 
   const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
   const templateId: EstimateTemplateId = isEstimateTemplateId(rawTemplateId)
@@ -139,6 +153,7 @@ export async function resolveEstimatePdfContext(
     contentKey,
     estimate,
     signature,
+    signatureEvidence,
     project,
     company,
     projectName: project?.name ?? 'Untitled Project',
@@ -159,7 +174,7 @@ export async function renderEstimatePdf(
 ): Promise<RenderEstimatePdfResult | null> {
   const context = opts?.context ?? (await resolveEstimatePdfContext(estimateId, supabase))
   if (!context) return null
-  const { estimate, signature, company, project, templateId, estimateLanguage, contentKey, projectName } = context
+  const { estimate, signature, signatureEvidence, company, project, templateId, estimateLanguage, contentKey, projectName } = context
 
   const clientRaw = project?.client
   const client = Array.isArray(clientRaw) ? (clientRaw[0] ?? null) : (clientRaw ?? null)
@@ -315,6 +330,7 @@ export async function renderEstimatePdf(
         preparedBy,
         attachedPhotos,
         signature,
+        signatureEvidence,
         pages,
       })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

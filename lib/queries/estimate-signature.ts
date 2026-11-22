@@ -1,5 +1,11 @@
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { SignedContentSnapshot } from '@/lib/estimate/signed-snapshot'
+import {
+  buildSignatureEvidence,
+  SIGNATURE_EVIDENCE_COLUMNS,
+  type SignatureEvidence,
+  type SignatureEvidenceRow,
+} from '@/lib/estimate/signature-evidence'
 
 /**
  * PDFPAR-02 (v4.23) — the ONE shared "latest signature" query, extracted out
@@ -52,4 +58,27 @@ export async function loadLatestSignedSnapshot(
     .maybeSingle()
 
   return (data as LatestSignedSnapshotRow | null) ?? null
+}
+
+/**
+ * The evidence of the latest signature (signer email, IP, device, stored hash),
+ * verified against the stored snapshot. Deliberately separate from
+ * loadLatestSignedSnapshot: that one feeds the PUBLIC share payload, which must
+ * never carry the signer's IP or email. Callers: the owner's editor (read-only
+ * action) and the PDF certificate page.
+ */
+export async function loadSignatureEvidence(
+  supabase: ReturnType<typeof requireServiceClient>,
+  estimateId: string
+): Promise<SignatureEvidence | null> {
+  const { data } = await supabase
+    .from('estimate_signatures')
+    .select(SIGNATURE_EVIDENCE_COLUMNS)
+    .eq('estimate_id', estimateId)
+    .order('signed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data) return null
+  return buildSignatureEvidence(data as unknown as SignatureEvidenceRow)
 }

@@ -972,6 +972,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'updateNotifications',
     'updateProfile',
   ]),
+  ...excepted('lib/actions/signature-evidence.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getSignatureEvidence',
+  ]),
   ...guarded('lib/actions/team.ts', 'assertWritable', [
     'changeMemberRole',
     'inviteMember',
