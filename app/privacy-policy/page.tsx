@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getLegalPage } from '@/lib/queries/legal-pages'
 import { getBranding } from '@/lib/platform-config'
@@ -11,7 +10,7 @@ export const revalidate = 3600
 export async function generateMetadata(): Promise<Metadata> {
   const page = await getLegalPage('privacy_policy')
   return {
-    title: page?.title ?? 'Privacy Policy',
+    title: page.title,
     description: 'How we collect, use, and protect your information.',
   }
 }
@@ -21,7 +20,6 @@ export default async function PrivacyPolicyPage() {
     getLegalPage('privacy_policy'),
     getBranding(),
   ])
-  if (!page) notFound()
 
   return (
     <SiteShell branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}>

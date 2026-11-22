@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getLegalPage } from '@/lib/queries/legal-pages'
 import { getBranding } from '@/lib/platform-config'
@@ -11,7 +10,7 @@ export const revalidate = 3600
 export async function generateMetadata(): Promise<Metadata> {
   const page = await getLegalPage('terms_of_service')
   return {
-    title: page?.title ?? 'Terms of Service',
+    title: page.title,
     description: 'The terms governing your use of Xtimator.',
   }
 }
@@ -21,7 +20,6 @@ export default async function TermsOfServicePage() {
     getLegalPage('terms_of_service'),
     getBranding(),
   ])
-  if (!page) notFound()
 
   return (
     <SiteShell branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}>
