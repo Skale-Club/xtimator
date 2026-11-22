@@ -26,6 +26,8 @@ import { View, Text } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
 import type { DocumentItem } from '@/lib/estimate/document/model'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { displayUnit } from '@/lib/estimate/document/units'
 
 export interface PdfSectionBlockStyles {
   sectionHeader: Style
@@ -158,13 +160,15 @@ export interface PdfSectionRowsProps {
    * FULL item list. Pass 0 for a section's own first (or only) page. */
   startIndex: number
   fmt: (v: number) => string
+  /** Estimate language: translates the unit column. */
+  lang?: EstimateLanguage | null
   styles: Pick<
     PdfSectionBlockStyles,
     'tableRow' | 'tableRowAlt' | 'colDescription' | 'colQty' | 'colUnit' | 'colUnitPrice' | 'colTotal' | 'tableCellText'
   >
 }
 
-export function PdfSectionRows({ sectionId, items, startIndex, fmt, styles }: PdfSectionRowsProps) {
+export function PdfSectionRows({ sectionId, items, startIndex, fmt, styles, lang }: PdfSectionRowsProps) {
   return (
     <Fragment key={`${sectionId}-rows`}>
       {items.map((item, idx) => (
@@ -179,7 +183,7 @@ export function PdfSectionRows({ sectionId, items, startIndex, fmt, styles }: Pd
             {item.quantity}
           </Text>
           <Text style={[styles.tableCellText, styles.colUnit]}>
-            {item.unit ?? ''}
+            {displayUnit(item.unit, lang, item.quantity)}
           </Text>
           <Text style={[styles.tableCellText, styles.colUnitPrice]}>
             {fmt(item.unit_price)}

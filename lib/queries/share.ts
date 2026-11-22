@@ -680,7 +680,7 @@ export interface ShareLockBranding {
 
 export type ShareLockCheck =
   | { status: 'missing' }
-  | { status: 'expired' }
+  | { status: 'expired'; language: 'en' | 'pt' | 'es' }
   | {
       status: 'ok'
       /** The estimate's REAL share_token — the unlock cookie binds to THIS
@@ -719,7 +719,8 @@ async function loadShareLockBranding(
 
 async function resolveShareLockCheck(row: LockRow | null): Promise<ShareLockCheck> {
   if (!row) return { status: 'missing' }
-  if (isShareLinkExpired(row.share_expires_at)) return { status: 'expired' }
+  const language = (row.language as 'en' | 'pt' | 'es' | null) ?? 'en'
+  if (isShareLinkExpired(row.share_expires_at)) return { status: 'expired', language }
 
   const supabase = requireServiceClient()
   const branding = row.share_password_hash
@@ -731,7 +732,7 @@ async function resolveShareLockCheck(row: LockRow | null): Promise<ShareLockChec
     shareToken: row.share_token,
     passwordHash: row.share_password_hash,
     branding,
-    language: (row.language as 'en' | 'pt' | 'es' | null) ?? 'en',
+    language,
   }
 }
 

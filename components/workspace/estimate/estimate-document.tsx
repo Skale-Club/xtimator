@@ -78,6 +78,7 @@ import type {
   EstimateDocumentData,
 } from '@/lib/estimate/document/model'
 import { ItemSummaryRow } from './item-card-mobile'
+import { displayUnit } from '@/lib/estimate/document/units'
 import { ItemEditorSheet } from './item-editor-sheet'
 import { PriceBookCombobox } from './price-book-combobox'
 import type { EditorItem, EstimateAction } from './use-estimate-reducer'
@@ -660,12 +661,14 @@ function SortableItemSummaryRow({
   onOpen,
   showTaxState,
   onConfirmPrice,
+  lang,
 }: {
   item: DocumentItem
   currencyCode: string
   onOpen: () => void
   showTaxState?: boolean
   onConfirmPrice: () => void
+  lang: EstimateLanguage
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
@@ -685,6 +688,7 @@ function SortableItemSummaryRow({
       showTaxState={showTaxState}
       reviewMarks
       onConfirmPrice={onConfirmPrice}
+      lang={lang}
       dragProps={{ ...attributes, ...listeners }}
       sortableRef={setNodeRef}
       style={style}
@@ -922,6 +926,7 @@ function DocumentSectionBlock({
                   currencyCode={currencyCode}
                   onOpen={() => onOpenItem?.(section.id, item.id)}
                   showTaxState={showTaxCol}
+                  lang={lang}
                   onConfirmPrice={() =>
                     dispatch({ type: 'CONFIRM_ITEM_PRICE', sectionId: section.id, itemId: item.id })
                   }
@@ -939,7 +944,7 @@ function DocumentSectionBlock({
               <p className="text-base font-medium">{item.description}</p>
               <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
                 <span>
-                  {item.quantity} {item.unit ? item.unit : ''} ×{' '}
+                  {item.quantity} {displayUnit(item.unit, lang, item.quantity)} ×{' '}
                   {formatMoney(item.unit_price, currencyCode)}
                 </span>
                 <span className="font-semibold text-foreground tabular-nums">
@@ -1033,7 +1038,7 @@ function DocumentSectionBlock({
                 >
                   <td className="py-2 pl-6 sm:pl-10 pr-2 text-base">{item.description}</td>
                   <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>
-                  <td className="py-2 px-2 text-base text-center">{item.unit ?? ''}</td>
+                  <td className="py-2 px-2 text-base text-center">{displayUnit(item.unit, lang, item.quantity)}</td>
                   <td className="py-2 px-2 text-base text-right tabular-nums whitespace-nowrap">
                     {formatMoney(item.unit_price, currencyCode)}
                   </td>
@@ -2229,7 +2234,7 @@ export function EstimateDocument({
           )}
           {isEditable && dispatch ? (
             <div className="mt-2 flex items-center text-base text-muted-foreground">
-              <span className="shrink-0 select-none">{L.estimateNum}</span>
+              <span className="shrink-0 select-none whitespace-pre">{L.estimateNum}</span>
               <input
                 value={data.estimate_number ?? defaultEstimateNumber}
                 onChange={(e) =>

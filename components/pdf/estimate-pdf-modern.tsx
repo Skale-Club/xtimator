@@ -609,6 +609,7 @@ export default function EstimatePDFModern({
               items: group.items,
               startIndex: group.startIndex,
               fmt,
+              lang: language,
               styles: {
                 tableRow: styles.tableRow,
                 tableRowAlt: styles.tableRowAlt,

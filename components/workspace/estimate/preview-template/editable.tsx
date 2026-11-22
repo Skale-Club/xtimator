@@ -35,6 +35,7 @@ import { PriceBookCombobox } from '../price-book-combobox'
 import type { DocumentItem } from '@/lib/estimate/document/model'
 import { getCurrencySymbol } from '@/lib/money/currency'
 import type { PriceBookItem } from '@/lib/queries/price-book'
+import { displayUnit } from '@/lib/estimate/document/units'
 import type { RenderCtx, ResolvedTermsCard } from './types'
 
 // Hover/focus affordance for a value that can be clicked into. `outline` (not
@@ -386,12 +387,12 @@ export function EditableDescription({
 
 export function EditableUnit({ ctx, sectionId, item }: { ctx: RenderCtx; sectionId: string; item: DocumentItem }) {
   const edit = ctx.edit
-  if (!edit) return <>{item.unit ?? ''}</>
+  if (!edit) return <>{displayUnit(item.unit, ctx.lang, item.quantity)}</>
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <span role="button" tabIndex={0} aria-label={ctx.L.unit} className={`${OUTLINE_HINT} ${CELL_TARGET} cursor-pointer`}>
-          {item.unit || <span className="opacity-40">—</span>}
+          {item.unit ? displayUnit(item.unit, ctx.lang, item.quantity) : <span className="opacity-40">—</span>}
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center" className="max-h-72 overflow-y-auto">
@@ -1123,7 +1124,7 @@ export function EditableEstimateNumber({ ctx }: { ctx: RenderCtx }) {
     <EditableText
       ctx={ctx}
       value={ctx.data.estimate_number ?? ctx.defaultEstimateNumber}
-      ariaLabel={ctx.L.estimateNum}
+      ariaLabel={ctx.L.estimateNum.trim()}
       onCommit={(v) =>
         ctx.edit?.dispatch({ type: 'UPDATE_FIELD', field: 'estimate_number', value: v.trim() || null })
       }

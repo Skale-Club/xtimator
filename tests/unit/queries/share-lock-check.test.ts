@@ -51,7 +51,7 @@ describe('getShareLockCheck', () => {
     expect(await getShareLockCheck('nope')).toEqual({ status: 'missing' })
   })
 
-  it('returns { status: "expired" } for a past share_expires_at', async () => {
+  it('returns { status: "expired", language } for a past share_expires_at', async () => {
     installMock({
       share_token: 'tok-1',
       company_id: 'co-1',
@@ -59,7 +59,7 @@ describe('getShareLockCheck', () => {
       share_expires_at: '2000-01-01T00:00:00.000Z',
       language: 'en',
     })
-    expect(await getShareLockCheck('tok-1')).toEqual({ status: 'expired' })
+    expect(await getShareLockCheck('tok-1')).toEqual({ status: 'expired', language: 'en' })
   })
 
   it('an OPEN link (no password) never queries companies -- branding stays empty', async () => {

@@ -56,7 +56,7 @@ export function EstimateUnlockForm({
         // estimate normally instead of returning this form.
         router.refresh()
       } else {
-        setError(result.error ?? t('Incorrect password. Please try again.'))
+        setError(t(result.error ?? 'Incorrect password. Please try again.'))
         setSubmitting(false)
       }
     } catch {

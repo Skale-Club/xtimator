@@ -12,6 +12,7 @@ import { logEstimateView } from '@/app/estimate/[token]/actions'
 import { loadPublicContract } from '@/app/estimate/[token]/contract-links'
 import { EstimateView } from '@/components/share/estimate-view'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
+import { ExpiredLinkNotice } from '@/components/share/expired-link-notice'
 import { EstimateUnlockForm } from '@/components/share/estimate-unlock-form'
 import { getBranding } from '@/lib/platform-config'
 import { hexToHslTriplet } from '@/lib/color'
@@ -72,13 +73,7 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
   if (lock.status === 'missing') notFound()
   if (lock.status === 'expired') {
     return (
-      <main className="mx-4 mt-16 max-w-lg rounded-xl bg-white px-6 py-10 text-center shadow-lg sm:mx-auto sm:mt-24">
-        <h1 className="text-2xl font-semibold tracking-tight">This estimate link has expired</h1>
-        <p className="mt-3 text-muted-foreground">
-          For your security, estimate links expire after a period of inactivity. Please ask the
-          sender to re-send the estimate — that will give you a fresh, working link.
-        </p>
-      </main>
+      <ExpiredLinkNotice language={lock.language} />
     )
   }
 
@@ -107,13 +102,7 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
     const linkState = await getShareLinkStateByPublicToken(parsed.shortToken)
     if (linkState === 'expired') {
       return (
-        <main className="mx-4 mt-16 max-w-lg rounded-xl bg-white px-6 py-10 text-center shadow-lg sm:mx-auto sm:mt-24">
-          <h1 className="text-2xl font-semibold tracking-tight">This estimate link has expired</h1>
-          <p className="mt-3 text-muted-foreground">
-            For your security, estimate links expire after a period of inactivity. Please ask the
-            sender to re-send the estimate — that will give you a fresh, working link.
-          </p>
-        </main>
+        <ExpiredLinkNotice language={lock.language} />
       )
     }
     notFound()

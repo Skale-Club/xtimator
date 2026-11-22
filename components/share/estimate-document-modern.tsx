@@ -43,6 +43,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
+import { displayUnit } from '@/lib/estimate/document/units'
 import { formatAddress, formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
 
 // tokens.ts MODERN_COLORS, spelled out so Tailwind generates the classes.
@@ -55,9 +56,15 @@ const EYEBROW = `text-xs font-semibold uppercase tracking-widest ${LABEL} select
 /** "2 hr × $85.00" — the same line the editor's mobile read list shows
  *  (item-card-mobile.tsx formatItemQuantityLine; restated here because that
  *  module is a client component and this one renders on the server). */
-function quantityLine(quantity: number, unit: string | null, unitPrice: string): string {
+function quantityLine(
+  quantity: number,
+  unit: string | null,
+  unitPrice: string,
+  lang: EstimateLanguage,
+): string {
   const qty = Number.isInteger(quantity) ? String(quantity) : String(Number(quantity.toFixed(4)))
-  return `${qty}${unit ? ` ${unit}` : ''} × ${unitPrice}`
+  const shown = displayUnit(unit, lang, quantity)
+  return `${qty}${shown ? ` ${shown}` : ''} × ${unitPrice}`
 }
 
 // ---------------------------------------------------------------------------
@@ -328,7 +335,7 @@ export function EstimateDocumentModern({
                     {formatMoney(item.total, data.currency_code)}
                   </span>
                   <span className={`text-sm ${SECONDARY} tabular-nums`}>
-                    {quantityLine(item.quantity, item.unit, formatMoney(item.unit_price, data.currency_code))}
+                    {quantityLine(item.quantity, item.unit, formatMoney(item.unit_price, data.currency_code), lang)}
                   </span>
                 </div>
               ))}
@@ -351,7 +358,7 @@ export function EstimateDocumentModern({
                     <tr key={item.id} data-track-section={`item:${item.id}`} className={`border-b last:border-0 ${INK}`} style={{ borderBottomColor: RULE }}>
                       <td className="py-3 px-0 text-base">{item.description}</td>
                       <td className="py-3 px-2 text-base text-center tabular-nums">{item.quantity}</td>
-                      <td className={`py-3 px-2 text-base text-center ${SECONDARY}`}>{item.unit ?? ''}</td>
+                      <td className={`py-3 px-2 text-base text-center ${SECONDARY}`}>{displayUnit(item.unit, lang, item.quantity)}</td>
                       <td className="py-3 px-2 text-base text-right tabular-nums">
                         {formatMoney(item.unit_price, data.currency_code)}
                       </td>

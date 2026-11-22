@@ -4,6 +4,8 @@ import type { CSSProperties, JSX } from 'react'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 import type { DocumentItem } from '@/lib/estimate/document/model'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { displayUnit } from '@/lib/estimate/document/units'
 import { isUnpriced, needsPriceCheck } from '@/lib/estimate/review-state'
 import { AiPriceMark, RowReviewBar, UnpricedSlot } from './row-review-marks'
 
@@ -30,11 +32,16 @@ export const DEFAULT_UNIT_OPTIONS = [
 ]
 
 /** "1 visit × $180.00" — the same quantity line the read-only card shows. */
-export function formatItemQuantityLine(item: DocumentItem, currencyCode: string): string {
+export function formatItemQuantityLine(
+  item: DocumentItem,
+  currencyCode: string,
+  lang?: EstimateLanguage | null,
+): string {
   const qty = Number.isInteger(item.quantity)
     ? String(item.quantity)
     : String(Number(item.quantity.toFixed(4)))
-  const unit = item.unit ? ` ${item.unit}` : ''
+  const shown = displayUnit(item.unit, lang, item.quantity)
+  const unit = shown ? ` ${shown}` : ''
   return `${qty}${unit} × ${formatMoney(item.unit_price, currencyCode)}`
 }
 
@@ -55,6 +62,8 @@ interface ItemSummaryRowProps {
   reviewMarks?: boolean
   /** Confirm the AI price as it is (the sparkle's drawer). Without it no sparkle shows. */
   onConfirmPrice?: () => void
+  /** Estimate language: translates the unit in the quantity line. */
+  lang?: EstimateLanguage | null
 }
 
 export function ItemSummaryRow({
@@ -67,6 +76,7 @@ export function ItemSummaryRow({
   style,
   reviewMarks = false,
   onConfirmPrice,
+  lang,
 }: ItemSummaryRowProps): JSX.Element {
   const { t } = useTranslation()
   const hasDiscount = (item.discount ?? 0) !== 0
@@ -90,7 +100,7 @@ export function ItemSummaryRow({
   )
   const metaEl = (
     <span className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground tabular-nums">
-      <span>{formatItemQuantityLine(item, currencyCode)}</span>
+      <span>{formatItemQuantityLine(item, currencyCode, lang)}</span>
       {notTaxed && (
         <span className="rounded-full bg-muted px-1.5 py-px text-[11px] font-medium text-muted-foreground">
           {t('No tax')}

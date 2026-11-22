@@ -119,7 +119,7 @@ describe.each(['classic', 'modern'] as const)('info-grid measurement — %s', (t
     if (dated) {
       const [es] = gridBlock(templateId, infoGrid({ language: 'es' }), 'es').columns!
       expect(es.measurements[1].text).toBe('Fecha: 28 de septiembre de 2026')
-      expect(es.measurements[2].text).toBe('Presupuesto Nº0001')
+      expect(es.measurements[2].text).toBe('Presupuesto Nº 0001')
     }
   })
 
