@@ -22,10 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { formatUSD } from '@/lib/utils/format'
 import { removeMember, changeMemberRole, revokeInvite } from '@/lib/actions/team'
 import type { RosterMember, RosterInvite } from '@/lib/queries/team'
-import type { SeatCostSummary } from '@/lib/billing/seat-cost-summary'
 import { SettingsCard, SettingsStack } from '@/components/settings/settings-ui'
 
 type ManageableRole = 'admin' | 'member'
@@ -37,10 +35,9 @@ interface Props {
   members: RosterMember[]
   invites: RosterInvite[]
   canManage: boolean
-  seatCost: SeatCostSummary | null
 }
 
-export function TeamSection({ companyId, currentUserId, members: initialMembers, invites: initialInvites, canManage, seatCost }: Props) {
+export function TeamSection({ companyId, currentUserId, members: initialMembers, invites: initialInvites, canManage }: Props) {
   const { t } = useTranslation()
   const [members, setMembers] = useState(initialMembers)
   const [invites, setInvites] = useState(initialInvites)
@@ -82,49 +79,20 @@ export function TeamSection({ companyId, currentUserId, members: initialMembers,
     })
   }
 
-  const seatWord = (n: number) => (n === 1 ? t('seat') : t('seats'))
-
   return (
     <SettingsStack>
 
-      {/* Seat-cost summary (SEAT-08) — owner/admin only; null means do not show.
-          Every figure comes from the seatCost prop via formatUSD — no hardcoded
-          dollar amount or seat number in the copy. */}
-      {seatCost && (
-        <SettingsCard title={t('Seats')} bodyClassName="space-y-2">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">
-                {seatCost.activeSeats} {seatWord(seatCost.activeSeats)} · {seatCost.includedSeats} {t('included')} ·{' '}
-                {seatCost.billableSeats} {t('billable')}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {t('Per seat')}: {formatUSD(seatCost.perSeatCents)}
-              </p>
-            </div>
-            <div className="sm:text-right">
-              <p className="text-xs text-muted-foreground">
-                {t('Estimated monthly seat cost')}
-              </p>
-              <p className="text-base font-semibold">{formatUSD(seatCost.monthlyCents)}</p>
-            </div>
-          </div>
-          {!seatCost.enforcementEnabled && (
-            <p className="text-xs text-muted-foreground">
-              {t('Seat billing is not active yet. This is an estimate.')}
-            </p>
-          )}
-        </SettingsCard>
-      )}
+      {/* Owner 2026-11-21: seats and invites are not live yet (no seat billing,
+          no invite flow). One plain card instead of cost lines and a disabled form. */}
+      <SettingsCard title={t('Team members — coming soon')} bodyClassName="space-y-1">
+        <p className="text-sm text-muted-foreground" data-testid="team-coming-soon">
+          {t('Inviting teammates is on the way.')}
+        </p>
+      </SettingsCard>
 
       {/* Members */}
       <SettingsCard
         title={t('Members')}
-        description={
-          canManage
-            ? t('Inviting teammates is not available yet. You can still manage the people already here.')
-            : undefined
-        }
         bodyClassName="p-0 sm:p-0"
       >
       {members.length === 0 ? (

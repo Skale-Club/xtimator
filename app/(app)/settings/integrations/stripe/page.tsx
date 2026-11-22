@@ -47,6 +47,9 @@ export default async function StripeIntegrationPage({
     .single()
   if (!company) redirect('/onboarding')
   if (isDemoCompany(company.id)) redirect('/settings/company')
+  // Connect is closed at launch: a company that never connected has nothing to
+  // see here (the card is hidden too); linked companies keep status + Disconnect.
+  if (!isConnectOnboardingOpen() && !company.stripe_account_id) redirect('/settings/integrations')
 
   const clientId = await getIntegrationKey('stripe_connect_client_id')
 

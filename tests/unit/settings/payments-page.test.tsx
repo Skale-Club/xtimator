@@ -91,7 +91,7 @@ describe('/settings/payments page', () => {
     expect(html).not.toContain('Disconnect')
   })
 
-  it('shows the not-enabled state instead of the Connect CTA while onboarding is closed', async () => {
+  it('redirects a never-connected company to Integrations while onboarding is closed', async () => {
     connectOpen.value = false
     try {
       vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
@@ -105,13 +105,30 @@ describe('/settings/payments page', () => {
         })
       )
 
-      const ui = await PaymentsSettingsPage({
-        searchParams: Promise.resolve({}),
-      })
+      await expect(
+        PaymentsSettingsPage({ searchParams: Promise.resolve({}) })
+      ).rejects.toThrow('REDIRECT:/settings/integrations')
+    } finally {
+      connectOpen.value = true
+    }
+  })
+
+  it('still shows a connected company its status while onboarding is closed', async () => {
+    connectOpen.value = false
+    try {
+      vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
+      vi.mocked(requireServiceClient).mockReturnValue(
+        mockSupabase({
+          id: 'company_1',
+          stripe_account_id: 'acct_abc',
+          stripe_connect_status: 'active',
+          stripe_account_email: 'owner@biz.com',
+          stripe_account_display_name: 'Demo Biz LLC',
+        })
+      )
+      const ui = await PaymentsSettingsPage({ searchParams: Promise.resolve({}) })
       const { container } = render(ui)
-      const html = container.innerHTML
-      expect(html).not.toContain('/api/stripe/connect/initiate')
-      expect(html).toContain('not yet enabled')
+      expect(container.innerHTML).toContain('Disconnect')
     } finally {
       connectOpen.value = true
     }

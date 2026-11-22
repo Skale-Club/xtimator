@@ -1,4 +1,5 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { CUSTOM_DOMAIN_ENABLED } from '@/lib/billing/plan-bullets'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCustomDomainSettings } from '@/lib/queries/company'
@@ -10,6 +11,8 @@ import { SettingsHeader } from '@/components/settings/settings-ui'
 export const metadata = { title: 'Custom Domain' }
 
 export default async function CustomDomainPage() {
+  // Hidden at launch (owner decision 2026-11-21); flip CUSTOM_DOMAIN_ENABLED to bring it back.
+  if (!CUSTOM_DOMAIN_ENABLED) notFound()
   const claims = await getAuthClaims()
   if (!claims) redirect('/?auth=login')
 

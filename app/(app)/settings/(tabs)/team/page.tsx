@@ -4,7 +4,6 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyRole, type CompanyRole } from '@/lib/auth/require-company-role'
 import { isDemoCompany } from '@/lib/demo/config'
 import { listCompanyRoster } from '@/lib/queries/team'
-import { buildSeatCostSummary, type SeatCostSummary } from '@/lib/billing/seat-cost-summary'
 import { TeamSection } from '@/components/settings/team-section'
 import { createClient } from '@/lib/supabase/server'
 import { T } from '@/components/i18n/t'
@@ -43,10 +42,6 @@ export default async function TeamTabPage() {
     )
   }
 
-  // Seat-cost summary (SEAT-08) — owner/admin only. Computed server-side from
-  // the runtime billing config + the company tier, reusing the Phase-139 pure seat math.
-  // The active seat count is the live roster member rows. A plain member gets
-  // null and the cost line is not rendered (consistent with the manage gate).
   // The owner row is created before the owner's name/email are known, so it
   // can come back blank. Fill the signed-in person's own row from their auth
   // profile instead of showing "—" (only fetched when it is actually blank).
@@ -68,9 +63,6 @@ export default async function TeamTabPage() {
     }
   }
 
-  const seatCost: SeatCostSummary | null =
-    canManage ? await buildSeatCostSummary(companyId, roster.members.length) : null
-
   return (
     <div className="space-y-6">
       <SettingsHeader
@@ -83,7 +75,6 @@ export default async function TeamTabPage() {
         members={members}
         invites={roster.invites}
         canManage={canManage}
-        seatCost={seatCost}
       />
     </div>
   )

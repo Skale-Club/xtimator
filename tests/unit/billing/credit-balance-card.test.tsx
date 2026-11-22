@@ -111,7 +111,7 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
       expect(rows[2].textContent).toContain('Free credits')
       expect(rows[2].textContent).toContain('380')
       expect(rows[2].textContent).not.toContain('Expires')
-      expect(rows[3].textContent).toContain('Adjustments')
+      expect(rows[3].textContent).toContain('Credit adjustment')
       expect(rows[3].textContent).not.toContain('Expires')
       // No "No expiry" line either: only a real date is shown.
       expect(rows[2].textContent).not.toMatch(/no expiry/i)

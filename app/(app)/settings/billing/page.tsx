@@ -253,7 +253,7 @@ export default async function BillingPage() {
     <div className="space-y-6">
       <SettingsHeader
         title={<T>Plan and billing</T>}
-        description={<T>Your plan, credits and payments.</T>}
+        description={<T>Your plan and credits.</T>}
       />
 
       {isPastDue && (
@@ -320,10 +320,6 @@ export default async function BillingPage() {
               <T>This plan was set by support — contact us to change it.</T>
             </p>
           )}
-          <p className="text-xs text-muted-foreground" data-testid="usage-this-month">
-            {/* Owner 2026-11-20: the photo count adds nothing; estimates only. */}
-            <T text="This month: {estimates} estimates" values={{ estimates: data.estimatesThisMonth }} />
-          </p>
           {planAction && <div className="pt-1">{planAction}</div>}
         </div>
 

@@ -46,7 +46,7 @@ const CATEGORIES: ReadonlyArray<{
   description: string
 }> = [
   { key: 'estimate', label: 'Estimates', description: 'Views, accepts, declines, expirations.' },
-  { key: 'billing', label: 'Billing', description: 'Payments, trial, quota, plan changes.' },
+  { key: 'billing', label: 'Billing', description: 'Credits, trial and plan changes.' },
   { key: 'system', label: 'System', description: 'Maintenance and platform announcements.' },
 ]
 

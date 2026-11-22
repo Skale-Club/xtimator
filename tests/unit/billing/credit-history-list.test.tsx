@@ -43,7 +43,7 @@ describe('CreditHistoryList (CREDITFIX-06)', () => {
       />
     )
     const text = container.textContent ?? ''
-    expect(text).toContain('Top-up')
+    expect(text).toContain('Purchased credits')
     expect(text).toContain(expectedDate)
     expect(text).toContain('+7,500')
     expect(getByTestId('activity-positive')).toBeTruthy()
@@ -86,7 +86,7 @@ describe('CreditHistoryList (CREDITFIX-06)', () => {
     expect(getByTestId('activity-negative')).toBeTruthy()
   })
 
-  it('SEED-055: a chat debit renders "Xtimator AI chat"', () => {
+  it('a chat debit renders "Credits used", never the operation name', () => {
     const { container } = render(
       <CreditHistoryList
         rows={[
@@ -99,7 +99,8 @@ describe('CreditHistoryList (CREDITFIX-06)', () => {
         ]}
       />
     )
-    expect(container.textContent).toContain('Xtimator AI chat')
+    expect(container.textContent).toContain('Credits used')
+    expect(container.textContent).not.toContain('AI chat')
   })
 
   it('Test E: empty rows still renders "No credit activity yet."', () => {

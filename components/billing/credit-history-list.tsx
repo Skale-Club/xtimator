@@ -25,32 +25,45 @@ import { cn } from '@/lib/utils'
  * projection (see that function's doc comment).
  */
 
-function rowLabel(row: CreditHistoryRow): React.ReactNode {
-  if (row.reason === 'grant') return <T>Monthly grant</T>
-  if (row.reason === 'topup') return <T>Top-up</T>
-  if (row.reason === 'adjust') return <T>Adjustment</T>
-  // SEED-055: a lot lapsed (monthly window ended / top-up aged out).
-  if (row.reason === 'expire') return <T>Expired</T>
-  switch (row.operation_type) {
-    case 'estimate':
-      return <T>Estimate</T>
-    case 'photo_batch':
-      return <T>Photos</T>
-    case 'audio_minutes':
-      return <T>Audio</T>
-    case 'price_research':
-      return <T>Price research</T>
-    case 'chat':
-      return <T>Xtimator AI chat</T>
-    case 'refine':
-      return <T>AI estimate edit</T>
-    // Phase 2b: WhatsApp / SMS / email sent for the company, ONE aggregated line
-    // per debit run (never one line, or a price, per message).
-    case 'messaging':
-      return <T>Messages</T>
-    default:
-      return <T>Usage</T>
+type DisplayRow = { delta: number; label: React.ReactNode; createdAt: string }
+
+/**
+ * Owner 2026-11-21: the activity list never names an operation. Debits are
+ * folded into ONE "Credits used" line per day (the day's total); grants, top-ups,
+ * adjustments and expiries keep their plain labels.
+ */
+export function buildDisplayRows(rows: CreditHistoryRow[]): DisplayRow[] {
+  const out: DisplayRow[] = []
+  const usedByDay = new Map<string, DisplayRow>()
+  for (const row of rows) {
+    if (row.reason === 'grant') {
+      out.push({ delta: row.delta_credits, label: <T>Monthly credits</T>, createdAt: row.created_at })
+    } else if (row.reason === 'topup') {
+      out.push({ delta: row.delta_credits, label: <T>Purchased credits</T>, createdAt: row.created_at })
+    } else if (row.reason === 'adjust') {
+      out.push({ delta: row.delta_credits, label: <T>Credit adjustment</T>, createdAt: row.created_at })
+    } else if (row.reason === 'expire') {
+      // SEED-055: a lot lapsed (monthly window ended / top-up aged out).
+      out.push({ delta: row.delta_credits, label: <T>Expired</T>, createdAt: row.created_at })
+    } else if (row.delta_credits > 0) {
+      out.push({ delta: row.delta_credits, label: <T>Credits added</T>, createdAt: row.created_at })
+    } else {
+      const day = row.created_at.slice(0, 10)
+      const existing = usedByDay.get(day)
+      if (existing) {
+        existing.delta += row.delta_credits
+      } else {
+        const entry: DisplayRow = {
+          delta: row.delta_credits,
+          label: <T>Credits used</T>,
+          createdAt: row.created_at,
+        }
+        usedByDay.set(day, entry)
+        out.push(entry)
+      }
+    }
   }
+  return out
 }
 
 export function CreditHistoryList({
@@ -64,6 +77,7 @@ export function CreditHistoryList({
    *  scroll inside it, instead of setting the row height itself. */
   fillHeight?: boolean
 }) {
+  const display = buildDisplayRows(rows)
   return (
     <SettingsCard
       className={className}
@@ -71,7 +85,7 @@ export function CreditHistoryList({
       description={<T>Your latest credit grants and usage.</T>}
       bodyClassName={cn('p-0 sm:p-0', fillHeight && 'lg:relative lg:min-h-[16rem] lg:flex-1')}
     >
-      {rows.length === 0 ? (
+      {display.length === 0 ? (
         <p className="px-5 py-5 text-sm text-muted-foreground sm:px-6"><T>No credit activity yet.</T></p>
       ) : (
         // Up to 50 rows come back: scroll inside the card instead of
@@ -82,8 +96,8 @@ export function CreditHistoryList({
             fillHeight && 'lg:absolute lg:inset-0 lg:max-h-none'
           )}
         >
-          {rows.map((row, i) => {
-            const positive = row.delta_credits > 0
+          {display.map((row, i) => {
+            const positive = row.delta > 0
             return (
               <li key={i} className="flex items-center gap-3 px-5 py-3 text-sm sm:px-6">
                 <span
@@ -101,9 +115,9 @@ export function CreditHistoryList({
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-foreground">{rowLabel(row)}</span>
+                  <span className="block truncate font-medium text-foreground">{row.label}</span>
                   <span className="block text-xs text-muted-foreground">
-                    <LocalizedDate iso={row.created_at} />
+                    <LocalizedDate iso={row.createdAt} />
                   </span>
                 </span>
                 <span
@@ -114,7 +128,7 @@ export function CreditHistoryList({
                   )}
                 >
                   {positive ? '+' : '−'}
-                  {formatCredits(Math.abs(row.delta_credits))}
+                  {formatCredits(Math.abs(row.delta))}
                 </span>
               </li>
             )

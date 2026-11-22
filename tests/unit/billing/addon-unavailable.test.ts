@@ -119,7 +119,7 @@ describe('UI entry points are hidden', () => {
     expect(src).not.toContain('invite-email')
     expect(src).not.toContain('Send Invite')
     expect(src).toContain('members.map')
-    expect(src).toContain('Inviting teammates is not available yet')
+    expect(src).toContain('Team members — coming soon')
   })
 
   it('the company switcher offers "Add new company" to platform admins only (handoff path)', () => {

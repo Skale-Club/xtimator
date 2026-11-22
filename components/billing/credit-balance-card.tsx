@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  *   Monthly credits   - expire at the end of the billing window
  *   Purchased credits - top-ups, expire 3 months after purchase (one row per pack)
  *   Free credits      - signup credits, never expire
- *   Adjustments       - support-granted, never expire
+ *   Credit adjustment - support-granted, never expire
  * A usage bar sits above the rows when there is a valid denominator (the live
  * monthly + top-up grants); `percentUsed` is null otherwise and the bar falls
  * back to the raw balance (UsageProgressBar).
@@ -31,7 +31,7 @@ const LOT_LABEL: Record<LiveCreditLotSource, string> = {
   monthly: 'Monthly credits',
   topup: 'Purchased credits',
   signup: 'Free credits',
-  adjust: 'Adjustments',
+  adjust: 'Credit adjustment',
 }
 
 const LOT_DOT: Record<LiveCreditLotSource, string> = {

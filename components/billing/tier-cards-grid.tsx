@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { TierCard, type Tier } from './tier-card'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatUsd } from '@/lib/billing/format-usd'
+import { filterPlanBullets } from '@/lib/billing/plan-bullets'
 import { SettingsCard } from '@/components/settings/settings-ui'
 
 // Tier ranking — used to distinguish an upgrade ("Upgrade to Pro") from a
@@ -123,8 +124,6 @@ const TIERS: Array<{
     features: [
       'Everything in Pro',
       '50 photos per estimate',
-      'Custom domain',
-      'Stripe Connect payments',
       'Phone + chat support',
     ],
   },
@@ -268,6 +267,7 @@ export function TierCardsGrid({
                   ...(configured.includes(PRO_TOPUP_BULLET) ? [] : [PRO_TOPUP_BULLET]),
                 ]
               : configured
+          const shownFeatures = filterPlanBullets(features)
           // Free card is a portal-only downgrade path for paid users — render it
           // disabled (it never had a checkout wire-up; onSelect returns early)
           // so it doesn't read as an enabled no-op.
@@ -313,7 +313,7 @@ export function TierCardsGrid({
               name={tierItem.name}
               price={monthlyPrice}
               period={tierItem.period}
-              features={features}
+              features={shownFeatures}
               popular={visibleTiers.length > 1 && tierItem.popular}
               showName={visibleTiers.length > 1}
               current={current}
