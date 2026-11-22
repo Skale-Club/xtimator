@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import type { LandingContent } from '@/lib/platform-config'
 import { HeroSection } from '@/components/landing/hero-section'
 import { TrustBar } from '@/components/landing/trust-bar'
+import type { LandingStats } from '@/lib/landing/stats'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
 import { GetTheAppSection } from '@/components/landing/get-the-app-section'
@@ -34,9 +35,11 @@ interface LandingPageProps {
   navUser?: { email: string; avatarUrl: string | null } | null
   /** Server decision for the Google Play badge (false inside the TWA and on iOS). */
   showStoreBadge?: boolean
+  /** Live stats for the trust bar; null hides it. */
+  stats?: LandingStats | null
 }
 
-export function LandingPage({ content, branding, navUser, showStoreBadge = true }: LandingPageProps) {
+export function LandingPage({ content, branding, navUser, showStoreBadge = true, stats = null }: LandingPageProps) {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
   // SEAT-04: the invite-accept route sends logged-out visitors here with a
@@ -95,7 +98,7 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true 
             }}
             onOpenAuth={openAuth}
           />
-          <TrustBar />
+          <TrustBar stats={stats} />
         </div>
 
         {/* All content wrappers use natural height; the sections own the shared

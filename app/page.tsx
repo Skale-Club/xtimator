@@ -12,6 +12,7 @@ import {
 } from '@/lib/seo/structured-data'
 import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { isAppleMobileDevice } from '@/lib/store-links'
+import { getLandingStats } from '@/lib/landing/stats'
 
 // Landing media is admin-managed in Supabase. The Docker build intentionally
 // has no service-role secret, so prerendering here bakes the media-free fallback
@@ -24,7 +25,7 @@ export default async function RootPage() {
   // The Google Play badge is pointless inside the Android app itself (TWA) and
   // on iPhone/iPad (no iOS app). The badge re-checks in the browser, which also
   // catches iPadOS Safari reporting a Mac user agent.
-  const [isTwa, userAgent] = await Promise.all([isTwaRequest(), readUserAgent()])
+  const [isTwa, userAgent, stats] = await Promise.all([isTwaRequest(), readUserAgent(), getLandingStats()])
   const showStoreBadge = !isTwa && !isAppleMobileDevice(userAgent)
 
   return (
@@ -64,6 +65,7 @@ export default async function RootPage() {
           content={landingContent}
           branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
           showStoreBadge={showStoreBadge}
+          stats={stats}
         />
       </Suspense>
     </>
