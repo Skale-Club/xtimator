@@ -69,6 +69,7 @@ paths = [
 regexes = [
   '''whsec_(your-|placeholder|XXX|example|<)''',
   '''sk_(test|live)_(your-|placeholder|XXX|example|<)''',
+  '''rk_(test|live)_(your-|placeholder|XXX|example|<)''',
   '''sb_secret_(your-|placeholder|XXX|example|<)''',
   # TEST_ENCRYPTION_KEY assignment — deterministic test fixtures, never real secrets
   '''TEST_ENCRYPTION_KEY\s*=\s*['"][A-Za-z0-9+/=]+['"]''',
