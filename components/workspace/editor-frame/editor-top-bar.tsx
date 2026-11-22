@@ -60,6 +60,7 @@ function StatusChip({ slot }: { slot: VersionSlot }) {
     <EstimateStatusChip
       viewCount={slot.viewCount}
       lastViewedAt={slot.lastViewedAt}
+      changeOrderCount={slot.changeOrderCount}
       clientResponse={slot.clientResponse}
       respondedAt={slot.respondedAt}
       onClick={slot.onOpenStatus}

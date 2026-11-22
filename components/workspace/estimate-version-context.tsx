@@ -49,6 +49,8 @@ export interface VersionSlot {
   onRetrySave?: () => void
   /** Opens the status and analytics panel (progress, client response, engagement). */
   onOpenStatus?: () => void
+  /** Accepted estimate: change orders sent to the client (drafts excluded), shown on the status chip. */
+  changeOrderCount?: number
   /** Declined estimate only: clears the client's answer (kept in the activity
    *  history) so the content is editable again and the client can answer
    *  again on the same link. Undefined when reopening does not apply. */

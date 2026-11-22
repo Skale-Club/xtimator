@@ -34,6 +34,8 @@ export interface EstimateAnalyticsDrawerProps {
    * surfaces without an editor (dashboard deep links, fixtures) omit it.
    */
   status?: Omit<EstimateStatusSummaryProps, 'estimateId'>
+  /** The contract (accepted estimate + change orders), under the status block. */
+  contract?: ReactNode
 }
 
 type Load =
@@ -54,6 +56,7 @@ export function EstimateAnalyticsDrawer({
   clientName,
   estimateNumber,
   status,
+  contract,
 }: EstimateAnalyticsDrawerProps) {
   const { t } = useTranslation()
   const phone = useIsPhone()
@@ -125,6 +128,7 @@ export function EstimateAnalyticsDrawer({
   const body = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-6 pt-4 sm:px-5">
       {status && <EstimateStatusSummary estimateId={estimateId} {...status} />}
+      {contract}
       {load.status === 'loading' && <AnalyticsSkeleton />}
       {load.status === 'error' && <AnalyticsError onRetry={retry} />}
       {load.status === 'ready' && (

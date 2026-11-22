@@ -71,7 +71,9 @@ vi.mock('@/components/workspace/estimate/generate-invoice-dialog', () => ({
   GenerateInvoiceDialog: () => null,
 }))
 vi.mock('@/components/workspace/estimate/analytics/estimate-analytics-drawer', () => ({
-  EstimateAnalyticsDrawer: () => null,
+  // The panel's contract slot renders only while the panel is open.
+  EstimateAnalyticsDrawer: ({ open, contract }: { open: boolean; contract?: import('react').ReactNode }) =>
+    open ? <div data-testid="analytics-drawer">{contract}</div> : null,
 }))
 
 function buildEstimate(overrides: Record<string, unknown> = {}): EstimateWithSections {
@@ -149,7 +151,14 @@ function SlotProbe() {
       data-retry={slot.onRetrySave ? 'yes' : 'no'}
       data-status={slot.onOpenStatus ? 'yes' : 'no'}
       data-reopen={slot.onReopen ? 'yes' : 'no'}
-    />
+      data-co-count={slot.changeOrderCount ?? 0}
+    >
+      {slot.onOpenStatus && (
+        <button type="button" data-testid="open-status" onClick={slot.onOpenStatus}>
+          status
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -282,9 +291,41 @@ describe('EstimateEditor in the v2 frame', () => {
     expect(screen.queryByTestId('editor-dock')).toBeNull()
   })
   describe('change orders on an accepted estimate', () => {
-    it('shows the contract card and a "New change order" primary, with Share moved to Send', async () => {
+    it('keeps the contract out of the page and shows it in the status panel', async () => {
       render(<Harness frame="v2" estimate={buildEstimate(ACCEPTED)} />)
+      // Nothing above the estimate: the card is not on the page.
+      expect(screen.queryByTestId('contract-card')).toBeNull()
+      expect(screen.queryByTestId('contract-card-loading')).toBeNull()
+      fireEvent.click(screen.getByTestId('open-status'))
       expect(await screen.findByTestId('contract-card')).toBeTruthy()
+    })
+
+    it('counts sent change orders (not drafts) for the status chip', async () => {
+      const actions = await import('@/lib/actions/change-order')
+      vi.mocked(actions.getContractSummaryAction).mockResolvedValue({
+        data: {
+          estimateId: 'est-1',
+          currencyCode: 'USD',
+          estimateNumber: '0007',
+          acceptedAt: '2026-01-02T00:00:00.000Z',
+          signedOnline: false,
+          baseTotal: 1250,
+          changeOrders: [
+            { id: 'a', number: 1, status: 'draft', title: 'x', total: 0, responded_at: null, view_count: 0, invoice_status: null },
+            { id: 'b', number: 2, status: 'sent', title: 'y', total: 100, responded_at: null, view_count: 0, invoice_status: null },
+            { id: 'c', number: 3, status: 'accepted', title: 'z', total: 50, responded_at: null, view_count: 1, invoice_status: null },
+          ],
+          approvedTotal: 50,
+          pendingTotal: 100,
+          contractTotal: 1300,
+        },
+      } as never)
+      render(<Harness frame="v2" estimate={buildEstimate(ACCEPTED)} />)
+      await waitFor(() => expect(screen.getByTestId('slot').getAttribute('data-co-count')).toBe('2'))
+    })
+
+    it('has a "New change order" primary, with Share moved to Send', () => {
+      render(<Harness frame="v2" estimate={buildEstimate(ACCEPTED)} />)
       const mount = screen.getByTestId('dock-mount')
       expect(mount.querySelector('[data-testid="new-change-order-btn"]')).toBeTruthy()
       expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy()
@@ -294,7 +335,6 @@ describe('EstimateEditor in the v2 frame', () => {
     it('the dock primary creates a change order for the current estimate', async () => {
       const { createChangeOrder } = await import('@/lib/actions/change-order')
       render(<Harness frame="v2" estimate={buildEstimate(ACCEPTED)} />)
-      await screen.findByTestId('contract-card')
       fireEvent.click(screen.getByTestId('new-change-order-btn'))
       await waitFor(() => expect(createChangeOrder).toHaveBeenCalledWith('est-1'))
     })

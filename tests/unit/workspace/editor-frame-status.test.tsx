@@ -60,6 +60,18 @@ describe('EstimateStatusChip labels', () => {
     expect(screen.queryByTestId('estimate-status-analytics-icon')).toBeNull()
   })
 
+  it('accepted adds the change order count', () => {
+    render(<EstimateStatusChip viewCount={2} clientResponse="accepted" respondedAt="2026-11-19T12:00:00Z" changeOrderCount={2} />)
+    expect(screen.getByText(/Accepted · .+ · 2 change orders/)).toBeTruthy()
+  })
+
+  it('accepted says "1 change order" in the singular and nothing for zero', () => {
+    const { rerender } = render(<EstimateStatusChip clientResponse="accepted" changeOrderCount={1} />)
+    expect(screen.getByText('Accepted · 1 change order')).toBeTruthy()
+    rerender(<EstimateStatusChip clientResponse="accepted" changeOrderCount={0} />)
+    expect(screen.getByText('Accepted')).toBeTruthy()
+  })
+
   it('viewed without sentAt', () => {
     render(<EstimateStatusChip sentAt={null} viewCount={2} />)
     expect(screen.getByText('Viewed 2×')).toBeTruthy()

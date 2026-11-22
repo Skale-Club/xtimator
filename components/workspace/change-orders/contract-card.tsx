@@ -86,8 +86,10 @@ function joinNumbers(numbers: number[], t: (s: string) => string): string {
 
 /**
  * The accepted estimate is the contract; every change order adds to or removes
- * from it. Sits above the paper in the estimate editor once the estimate is
- * accepted: the contract at a glance, plus the way to start a new change order.
+ * from it. Lives in the estimate's status and analytics panel (opened from the
+ * top bar's status chip) once the estimate is accepted: the contract at a
+ * glance, plus the way to start a new change order. "New change order" is also
+ * the dock's primary button, so it is reachable without opening the panel.
  */
 export function ContractCard({
   estimateId,

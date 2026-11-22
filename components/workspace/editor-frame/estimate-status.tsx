@@ -43,6 +43,8 @@ interface EstimateStatusChipProps extends StatusInput {
   respondedAt?: string | null
   /** Last time the client opened the link: an opened estimate says how long ago. */
   lastViewedAt?: string | null
+  /** Accepted estimate: change orders sent to the client, appended to the label. */
+  changeOrderCount?: number
   onClick?: () => void
   /** Content lock (accepted, or signed and waiting): a lock replaces the dot.
    *  A declined estimate keeps its dot: it can be reopened. */
@@ -54,6 +56,7 @@ export function EstimateStatusChip({
   clientResponse,
   respondedAt,
   lastViewedAt,
+  changeOrderCount = 0,
   onClick,
   locked = false,
 }: EstimateStatusChipProps) {
@@ -63,7 +66,13 @@ export function EstimateStatusChip({
   const showLock = locked && status !== 'declined'
 
   let label: string
-  if (status === 'accepted') label = date ? `${t('Accepted')} · ${date}` : t('Accepted')
+  if (status === 'accepted') {
+    label = date ? `${t('Accepted')} · ${date}` : t('Accepted')
+    if (changeOrderCount > 0) {
+      const count = t(changeOrderCount === 1 ? '{n} change order' : '{n} change orders').replace('{n}', String(changeOrderCount))
+      label = `${label} · ${count}`
+    }
+  }
   else if (status === 'declined') label = date ? `${t('Declined')} · ${date}` : t('Declined')
   else if (status === 'viewed') {
     const ago = lastViewedAt ? relativeAgo(lastViewedAt, t) : ''

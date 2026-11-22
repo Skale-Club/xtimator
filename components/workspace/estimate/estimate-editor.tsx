@@ -56,6 +56,7 @@ import { useEditorFrameContext } from '@/components/workspace/editor-frame/conte
 import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
 import { EstimateAnalyticsDrawer } from './analytics/estimate-analytics-drawer'
 import { ContractCard, useCreateChangeOrder } from '@/components/workspace/change-orders/contract-card'
+import { realChangeOrderActions } from '@/components/workspace/change-orders/change-order-actions'
 import { formatEstimateNumber } from '@/lib/estimate/document/format'
 import {
   hasEstimateBeenSentOrViewed,
@@ -449,6 +450,31 @@ export function EstimateEditor({
   // control feeds both so they share a single busy state.
   const showContract = frame === 'v2' && isCurrent && state.client_response === 'accepted'
   const createChangeOrderControl = useCreateChangeOrder(state.id, projectId)
+  // Change orders that went to the client (drafts excluded), for the status
+  // chip ("Accepted · Nov 19 · 2 change orders"). The contract itself lives in
+  // the status and analytics panel (owner decision 2026-11-22: nothing above
+  // the estimate).
+  const [changeOrderCount, setChangeOrderCount] = useState(0)
+  useEffect(() => {
+    if (!showContract) {
+      setChangeOrderCount(0)
+      return
+    }
+    let cancelled = false
+    realChangeOrderActions
+      .getContractSummary(state.id)
+      .then((result) => {
+        if (cancelled) return
+        const rows = result.data?.changeOrders ?? []
+        setChangeOrderCount(rows.filter((r) => r.status !== 'draft').length)
+      })
+      .catch(() => {
+        /* the chip simply shows no count */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showContract, state.id, state.updated_at])
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
   // route): client_response (accepted or declined) OR an existing signature row (the
   // signed-but-unresponded window — see lib/estimate/lock.ts) OR the latch
@@ -1199,6 +1225,7 @@ export function EstimateEditor({
       isLocked: isCurrent && locked,
       onRetrySave: canRetrySave ? retrySave : undefined,
       onOpenStatus: openStatus,
+      changeOrderCount,
       onReopen: canReopen ? reopenEstimate : undefined,
       superseded: notCurrentByServer,
     })
@@ -1230,6 +1257,7 @@ export function EstimateEditor({
     canRetrySave,
     retrySave,
     openStatus,
+    changeOrderCount,
     canReopen,
     reopenEstimate,
     notCurrentByServer,
@@ -1290,14 +1318,6 @@ export function EstimateEditor({
           gone. Its parts live where the action is: marks on the rows, the AI's
           questions in "Edit with AI" (counter on the dock), and a "Ready to
           send?" check in the Share sheet. */}
-      {showContract && (
-        <ContractCard
-          estimateId={state.id}
-          projectId={projectId}
-          refreshKey={state.updated_at}
-          createControl={createChangeOrderControl}
-        />
-      )}
 
       {/* The delivered-and-locked banner that used to render here was removed
           — the lock still applies (editor read-only, server guard, toast on a
@@ -1529,6 +1549,16 @@ export function EstimateEditor({
           recordDisabled: !isCurrent || state.isDirty || saveStatus === 'saving',
           onRecord: handleRecordClientResponse,
         }}
+        contract={
+          showContract ? (
+            <ContractCard
+              estimateId={state.id}
+              projectId={projectId}
+              refreshKey={state.updated_at}
+              createControl={createChangeOrderControl}
+            />
+          ) : undefined
+        }
       />
 
       {/* Platform-admin only; outside the document stage, so never part of the page view,
