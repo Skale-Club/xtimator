@@ -10,6 +10,16 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type ConnectState =
@@ -24,7 +34,7 @@ export type ConnectState =
     }
 
 /**
- * Four-state card for the /settings/payments page. The `not_configured`
+ * Four-state card for the Client actions settings page. The `not_configured`
  * branch fires when the platform-level Connect Client ID is unset; the
  * `not_connected` branch shows the Connect CTA; the `connected` branch shows
  * the linked Stripe account + a Disconnect button (POST to disconnect API);
@@ -37,13 +47,20 @@ export type ConnectState =
 export function StripeConnectCard({
   state,
   feePct,
+  openInvoiceCount = 0,
+  readOnly = false,
 }: {
   state: ConnectState
   feePct: number
+  /** Invoices still open; above zero, Disconnect asks for confirmation first. */
+  openInvoiceCount?: number
+  /** Non-owners see the state but cannot connect or disconnect. */
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   // Disclosed % is driven entirely by the live billing_config value passed in
   // (feePct × 100) — never a hard-coded literal, so it can never diverge from
@@ -60,12 +77,12 @@ export function StripeConnectCard({
         })
         const json = (await res.json()) as { ok: boolean; message?: string }
         if (!json.ok) {
-          setError(json.message ?? 'Disconnect failed')
+          setError(json.message ?? t('Disconnect failed'))
           return
         }
         window.location.reload()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Disconnect failed')
+        setError(e instanceof Error ? e.message : t('Disconnect failed'))
       }
     })
   }
@@ -139,7 +156,9 @@ export function StripeConnectCard({
             data-testid="fee-disclosure"
             className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
           >
-            {t(`Xtimator charges a ${feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.`)}
+            {t('Xtimator charges a {fee} fee on each payment you receive through the platform | this is separate from Stripe\'s processing fees.').replace('{fee}', feeLabel)}
+            {' '}
+            {t('If you refund a payment, the Xtimator fee is not returned.')}
           </p>
         )}
         {error && (
@@ -147,23 +166,44 @@ export function StripeConnectCard({
         )}
       </CardContent>
       <CardFooter className="px-5 sm:px-6">
-        {state.kind === 'not_connected' && (
+        {state.kind === 'not_connected' && !readOnly && (
           <a href="/api/stripe/connect/initiate">
             <Button variant="primary">
               {t('Connect Stripe Account')}
             </Button>
           </a>
         )}
-        {(state.kind === 'connected' || state.kind === 'restricted') && (
+        {(state.kind === 'connected' || state.kind === 'restricted') && !readOnly && (
           <Button
             variant="outline"
-            onClick={handleDisconnect}
+            onClick={() => (openInvoiceCount > 0 ? setConfirmOpen(true) : handleDisconnect())}
             disabled={isPending}
           >
             {isPending ? t('Disconnecting…') : t('Disconnect')}
           </Button>
         )}
       </CardFooter>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Disconnect Stripe?')}</AlertDialogTitle>
+            <AlertDialogDescription data-testid="disconnect-open-invoices">
+              {t(
+                'You have {count} open invoice(s). After you disconnect, Xtimator can no longer track their payment. Void them first if your client should not pay them.',
+              ).replace('{count}', String(openInvoiceCount))}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-[44px]">{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDisconnect}
+            >
+              {t('Disconnect')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

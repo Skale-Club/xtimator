@@ -26,6 +26,7 @@ const ALL_VARS = [
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
   'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_CONNECT_WEBHOOK_SECRET',
   'APP_ENCRYPTION_KEY',
   'XTIMATOR_DATA_JWT_SECRET',
   'DATA_API_MODE',
@@ -129,6 +130,20 @@ describe('validateProductionEnv', () => {
     expect(() => validateProductionEnv()).not.toThrow()
     expect(errorSpy).toHaveBeenCalledOnce()
     expect(errorSpy.mock.calls[0][0]).toMatch(/STRIPE_WEBHOOK_SECRET/)
+    errorSpy.mockRestore()
+  })
+
+  it('warns via console.error but does NOT throw when STRIPE_CONNECT_WEBHOOK_SECRET is missing (client invoice payments never recorded)', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    delete process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).not.toThrow()
+    expect(errorSpy).toHaveBeenCalledOnce()
+    expect(errorSpy.mock.calls[0][0]).toMatch(/STRIPE_CONNECT_WEBHOOK_SECRET/)
+    expect(errorSpy.mock.calls[0][0]).toMatch(/client invoices/)
     errorSpy.mockRestore()
   })
 

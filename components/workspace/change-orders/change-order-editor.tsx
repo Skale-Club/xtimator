@@ -614,7 +614,10 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
           </article>
           {invoice && (
             <div className="mt-3">
-              <ChangeOrderInvoiceRow invoice={invoice} />
+              <ChangeOrderInvoiceRow
+                invoice={invoice}
+                voidInvoice={(id) => apiRef.current.voidInvoice(id)}
+              />
             </div>
           )}
           {creditNote && (

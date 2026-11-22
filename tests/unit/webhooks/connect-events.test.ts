@@ -158,7 +158,9 @@ function resetSupabaseMocks() {
     result.select = invoiceUpdateSelect
     return result
   })
-  invoiceUpdateSelect.mockReturnValue({ single: invoiceUpdateSingle })
+  // handleInvoicePaid reads the updated row with .maybeSingle(); keep .single()
+  // pointing at the same mock so both shapes stay configurable from one place.
+  invoiceUpdateSelect.mockReturnValue({ single: invoiceUpdateSingle, maybeSingle: invoiceUpdateSingle })
   invoiceUpdateSingle.mockResolvedValue({
     data: {
       id: 'inv_row_fixture_1',
@@ -502,6 +504,8 @@ describe('stripe connect webhook — account.application.deauthorized (unchanged
     expect(companyUpdate).toHaveBeenCalledWith({
       stripe_account_id: null,
       stripe_connect_status: 'disconnected',
+      stripe_charges_enabled: null,
+      stripe_connect_disabled_reason: null,
     })
     expect(companyUpdateEq).toHaveBeenCalledWith(
       'stripe_account_id',
@@ -965,5 +969,332 @@ describe('invoice.paid for a change order invoice (XTM-CONTRACT-CO-01 delivery 3
     const ctx = sendPaymentReceivedEmail.mock.calls[0][0] as { estimateShareUrl: string }
     expect(ctx.estimateShareUrl).toMatch(/\/change-order\/co-token-1$/)
     expect((notify.mock.calls[0][0] as { linkUrl?: string }).linkUrl).toMatch(/\/change-orders\/co_order_1$/)
+  })
+})
+
+describe('invoice.paid with no matching invoices row', () => {
+  it('acknowledges with 200, alerts ops once (deduped by event id) and records nothing', async () => {
+    invoiceUpdateSingle.mockResolvedValueOnce({ data: null, error: null })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const event = makeConnectInvoiceEvent('invoice.paid')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(dedupDelete).not.toHaveBeenCalled() // not retried: the row will never appear
+    const unmatched = vi.mocked(notifyOps).mock.calls.filter(([a]) => a.kind === 'invoice_paid_unmatched')
+    expect(unmatched).toHaveLength(1)
+    expect(unmatched[0][0]).toMatchObject({ severity: 'error', dedupeKey: event.id })
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+    errSpy.mockRestore()
+  })
+
+  it('still throws (500, retried) on a real database error', async () => {
+    invoiceUpdateSingle.mockResolvedValueOnce({ data: null, error: { message: 'db down' } })
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(500)
+    expect(notifyOps).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'invoice_paid_unmatched' }))
+  })
+
+  it('also stores the Stripe invoice id on the row (covers a failed final update at issue time)', async () => {
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+    await POST(makeRequest())
+    expect(invoiceUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'paid', stripe_invoice_id: 'in_test_connect_123' }),
+    )
+  })
+})
+
+describe('invoice events from a previously connected account (invoices.stripe_account_id)', () => {
+  // The company switched accounts: its CURRENT account is acct_new, the signed
+  // event comes from the account the invoice was issued on.
+  function companyNowOn(account: string | null) {
+    companySelectMaybeSingle.mockResolvedValue({
+      data: { id: 'co_fixture_1', stripe_account_id: account },
+      error: null,
+    })
+  }
+  function rowIssuedOn(account: string | null, companyId = 'co_fixture_1') {
+    invoiceSelectMaybeSingle.mockResolvedValue({
+      data: { company_id: companyId, stripe_account_id: account },
+      error: null,
+    })
+  }
+  const mismatchAlert = () =>
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'stripe_connect_account_mismatch', severity: 'error' }),
+    )
+
+  it('accepts the current account (no invoice row lookup needed)', async () => {
+    companyNowOn('acct_test_123')
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+    await POST(makeRequest())
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    expect(invoiceSelect).not.toHaveBeenCalled()
+  })
+
+  it('accepts a previous account when the invoice row of that company carries that account', async () => {
+    companyNowOn('acct_new')
+    rowIssuedOn('acct_test_123')
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(invoiceSelectEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+    expect(invoiceUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'paid' }))
+    expect(notifyOps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'stripe_connect_account_mismatch' }),
+    )
+  })
+
+  it('also accepts voided / uncollectible / payment_failed from the previous account', async () => {
+    for (const type of ['invoice.voided', 'invoice.marked_uncollectible', 'invoice.payment_failed']) {
+      invoiceUpdate.mockClear()
+      companyNowOn('acct_new')
+      rowIssuedOn('acct_test_123')
+      mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent(type))
+      await POST(makeRequest())
+      expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('drops an account that does not match the row, with the ops alert', async () => {
+    companyNowOn('acct_new')
+    rowIssuedOn('acct_someone_else')
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    mismatchAlert()
+  })
+
+  it('drops a non-current account when the row has a null stripe_account_id', async () => {
+    companyNowOn('acct_new')
+    rowIssuedOn(null)
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+
+    await POST(makeRequest())
+
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    mismatchAlert()
+  })
+
+  it('drops the event when the row belongs to another company, even if its account matches', async () => {
+    companyNowOn('acct_new')
+    rowIssuedOn('acct_test_123', 'co_other_tenant')
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+
+    await POST(makeRequest())
+
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    mismatchAlert()
+  })
+
+  it('drops the event when the row does not exist', async () => {
+    companyNowOn('acct_new')
+    invoiceSelectMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+    await POST(makeRequest())
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    mismatchAlert()
+  })
+
+  it('keeps the strict current-account rule for non-invoice events (checkout.session.completed)', async () => {
+    companyNowOn('acct_new')
+    rowIssuedOn('acct_test_123')
+    mockConstructEvent.mockReturnValue(makeConnectEvent('checkout.session.completed'))
+    await POST(makeRequest())
+    expect(estimateUpdate).not.toHaveBeenCalled()
+    mismatchAlert()
+  })
+
+  it('throws (retried) when the ownership row lookup itself fails', async () => {
+    companyNowOn('acct_new')
+    invoiceSelectMaybeSingle.mockResolvedValue({ data: null, error: { message: 'db down' } })
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(500)
+  })
+})
+
+describe('charge.refunded records the refund on the invoices row', () => {
+  function refundEvent(overrides: Record<string, unknown> = {}, account = 'acct_test_123') {
+    return {
+      id: `evt_${Math.random().toString(36).slice(2)}`,
+      object: 'event',
+      type: 'charge.refunded',
+      account,
+      api_version: '2026-04-22.dahlia',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'ch_test_connect_123',
+          object: 'charge',
+          amount_refunded: 12000,
+          refunded: false,
+          invoice: 'in_test_connect_123',
+          payment_intent: null,
+          ...overrides,
+        },
+      },
+      livemode: false,
+      pending_webhooks: 0,
+      request: { id: null, idempotency_key: null },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any
+  }
+  function companyNowOn(account: string | null) {
+    companySelectMaybeSingle.mockResolvedValue({
+      data: { id: 'co_fixture_1', stripe_account_id: account },
+      error: null,
+    })
+  }
+  function rowIssuedOn(account: string | null, companyId = 'co_fixture_1') {
+    invoiceSelectMaybeSingle.mockResolvedValue({
+      data: {
+        id: 'inv_row_fixture_1',
+        company_id: companyId,
+        stripe_account_id: account,
+        project_name: 'Bathroom remodel',
+        currency_code: 'usd',
+      },
+      error: null,
+    })
+  }
+  const mismatchAlert = () =>
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'stripe_connect_account_mismatch', severity: 'error' }),
+    )
+
+  it('writes the cumulative refunded amount scoped to the trusted company and leaves status alone', async () => {
+    mockConstructEvent.mockReturnValue(refundEvent())
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    const payload = invoiceUpdate.mock.calls[0][0]
+    expect(payload.refunded_cents).toBe(12000)
+    expect(typeof payload.refunded_at).toBe('string')
+    expect(payload).not.toHaveProperty('status')
+    expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+    expect(invoiceUpdateEq2).toHaveBeenCalledWith('company_id', 'co_fixture_1')
+    // The existing notification keeps working.
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify.mock.calls[0][0]).toMatchObject({ eventType: 'payment.refunded', resourceType: 'invoice' })
+  })
+
+  it('writes the full amount again on a second event (cumulative, idempotent)', async () => {
+    mockConstructEvent.mockReturnValue(refundEvent({ amount_refunded: 30000, refunded: true }))
+    await POST(makeRequest())
+    expect(invoiceUpdate.mock.calls[0][0].refunded_cents).toBe(30000)
+  })
+
+  it('does not fail when the invoices row is missing (nothing written, 200)', async () => {
+    invoiceSelectMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockConstructEvent.mockReturnValue(refundEvent())
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+  })
+
+  it('throws (500, dedup row cleared, so Stripe retries) when the refund write fails', async () => {
+    const event = refundEvent()
+    invoiceUpdateEq2.mockResolvedValueOnce({ error: { message: 'db down' } })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(dedupDelete).toHaveBeenCalled()
+    expect(dedupDeleteEq).toHaveBeenCalledWith('event_id', event.id)
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('leaves the legacy path (no charge.invoice) without any invoices write', async () => {
+    estimateSelect.mockReturnValue({
+      eq: () => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'est_fixture_1', company_id: 'co_fixture_1', project_id: 'pr_x', currency_code: 'usd' },
+          error: null,
+        }),
+      }),
+    })
+    projectSelectSingle.mockResolvedValue({ data: { name: 'Bathroom remodel' }, error: null })
+    mockConstructEvent.mockReturnValue(refundEvent({ invoice: null, payment_intent: 'pi_test_legacy' }))
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+
+  describe('ownership: refunds from a previously connected account', () => {
+    it('accepts the current account (no extra proof lookup before the handler)', async () => {
+      companyNowOn('acct_test_123')
+      mockConstructEvent.mockReturnValue(refundEvent())
+      await POST(makeRequest())
+      expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+      expect(notifyOps).not.toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'stripe_connect_account_mismatch' }),
+      )
+    })
+
+    it('accepts a previous account when the invoice row of that company carries that account', async () => {
+      companyNowOn('acct_new')
+      rowIssuedOn('acct_test_123')
+      mockConstructEvent.mockReturnValue(refundEvent())
+
+      const res = await POST(makeRequest())
+
+      expect(res.status).toBe(200)
+      expect(invoiceSelectEq).toHaveBeenCalledWith('stripe_invoice_id', 'in_test_connect_123')
+      expect(invoiceUpdate).toHaveBeenCalledWith(expect.objectContaining({ refunded_cents: 12000 }))
+      expect(notifyOps).not.toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'stripe_connect_account_mismatch' }),
+      )
+    })
+
+    it('drops an account that matches neither the company nor the row, with the ops alert', async () => {
+      companyNowOn('acct_new')
+      rowIssuedOn('acct_someone_else')
+      mockConstructEvent.mockReturnValue(refundEvent())
+
+      const res = await POST(makeRequest())
+
+      expect(res.status).toBe(200)
+      expect(invoiceUpdate).not.toHaveBeenCalled()
+      expect(notify).not.toHaveBeenCalled()
+      mismatchAlert()
+    })
+
+    it('drops the event when the row has no stored account', async () => {
+      companyNowOn('acct_new')
+      rowIssuedOn(null)
+      mockConstructEvent.mockReturnValue(refundEvent())
+      await POST(makeRequest())
+      expect(invoiceUpdate).not.toHaveBeenCalled()
+      mismatchAlert()
+    })
+
+    it('drops the event when the row belongs to another company, even if its account matches', async () => {
+      companyNowOn('acct_new')
+      rowIssuedOn('acct_test_123', 'co_other_tenant')
+      // The payload names co_fixture_1 (attacker-controlled metadata) but the
+      // stored row found by charge.invoice belongs to another tenant.
+      mockConstructEvent.mockReturnValue(refundEvent({ metadata: { company_id: 'co_fixture_1' } }))
+      await POST(makeRequest())
+      expect(invoiceUpdate).not.toHaveBeenCalled()
+      expect(notify).not.toHaveBeenCalled()
+      mismatchAlert()
+    })
   })
 })

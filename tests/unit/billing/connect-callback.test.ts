@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
  * Wave 0 tests for the OAuth callback route (`/api/stripe/connect/callback`)
  * shipped in Plan 70-02. Verifies:
  *   - Happy path: valid state + code → exchangeCode invoked → company row
- *     populated → 302 to /settings/payments?connected=1.
+ *     populated → 302 to /settings/client-actions?connected=1.
  *   - Idempotency: when `companies.stripe_account_id` is already set, the
  *     callback MUST NOT call exchangeCode (OAuth codes are single-use; a
  *     second exchange revokes the connection per OAuth 2 spec).
@@ -45,8 +45,15 @@ vi.mock('@/lib/billing/connect-oauth', async () => {
     exchangeCode: vi.fn(),
   }
 })
+vi.mock('@/lib/platform-config', () => ({
+  getIntegrationKey: vi.fn(async () => 'sk_test_placeholder'),
+}))
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn(),
+}))
+// Platform-wide global stop; defaults to open.
+vi.mock('@/lib/features/platform-feature-state', () => ({
+  getPlatformFeatureState: vi.fn(async () => ({ connectPaymentsOpen: true })),
 }))
 
 const cookieGetFn = vi.fn()
@@ -70,7 +77,9 @@ const { requireServiceClient } = await import('@/lib/supabase/service')
 const { mintOAuthState, exchangeCode } = await import(
   '@/lib/billing/connect-oauth'
 )
+const { getIntegrationKey } = await import('@/lib/platform-config')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
+const { getPlatformFeatureState } = await import('@/lib/features/platform-feature-state')
 const { GET } = await import('@/app/api/stripe/connect/callback/route')
 
 /** Sets the `stripe_oauth_state` cookie the route reads/compares against `state`. */
@@ -83,10 +92,14 @@ function setOAuthStateCookie(value: string | undefined) {
 function makeSupabaseMock(company: {
   id: string
   stripe_account_id: string | null
-}) {
+  online_payments_allowed?: boolean
+  online_payments_enabled?: boolean
+}, updateResult: { data: null; error: { code?: string; message: string } | null } = { data: null, error: null }) {
+  // Feature switches default ON; individual cases override them.
+  company = { online_payments_allowed: true, online_payments_enabled: true, ...company }
   const updateChain = {
     update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    eq: vi.fn().mockResolvedValue(updateResult),
   }
   const selectChain = {
     select: vi.fn().mockReturnThis(),
@@ -144,6 +157,7 @@ describe('GET /api/stripe/connect/callback', () => {
       accounts: {
         retrieve: vi.fn().mockResolvedValue({
           email: 'biz@example.com',
+          charges_enabled: true,
           business_profile: { name: 'Demo Biz' },
           settings: { dashboard: { display_name: 'Demo Biz' } },
         }),
@@ -164,6 +178,8 @@ describe('GET /api/stripe/connect/callback', () => {
       expect.objectContaining({
         stripe_account_id: 'acct_test_123',
         stripe_connect_status: 'active',
+        stripe_charges_enabled: true,
+        stripe_connect_disabled_reason: null,
         stripe_account_email: 'biz@example.com',
         stripe_account_display_name: 'Demo Biz',
       })
@@ -241,5 +257,157 @@ describe('GET /api/stripe/connect/callback', () => {
 
     expect(res.headers.get('location')).toContain('error=owner_required')
     expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('refuses with payments_not_available and never exchanges the code when the platform switch was turned off mid-flow', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      makeSupabaseMock({ id: companyId, stripe_account_id: null, online_payments_allowed: false }),
+    )
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('/settings/client-actions?error=payments_not_available')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('refuses with payments_not_available when the global stop is closed', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(makeSupabaseMock({ id: companyId, stripe_account_id: null }))
+    vi.mocked(getPlatformFeatureState).mockResolvedValueOnce({ connectPaymentsOpen: false })
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('error=payments_not_available')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('refuses with payments_off and never exchanges the code when the tenant switch was turned off', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      makeSupabaseMock({ id: companyId, stripe_account_id: null, online_payments_enabled: false }),
+    )
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('/settings/client-actions?error=payments_off')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  describe('hardening', () => {
+    type Acct = Record<string, unknown>
+    function setup(
+      account: Acct,
+      exchange: Partial<{ livemode: boolean; scope: 'read_write' | 'read_only' }> = {},
+      updateResult?: { data: null; error: { code?: string; message: string } | null },
+    ) {
+      const state = mintOAuthState('company_abc')
+      setOAuthStateCookie(state)
+      vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+      const supabase = makeSupabaseMock({ id: 'company_abc', stripe_account_id: null }, updateResult)
+      vi.mocked(requireServiceClient).mockReturnValue(supabase)
+      vi.mocked(exchangeCode).mockResolvedValue({
+        stripe_user_id: 'acct_test_123',
+        livemode: false,
+        scope: 'read_write',
+        ...exchange,
+      })
+      vi.mocked(getStripeClient).mockResolvedValue({
+        accounts: { retrieve: vi.fn().mockResolvedValue(account) },
+      } as never)
+      const update = (supabase as unknown as { _updateChain: { update: ReturnType<typeof vi.fn> } })
+        ._updateChain.update
+      return { state, update }
+    }
+
+    it('stores a restricted account as restricted with the disabled reason', async () => {
+      const { state, update } = setup({
+        charges_enabled: false,
+        requirements: { disabled_reason: 'requirements.past_due' },
+      })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      expect(res.headers.get('location')).toContain('connected=1')
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stripe_connect_status: 'restricted',
+          stripe_charges_enabled: false,
+          stripe_connect_disabled_reason: 'requirements.past_due',
+        }),
+      )
+    })
+
+    it('stores a healthy account as active with charges enabled', async () => {
+      const { state, update } = setup({ charges_enabled: true })
+      await GET(makeRequest({ code: 'ac_test', state }))
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stripe_connect_status: 'active',
+          stripe_charges_enabled: true,
+          stripe_connect_disabled_reason: null,
+        }),
+      )
+    })
+
+    it('refuses a read_only scope and writes nothing', async () => {
+      const { state, update } = setup({ charges_enabled: true }, { scope: 'read_only' })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      expect(res.headers.get('location')).toContain('error=insufficient_scope')
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a live account on a test platform key and writes nothing', async () => {
+      const { state, update } = setup({ charges_enabled: true }, { livemode: true })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      expect(res.headers.get('location')).toContain('error=mode_mismatch')
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a test account on a live platform key (rk_live_ too)', async () => {
+      // Built from parts so secret scanners do not read a fake key as a real one.
+      vi.mocked(getIntegrationKey).mockResolvedValueOnce(['rk', 'live', 'placeholder'].join('_'))
+      const { state, update } = setup({ charges_enabled: true }, { livemode: false })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      expect(res.headers.get('location')).toContain('error=mode_mismatch')
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('does not block when the platform key mode cannot be determined', async () => {
+      vi.mocked(getIntegrationKey).mockResolvedValueOnce('unknown_format')
+      const { state, update } = setup({ charges_enabled: true }, { livemode: true })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      expect(res.headers.get('location')).toContain('connected=1')
+      expect(update).toHaveBeenCalled()
+    })
+
+    it('redirects account_in_use on a unique violation and never reports success', async () => {
+      const { state } = setup({ charges_enabled: true }, {}, {
+        data: null,
+        error: { code: '23505', message: 'duplicate key' },
+      })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      const loc = res.headers.get('location') ?? ''
+      expect(loc).toContain('error=account_in_use')
+      expect(loc).not.toContain('connected=1')
+    })
+
+    it('redirects save_failed on any other update error', async () => {
+      const { state } = setup({ charges_enabled: true }, {}, {
+        data: null,
+        error: { code: '57014', message: 'timeout' },
+      })
+      const res = await GET(makeRequest({ code: 'ac_test', state }))
+      const loc = res.headers.get('location') ?? ''
+      expect(loc).toContain('error=save_failed')
+      expect(loc).not.toContain('connected=1')
+    })
   })
 })

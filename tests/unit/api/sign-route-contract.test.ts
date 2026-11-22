@@ -114,6 +114,7 @@ function estimateRow(overrides: Record<string, unknown> = {}) {
 }
 
 const COMPANY_ROW = {
+  digital_signature_allowed: true,
   digital_signature_enabled: true,
   estimate_terms_enabled: false,
   estimate_terms_text: null,
@@ -597,7 +598,7 @@ describe('content fingerprint: signing exactly the document the page rendered', 
 
   it('company terms edited after the page loaded -> 409 estimate_updated, nothing signed', async () => {
     const supabase = configure({
-      companyRow: { digital_signature_enabled: true, estimate_terms_enabled: true, estimate_terms_text: 'Net 30. No refunds.' },
+      companyRow: { digital_signature_allowed: true, digital_signature_enabled: true, estimate_terms_enabled: true, estimate_terms_text: 'Net 30. No refunds.' },
     })
     const loadedWith = pageFingerprint([], {
       digital_signature_enabled: true,
@@ -698,6 +699,42 @@ describe('public link gate: expiry and share password (same rules as the public 
     expect(res.status).toBe(200)
     expect(supabase.__rpcMock).toHaveBeenCalledOnce()
     expect(mockHasValidUnlock).not.toHaveBeenCalled()
+  })
+})
+
+describe('feature switches: platform AND tenant switch gate signing', () => {
+  async function signWith(companyRow: Record<string, unknown>) {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow()],
+      companyRow,
+      rpcHandler: () => ({ data: RPC_SUCCESS_RESULT, error: null }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+    const res = await POST(
+      jsonRequest({ token: 'share-token-abc', signerName: 'Jane Doe', signatureData: TINY_PNG_DATA_URL }),
+      PARAMS
+    )
+    return { res, supabase }
+  }
+
+  it('platform switch off while the tenant switch is on -> same 403 as tenant off, nothing signed', async () => {
+    const platformOff = await signWith({ ...COMPANY_ROW, digital_signature_allowed: false, digital_signature_enabled: true })
+    const tenantOff = await signWith({ ...COMPANY_ROW, digital_signature_allowed: true, digital_signature_enabled: false })
+    expect(platformOff.res.status).toBe(403)
+    expect(tenantOff.res.status).toBe(403)
+    expect(await platformOff.res.json()).toEqual(await tenantOff.res.json())
+    expect(platformOff.supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a row missing the allowed column fails closed', async () => {
+    const { res, supabase } = await signWith({ digital_signature_enabled: true, estimate_terms_enabled: false, estimate_terms_text: null })
+    expect(res.status).toBe(403)
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('both switches on -> signs', async () => {
+    const { res } = await signWith({ ...COMPANY_ROW, digital_signature_allowed: true, digital_signature_enabled: true })
+    expect(res.status).toBe(200)
   })
 })
 

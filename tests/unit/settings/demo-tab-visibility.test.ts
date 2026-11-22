@@ -27,9 +27,9 @@ describe('Demo tab visibility (181-01)', () => {
   describe('SettingsNav demoHidden filter', () => {
     const nav = read('components/settings/settings-nav.tsx')
 
-    it('flags exactly 7 items demoHidden (the 6 non-exposed tabs + Appearance)', () => {
+    it('flags exactly 8 items demoHidden (the 7 non-exposed tabs + Appearance)', () => {
       const matches = nav.match(/demoHidden: true/g) ?? []
-      expect(matches.length).toBe(7)
+      expect(matches.length).toBe(8)
     })
 
     it('filters each group with the isDemo && demoHidden idiom', () => {
@@ -97,5 +97,17 @@ describe('Demo tab visibility (181-01)', () => {
       const matches = mobileMenu.match(/\{!isDemo && \(/g) ?? []
       expect(matches.length).toBe(0)
     })
+  })
+})
+
+describe('Client actions nav entry', () => {
+  const nav = readFileSync(resolve(__dirname, '..', '..', '..', 'components/settings/settings-nav.tsx'), 'utf8')
+  it('sits under Estimates after Estimate defaults, hidden in demo', () => {
+    const lines = nav.split('\n')
+    const defaults = lines.findIndex((l) => l.includes("label: 'Estimate defaults'"))
+    const actions = lines.findIndex((l) => l.includes("label: 'Client actions'"))
+    expect(actions).toBe(defaults + 1)
+    expect(lines[actions]).toContain("href: '/settings/client-actions'")
+    expect(lines[actions]).toContain('demoHidden: true')
   })
 })

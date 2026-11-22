@@ -51,7 +51,7 @@ const PARENT = {
 function setup(over: { co?: unknown; company?: unknown; parent?: unknown; updated?: unknown[] } = {}) {
   handler = (c) => {
     if (c.table === 'change_orders' && c.op === 'select') return { data: over.co === undefined ? CO : over.co }
-    if (c.table === 'companies') return { data: over.company === undefined ? { digital_signature_enabled: true } : over.company }
+    if (c.table === 'companies') return { data: over.company === undefined ? { digital_signature_allowed: true, digital_signature_enabled: true } : over.company }
     if (c.table === 'estimates') return { data: over.parent === undefined ? PARENT : over.parent }
     if (c.table === 'change_orders' && c.op === 'update') return { data: over.updated ?? [{ id: 'co-1' }] }
     if (c.table === 'projects') return { data: { client: { name: 'Bob' } } }
@@ -112,7 +112,15 @@ describe('declineChangeOrder', () => {
   })
 
   it('refuses when the company has online approval off', async () => {
-    setup({ company: { digital_signature_enabled: false } })
+    setup({ company: { digital_signature_allowed: true, digital_signature_enabled: false } })
+    const r = await decline()
+    expect(r.success).toBe(false)
+    expect(r.error).toMatch(/not enabled/)
+    expect(fake.calls.some((c) => c.op === 'update')).toBe(false)
+  })
+
+  it('refuses when the platform switch is off even though the tenant switch is on', async () => {
+    setup({ company: { digital_signature_allowed: false, digital_signature_enabled: true } })
     const r = await decline()
     expect(r.success).toBe(false)
     expect(r.error).toMatch(/not enabled/)

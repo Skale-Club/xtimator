@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getProjectById } from '@/lib/queries/project'
 import { getChangeOrderAction, getContractSummaryAction } from '@/lib/actions/change-order'
 import { ChangeOrderEditor } from '@/components/workspace/change-orders/change-order-editor'
-import { paymentsEnabled } from '@/lib/billing/payments-enabled'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures, resolveDigitalSignature } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 import { loadChangeOrderInvoice } from '@/lib/change-orders/queries'
 
 /**
@@ -30,15 +31,14 @@ export default async function ChangeOrderPage({
     getContractSummaryAction(co.estimate_id),
     supabase
       .from('companies')
-      .select(
-        'name, logo_url, phone, digital_signature_enabled, brand_primary_color, stripe_account_id, stripe_connect_status, stripe_charges_enabled',
-      )
+      .select(`name, logo_url, phone, brand_primary_color, ${COMPANY_FEATURE_COLUMNS}`)
       .eq('id', project.company_id)
       .single(),
     // Session client: RLS scopes the invoice read to the caller's company.
     loadChangeOrderInvoice(supabase, co.id),
   ])
   const company = companyResult.data
+  const platformState = await getPlatformFeatureState()
 
   return (
     <div data-editor-frame="v2" className="flex min-h-full flex-col">
@@ -46,7 +46,7 @@ export default async function ChangeOrderPage({
         changeOrder={co}
         contract={contractResult.data ?? null}
         invoicing={{
-          paymentsEnabled: company ? paymentsEnabled(company as Parameters<typeof paymentsEnabled>[0]) : false,
+          paymentsEnabled: resolveCompanyFeatures(company, platformState).onlinePayments.canIssue,
           invoice,
         }}
         project={{ id: project.id, name: project.name, clientName: project.client?.name ?? null }}
@@ -54,7 +54,8 @@ export default async function ChangeOrderPage({
           name: (company?.name as string | null) ?? '',
           logo_url: (company?.logo_url as string | null) ?? null,
           phone: (company?.phone as string | null) ?? null,
-          digital_signature_enabled: (company?.digital_signature_enabled as boolean | null) ?? false,
+          // EFFECTIVE value (platform allowed AND tenant enabled).
+          digital_signature_enabled: resolveDigitalSignature(company).active,
           brand_primary_color: (company?.brand_primary_color as string | null) ?? null,
         }}
       />

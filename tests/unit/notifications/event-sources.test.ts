@@ -168,7 +168,7 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
       },
       // Online approval gate: respondToEstimate reads the company's
       // digital_signature_enabled flag before any write.
-      { data: { digital_signature_enabled: true }, error: null },
+      { data: { digital_signature_allowed: true, digital_signature_enabled: true }, error: null },
       {
         data: {
           notify_on_accept: false,
@@ -369,7 +369,7 @@ describe('payment.received instrumentation', () => {
       project_name: 'Bathroom remodel',
     }
     const invoiceSingle = vi.fn().mockResolvedValueOnce({ data: updatedInvoice, error: null })
-    const invoiceSelectAfterUpdate = vi.fn().mockReturnValue({ single: invoiceSingle })
+    const invoiceSelectAfterUpdate = vi.fn().mockReturnValue({ single: invoiceSingle, maybeSingle: invoiceSingle })
     const invoiceUpdateEq2 = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate })
     const invoiceUpdateEq = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate, eq: invoiceUpdateEq2 })
     const invoiceUpdate = vi.fn().mockReturnValue({ eq: invoiceUpdateEq })

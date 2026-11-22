@@ -69,15 +69,27 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  await svc
+  const { error: updateError } = await svc
     .from('companies')
     .update({
       stripe_account_id: null,
       stripe_connect_status: 'disconnected',
+      // Clear the health columns too: a stale `false` would keep blocking a
+      // healthy account connected next.
+      stripe_charges_enabled: null,
+      stripe_connect_disabled_reason: null,
       // keep stripe_account_email + stripe_account_display_name as audit trail
     })
     .eq('id', company.id as string)
+  if (updateError) {
+    console.error('[connect-disconnect] update failed', updateError)
+    return NextResponse.json(
+      { ok: false, message: 'Could not disconnect Stripe. Please try again.' },
+      { status: 500 }
+    )
+  }
 
+  revalidatePath('/settings/client-actions')
   revalidatePath('/settings/integrations/stripe')
   return NextResponse.json({ ok: true })
 }

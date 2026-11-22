@@ -28,7 +28,8 @@ describe('INVOICE-06: getInvoicesByEstimateId (frozen snapshot read-back)', () =
       ],
       error: null,
     })
-    const eq = vi.fn().mockReturnValue({ order })
+    const neq = vi.fn().mockReturnValue({ order })
+    const eq = vi.fn().mockReturnValue({ neq })
     const select = vi.fn().mockReturnValue({ eq })
     const from = vi.fn().mockReturnValue({ select })
     const supabase = { from } as never
@@ -38,6 +39,8 @@ describe('INVOICE-06: getInvoicesByEstimateId (frozen snapshot read-back)', () =
 
     expect(from).toHaveBeenCalledWith('invoices')
     expect(eq).toHaveBeenCalledWith('estimate_id', 'est_1')
+    // Draft rows are reservations made while Stripe is called, never shown.
+    expect(neq).toHaveBeenCalledWith('status', 'draft')
     expect(rows).toHaveLength(1)
     // INVOICE-06: amount is the stored snapshot value, verbatim.
     expect(rows[0].amount_cents).toBe(3000)

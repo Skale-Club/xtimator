@@ -50,7 +50,7 @@ export function ChangeOrderInvoiceSheet({
     try {
       const result = await invoiceChangeOrder(changeOrderId)
       if (result && 'error' in result && result.error) {
-        toast.error(result.error)
+        toast.error(t(result.error))
         return
       }
       toast.success(t('Invoice sent'))

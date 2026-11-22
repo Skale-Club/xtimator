@@ -2,13 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 // next/link reads router config at import in jsdom; mock to a plain anchor (repo convention).
-// Connect onboarding launch switch: existing cases run with onboarding OPEN;
-// the closed-at-launch cases flip it per test.
-const connectOpen = vi.hoisted(() => ({ value: true }))
-vi.mock("@/lib/billing/connect-availability", () => ({
-  isConnectOnboardingOpen: () => connectOpen.value,
-}))
-
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: any) => (
     <a href={href} {...props}>
@@ -35,6 +28,9 @@ vi.mock('@/lib/supabase/service', () => ({
 vi.mock('@/lib/queries/active-company', () => ({
   getActiveCompanyId: vi.fn(async () => 'company-123'),
 }))
+vi.mock('@/lib/features/platform-feature-state', () => ({
+  getPlatformFeatureState: vi.fn(async () => ({ connectPaymentsOpen: true })),
+}))
 vi.mock('@/lib/demo/config', () => ({
   isDemoCompany: vi.fn(() => false),
 }))
@@ -42,6 +38,19 @@ vi.mock('@/lib/demo/config', () => ({
 const { getAuthClaims } = await import('@/lib/queries/auth')
 const { requireServiceClient } = await import('@/lib/supabase/service')
 import SettingsIntegrationsPage from '@/app/(app)/settings/integrations/page'
+
+const ROW_NOT_CONNECTED = {
+  online_payments_allowed: true,
+  online_payments_enabled: true,
+  stripe_account_id: null,
+  stripe_connect_status: null,
+}
+const ROW_CONNECTED = {
+  ...ROW_NOT_CONNECTED,
+  stripe_account_id: 'acct_test_123',
+  stripe_connect_status: 'active',
+  stripe_charges_enabled: true,
+}
 
 function mockSupabase(company: Record<string, unknown> | null) {
   return {
@@ -56,7 +65,8 @@ function mockSupabase(company: Record<string, unknown> | null) {
 describe('Settings → Integrations page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(getAuthClaims).mockResolvedValue(null)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+    vi.mocked(requireServiceClient).mockReturnValue(mockSupabase(ROW_NOT_CONNECTED))
   })
 
   it('header copy: H1 reads "Integrations"', async () => {
@@ -75,16 +85,10 @@ describe('Settings → Integrations page', () => {
     expect(screen.getByText('Developer tools')).toBeTruthy()
   })
 
-  it('shows Stripe card as "Not connected" when user is unauthenticated', async () => {
-    vi.mocked(getAuthClaims).mockResolvedValue(null)
-    render(await SettingsIntegrationsPage())
-    expect(screen.getByText('Not connected')).toBeTruthy()
-  })
-
   it('shows Stripe card as "Not connected" when company has no active Stripe account', async () => {
     vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
     vi.mocked(requireServiceClient).mockReturnValue(
-      mockSupabase({ stripe_account_id: null, stripe_connect_status: null })
+      mockSupabase(ROW_NOT_CONNECTED)
     )
     render(await SettingsIntegrationsPage())
     expect(screen.getByText('Not connected')).toBeTruthy()
@@ -93,40 +97,45 @@ describe('Settings → Integrations page', () => {
   it('shows Stripe card as "Connected" when company has active Stripe account', async () => {
     vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
     vi.mocked(requireServiceClient).mockReturnValue(
-      mockSupabase({ stripe_account_id: 'acct_abc', stripe_connect_status: 'active' })
+      mockSupabase(ROW_CONNECTED)
     )
     render(await SettingsIntegrationsPage())
     expect(screen.getByText('Connected')).toBeTruthy()
   })
 
-  it('hides "Collect payments" while Connect onboarding is closed and the company never connected', async () => {
-    connectOpen.value = false
-    try {
-      vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
-      vi.mocked(requireServiceClient).mockReturnValue(
-        mockSupabase({ stripe_account_id: null, stripe_connect_status: null })
-      )
-      render(await SettingsIntegrationsPage())
-      expect(screen.queryByText('Collect payments')).toBeNull()
-      expect(screen.getByText('Developer tools')).toBeTruthy()
-    } finally {
-      connectOpen.value = true
-    }
+  it('hides "Collect payments" when the platform does not allow payments and nothing is linked', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      mockSupabase({ ...ROW_NOT_CONNECTED, online_payments_allowed: false })
+    )
+    render(await SettingsIntegrationsPage())
+    expect(screen.queryByText('Collect payments')).toBeNull()
+    expect(screen.getByText('Developer tools')).toBeTruthy()
   })
 
-  it('keeps "Collect payments" for an already linked company while onboarding is closed', async () => {
-    connectOpen.value = false
-    try {
-      vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
-      vi.mocked(requireServiceClient).mockReturnValue(
-        mockSupabase({ stripe_account_id: 'acct_abc', stripe_connect_status: 'active' })
-      )
-      render(await SettingsIntegrationsPage())
-      expect(screen.getByText('Collect payments')).toBeTruthy()
-      expect(screen.getByText('Connected')).toBeTruthy()
-    } finally {
-      connectOpen.value = true
-    }
+  it('keeps "Collect payments" for a linked company whose platform switch is off', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      mockSupabase({ ...ROW_CONNECTED, online_payments_allowed: false })
+    )
+    render(await SettingsIntegrationsPage())
+    expect(screen.getByText('Collect payments')).toBeTruthy()
+  })
+
+  it('shows "Not connected" for a linked account Stripe has paused', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      mockSupabase({ ...ROW_CONNECTED, stripe_charges_enabled: false })
+    )
+    render(await SettingsIntegrationsPage())
+    expect(screen.getByText('Not connected')).toBeTruthy()
+  })
+
+  it('links the card to /settings/client-actions', async () => {
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+    vi.mocked(requireServiceClient).mockReturnValue(mockSupabase(ROW_NOT_CONNECTED))
+    const { container } = render(await SettingsIntegrationsPage())
+    expect(container.querySelector('a[href="/settings/client-actions"]')).toBeTruthy()
   })
 
   it('renders MCP Server card with Beta badge', async () => {

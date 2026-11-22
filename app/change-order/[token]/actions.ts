@@ -5,6 +5,7 @@
  * Accepting always goes through the sign route (POST /api/change-orders/[id]/sign)
  * so a signature is captured; this action only declines.
  */
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 import { notifyChangeOrderResponse } from '@/lib/change-orders/notify'
@@ -58,11 +59,10 @@ export async function declineChangeOrder(token: string): Promise<{ success: bool
   // answer inside the app, so this public action refuses. Runs before any write.
   const { data: companyRow } = await supabase
     .from('companies')
-    .select('digital_signature_enabled')
+    .select('digital_signature_allowed, digital_signature_enabled')
     .eq('id', co.company_id)
     .single()
-  const signatureEnabled =
-    (companyRow as { digital_signature_enabled?: boolean | null } | null)?.digital_signature_enabled === true
+  const signatureEnabled = resolveDigitalSignature(companyRow).active
   if (!signatureEnabled) {
     return { success: false, error: 'Online responses are not enabled for this change order' }
   }

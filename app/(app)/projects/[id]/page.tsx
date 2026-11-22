@@ -11,7 +11,8 @@ import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import { stripOwnerOnlyEstimate } from '@/lib/estimate/ai-meta'
 import { buildOwnerEstimateReview } from '@/lib/estimate/owner-review'
 import { getPriceBookItems } from '@/lib/queries/price-book'
-import { paymentsEnabled } from '@/lib/billing/payments-enabled'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
@@ -107,7 +108,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const companyPromise = supabase
     .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, stripe_account_id, stripe_connect_status, stripe_charges_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style')
+    .select(`name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, ${COMPANY_FEATURE_COLUMNS}, estimate_terms_enabled, estimate_terms_text, estimate_template_style`)
     .eq('id', project.company_id)
     .single()
 
@@ -134,17 +135,9 @@ async function ProjectTabs({
   const smsDeliveryEnabled = (company?.sms_delivery_enabled as boolean) ?? false
 
   // PAYGATE-01/02 — compute the single forward-looking payment gate server-side
-  // from the company's Connect status, then thread the boolean down to the
+  // from the feature resolver (platform + tenant switches and Stripe readiness), then thread the boolean down to the
   // editor so the Generate-invoice affordance only renders when payments are on.
-  const canIssueInvoice = paymentsEnabled({
-    stripe_account_id: (company?.stripe_account_id as string | null) ?? null,
-    stripe_connect_status: (company?.stripe_connect_status as string | null) ?? null,
-    // CONNECT-HEALTH-01: without this the affordance stays enabled on an
-    // account Stripe has restricted, and the owner only learns after the
-    // server action refuses — exactly the dead end the predicate exists to
-    // prevent. null (legacy row) stays permissive.
-    stripe_charges_enabled: (company?.stripe_charges_enabled as boolean | null) ?? null,
-  })
+  const canIssueInvoice = resolveCompanyFeatures(company, await getPlatformFeatureState()).onlinePayments.canIssue
 
   // Phase 163 (SENDHUB) — resolve WhatsApp availability into a single opaque
   // boolean for the Send hub. The tier entitlement is the coarse gate; the

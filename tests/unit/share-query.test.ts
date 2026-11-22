@@ -222,6 +222,49 @@ describe('getEstimateByShareToken: content fingerprint', () => {
   })
 })
 
+// Feature switches: the public payload carries only the final yes/no.
+describe('getEstimateByShareToken: effective digital signature flag', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  async function load(companyOverrides: AnyRow) {
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [],
+      projectRow: validProject,
+      companyRow: { ...validCompany, ...companyOverrides },
+    })
+    return (await getEstimateByShareToken('tok-SECRET'))!
+  }
+
+  it('is false when the platform switch is off even though the tenant switch is on', async () => {
+    const result = await load({ digital_signature_allowed: false, digital_signature_enabled: true })
+    expect(result.estimate.company.digital_signature_enabled).toBe(false)
+  })
+
+  it('is true only when both switches are on', async () => {
+    const result = await load({ digital_signature_allowed: true, digital_signature_enabled: true })
+    expect(result.estimate.company.digital_signature_enabled).toBe(true)
+  })
+
+  it('fails closed when the allowed column is absent', async () => {
+    const result = await load({ digital_signature_enabled: true })
+    expect(result.estimate.company.digital_signature_enabled).toBe(false)
+  })
+
+  it('never exposes digital_signature_allowed, and selects it', async () => {
+    const result = await load({ digital_signature_allowed: true, digital_signature_enabled: true })
+    expect(result.estimate.company).not.toHaveProperty('digital_signature_allowed')
+    expect(JSON.stringify(result)).not.toContain('digital_signature_allowed')
+    expect(selectCols.companies).toContain('digital_signature_allowed')
+  })
+
+  it('does not change the content fingerprint (it covers only the Terms fields)', async () => {
+    const on = await load({ digital_signature_allowed: true, digital_signature_enabled: true })
+    const off = await load({ digital_signature_allowed: false, digital_signature_enabled: false })
+    expect(on.estimate.contentFingerprint).toBe(off.estimate.contentFingerprint)
+  })
+})
+
 // PDFPAR-02 (Phase 183 Plan 02) — widened loadLatestSignedSnapshot now also
 // surfaces signer_name/signature_data, threaded through as
 // signerName/signedAt/signatureImageDataUrl on the returned estimate.

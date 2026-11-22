@@ -301,6 +301,8 @@ export const billingConfigSchema = z.object({
   // able to swallow most/all of a small invoice; the 10% ceiling in
   // lib/billing/estimate-fee.ts is the other half of that guarantee.
   estimateFeeMinCents: z.number().int().min(0).max(1000),
+  // Global stop for client payments (default open). See lib/features/company-features.ts.
+  connectPaymentsOpen: z.boolean(),
   // monthly price of one billable seat in integer cents (no upper bound that would reject a sane price).
   seatPriceCents: z.number().int().min(0),
   // global ANNUAL per-seat price in integer cents (no upper bound that would reject a sane annual price).

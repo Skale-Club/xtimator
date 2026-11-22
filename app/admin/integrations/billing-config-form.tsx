@@ -162,6 +162,8 @@ export function BillingConfigForm({ current }: Props) {
   // Platform-wide auto-top-up kill switch (CREDITUI-07).
   const [autoTopupEnabled, setAutoTopupEnabled] = useState(current.autoTopupEnabled)
   const [brlPricingEnabled, setBrlPricingEnabled] = useState(current.brlPricingEnabled === true)
+  // Global stop for client payments (Stripe Connect). Defaults open.
+  const [connectPaymentsOpen, setConnectPaymentsOpen] = useState(current.connectPaymentsOpen !== false)
 
   // Metering: which operations debit credits vs run absorbed, keyed exactly as
   // stored (no keys invented) + the absorbed-chat anti-abuse rate limit.
@@ -179,7 +181,7 @@ export function BillingConfigForm({ current }: Props) {
     seatPriceCents, seatPriceAnnualCents, tiers, topUpPacks, topupExpiryMonths, estimatedCredits,
     creditPauseDays,
     messagingRatesJson, lowBalanceThresholds, signupCreditGrant, enforcementEnabled,
-    autoTopupEnabled, brlPricingEnabled, meteredOperations, absorbedChatRateLimitPerMin,
+    autoTopupEnabled, brlPricingEnabled, connectPaymentsOpen, meteredOperations, absorbedChatRateLimitPerMin,
   }
   const snapshotJson = JSON.stringify(snapshot)
   const [savedJson, setSavedJson] = useState(snapshotJson)
@@ -206,6 +208,7 @@ export function BillingConfigForm({ current }: Props) {
     setEnforcementEnabled(v.enforcementEnabled)
     setAutoTopupEnabled(v.autoTopupEnabled)
     setBrlPricingEnabled(v.brlPricingEnabled)
+    setConnectPaymentsOpen(v.connectPaymentsOpen)
     setMeteredOperations(v.meteredOperations)
     setAbsorbedChatRateLimitPerMin(v.absorbedChatRateLimitPerMin)
   }
@@ -251,6 +254,7 @@ export function BillingConfigForm({ current }: Props) {
       whisperUsdPerMinute: Number(whisperUsdPerMinute),
       estimateFeePct: Number(estimateFeePct),
       estimateFeeMinCents: Number(estimateFeeMinCents),
+      connectPaymentsOpen,
       seatPriceCents: Number(seatPriceCents),
       seatPriceAnnualCents: Number(seatPriceAnnualCents),
       tiers: TIERS.reduce(
@@ -890,6 +894,26 @@ export function BillingConfigForm({ current }: Props) {
           />
           <span className="text-sm font-medium">
             {t('BRL pricing for Brazilian companies (plans still charge in USD)')}
+          </span>
+        </label>
+      </fieldset>
+
+      {/* Client payments global stop */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Client payments')}</legend>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={connectPaymentsOpen}
+            onChange={(e) => setConnectPaymentsOpen(e.target.checked)}
+            disabled={isPending}
+            className="mt-1 h-4 w-4 accent-primary"
+          />
+          <span className="grid gap-2">
+            <span className="text-sm font-medium">{t('Client payments open (Stripe Connect)')}</span>
+            <span className="text-xs text-muted-foreground max-w-2xl">
+              {t('Off closes connecting Stripe and issuing invoices for every company. Invoices already sent stay payable.')}
+            </span>
           </span>
         </label>
       </fieldset>

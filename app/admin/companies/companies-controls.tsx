@@ -19,9 +19,10 @@ interface CompaniesControlsProps {
   tier: string
   override: string
   demo: string
+  payments: string
 }
 
-export function CompaniesControls({ search, tier, override, demo }: CompaniesControlsProps) {
+export function CompaniesControls({ search, tier, override, demo, payments }: CompaniesControlsProps) {
   const router = useRouter()
   const sp = useSearchParams()
   const { t } = useTranslation()
@@ -101,6 +102,18 @@ export function CompaniesControls({ search, tier, override, demo }: CompaniesCon
           <SelectItem value="all">{t('Any')}</SelectItem>
           <SelectItem value="demo">{t('Demo')}</SelectItem>
           <SelectItem value="real">{t('Real')}</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Online payments filter (platform switch) */}
+      <Select value={payments || 'all'} onValueChange={(v) => pushParam('payments', v)}>
+        <SelectTrigger className="h-8 text-sm w-[150px]">
+          <SelectValue placeholder={t('Payments')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t('Any')}</SelectItem>
+          <SelectItem value="allowed">{t('Payments allowed')}</SelectItem>
+          <SelectItem value="not_allowed">{t('Payments not allowed')}</SelectItem>
         </SelectContent>
       </Select>
 

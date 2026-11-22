@@ -4,6 +4,7 @@
  * lib/change-orders/types.ts; everything here uses the SERVICE client, so
  * callers must already be authorized (a share token, or the PDF route's check).
  */
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import 'server-only'
 import { headers } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -28,7 +29,7 @@ export async function loadChangeOrderInvoice(
 ): Promise<ChangeOrderInvoice | null> {
   const { data } = await supabase
     .from('invoices')
-    .select('id, status, amount_cents, currency_code, hosted_invoice_url, paid_at, created_at')
+    .select('id, status, amount_cents, currency_code, hosted_invoice_url, paid_at, refunded_cents, created_at')
     .eq('change_order_id', changeOrderId)
     .in('status', ['open', 'paid'])
     .order('created_at', { ascending: false })
@@ -39,6 +40,7 @@ export async function loadChangeOrderInvoice(
     currency_code: string
     hosted_invoice_url: string | null
     paid_at: string | null
+    refunded_cents: number | null
   }>
   const row = rows.find((r) => r.status === 'paid') ?? rows[0]
   if (!row) return null
@@ -49,6 +51,7 @@ export async function loadChangeOrderInvoice(
     currency_code: row.currency_code,
     hosted_invoice_url: row.hosted_invoice_url ?? null,
     paid_at: row.paid_at ?? null,
+    refunded_cents: row.refunded_cents ?? 0,
   }
 }
 
@@ -88,7 +91,7 @@ async function loadPublicData(
     supabase
       .from('companies')
       .select(
-        'id, name, slug, logo_url, phone, email, brand_primary_color, digital_signature_enabled',
+        'id, name, slug, logo_url, phone, email, brand_primary_color, digital_signature_allowed, digital_signature_enabled',
       )
       .eq('id', changeOrder.company_id)
       .maybeSingle(),
@@ -107,6 +110,7 @@ async function loadPublicData(
     phone: string | null
     email: string | null
     brand_primary_color: string | null
+    digital_signature_allowed: boolean | null
     digital_signature_enabled: boolean | null
   }
 
@@ -121,7 +125,8 @@ async function loadPublicData(
       phone: company.phone ?? null,
       email: company.email ?? null,
       brand_primary_color: company.brand_primary_color ?? null,
-      digital_signature_enabled: company.digital_signature_enabled === true,
+      // EFFECTIVE value (platform switch AND tenant switch); `_allowed` is never exposed.
+      digital_signature_enabled: resolveDigitalSignature(company).active,
     },
     estimate: {
       id: estimate.id,

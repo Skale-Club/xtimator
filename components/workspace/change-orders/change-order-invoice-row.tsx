@@ -5,12 +5,20 @@ import { formatMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 import type { ChangeOrderInvoice } from '@/lib/change-orders/types'
+import { VoidInvoiceButton } from '@/components/workspace/estimate/issued-invoices-panel'
 
 /**
  * Compact row for the change order's own invoice in the owner editor. Same
  * visual family as the issued invoices panel of the estimate editor.
  */
-export function ChangeOrderInvoiceRow({ invoice }: { invoice: ChangeOrderInvoice }) {
+export function ChangeOrderInvoiceRow({
+  invoice,
+  voidInvoice,
+}: {
+  invoice: ChangeOrderInvoice
+  /** Injected like the other change order actions (default: the real server action). */
+  voidInvoice?: (invoiceId: string) => Promise<{ error: string } | { success: true }>
+}) {
   const { t } = useTranslation()
   const paid = invoice.status === 'paid'
   return (
@@ -26,19 +34,30 @@ export function ChangeOrderInvoiceRow({ invoice }: { invoice: ChangeOrderInvoice
           <span className={cn('text-xs', paid ? 'font-medium text-[hsl(var(--success))]' : 'text-muted-foreground')}>
             {paid ? t('Paid') : t('Open')}
           </span>
+          {paid && (invoice.refunded_cents ?? 0) > 0 && (
+            <span data-testid="invoice-refund-label" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              {' · '}
+              {(invoice.refunded_cents ?? 0) >= invoice.amount_cents
+                ? t('Refunded')
+                : `${t('Partly refunded')}: ${formatMinorUnits(invoice.refunded_cents ?? 0, invoice.currency_code)}`}
+            </span>
+          )}
         </p>
       </div>
+      <div className="flex shrink-0 items-center gap-3">
       {invoice.hosted_invoice_url && (
         <a
           href={invoice.hosted_invoice_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
           <ExternalLink className="size-3.5" aria-hidden />
           {t('View invoice')}
         </a>
       )}
+      {invoice.status === 'open' && <VoidInvoiceButton invoiceId={invoice.id} onVoid={voidInvoice} />}
+      </div>
     </div>
   )
 }

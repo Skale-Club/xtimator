@@ -153,6 +153,33 @@ describe('EstimateView — public page carries the same content as the PDF', () 
 
 const RESPONSE_UI = /accept|decline|sign/i
 
+describe('EstimateView — refunded invoices', () => {
+  const paidInvoice = {
+    id: 'inv-1',
+    kind: 'full',
+    amount_cents: 100000,
+    currency_code: 'USD',
+    status: 'paid',
+    hosted_invoice_url: null,
+  }
+
+  it('shows Refunded for a fully refunded paid invoice and Partly refunded with the amount otherwise', async () => {
+    const first = renderView({ invoices: [{ ...paidInvoice, refunded_cents: 100000 }] })
+    expect((await screen.findByTestId('invoice-refund-label', {}, SLOW)).textContent).toBe('Refunded')
+    first.unmount()
+    renderView({ invoices: [{ ...paidInvoice, refunded_cents: 25000 }] })
+    const label = (await screen.findByTestId('invoice-refund-label', {}, SLOW)).textContent ?? ''
+    expect(label).toContain('Partly refunded')
+    expect(label).toContain('250.00')
+  }, 20_000)
+
+  it('shows no refund label for a paid invoice that was never refunded', async () => {
+    renderView({ invoices: [{ ...paidInvoice, refunded_cents: 0 }] })
+    expect(await screen.findByText(/Paid/, {}, SLOW)).toBeTruthy()
+    expect(screen.queryByTestId('invoice-refund-label')).toBeNull()
+  }, 20_000)
+})
+
 describe('EstimateView — approval OFF (digital_signature_enabled = false)', () => {
   it('renders no accept/decline/respond UI anywhere: no bar button, no sticky bar, no card', async () => {
     const { container } = renderView({}, { digital_signature_enabled: false })

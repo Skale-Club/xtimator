@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import type { ElementType } from 'react'
 import {
   Bell, BookOpen, Building2, CreditCard, FileText,
-  Mail, Palette, Plug, UserRound, Users,
+  Mail, MousePointerClick, Palette, Plug, UserRound, Users,
 } from 'lucide-react'
 import { SidePanelColumn, SidePanelMobilePicker, type SidePanelGroup } from '@/components/ui/side-panel'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -38,6 +38,7 @@ export const SETTINGS_NAV_GROUPS: NavGroup[] = [
     label: 'Estimates',
     items: [
       { value: 'estimates', label: 'Estimate defaults', Icon: FileText, href: '/settings/estimates',          demoHidden: true },
+      { value: 'client-actions', label: 'Client actions', Icon: MousePointerClick, href: '/settings/client-actions', demoHidden: true },
       { value: 'templates', label: 'Client message',    Icon: Mail,     href: '/settings/estimate-templates', demoHidden: true },
       { value: 'knowledge', label: 'AI knowledge',      Icon: BookOpen, href: '/settings/knowledge',          demoHidden: true },
     ],

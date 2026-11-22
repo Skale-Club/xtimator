@@ -478,6 +478,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...excepted('app/admin/companies/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
     'setByokConfig',
+    'setCompanyFeatureAllowed',
     'setCompanyModelOverride',
     'setDemoEstimateQuota',
   ]),
@@ -825,6 +826,10 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'normalizeChatInput',
     'resolveCurrentEstimateId',
   ]),
+  ...guarded('lib/actions/client-actions.ts', 'assertWritable', [
+    'setDigitalSignatureEnabled',
+    'setOnlinePaymentsEnabled',
+  ]),
   ...guarded('lib/actions/client.ts', 'assertWritable', [
     'createClientAction',
     'deleteClientAction',
@@ -891,6 +896,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...guarded('lib/actions/invite-accept.ts', 'assertWritable', ['acceptInvite']),
   ...guarded('lib/actions/invoice.ts', 'assertWritable', ['generateInvoice', 'invoiceChangeOrder']),
+  ...guarded('lib/actions/invoice-void.ts', 'assertWritable', ['voidInvoice']),
   ...guarded('lib/actions/whatsapp-consent.ts', 'assertWritable', ['recordWhatsAppOptIn']),
   ...excepted('lib/actions/invoice.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'getInvoicesForEstimate',

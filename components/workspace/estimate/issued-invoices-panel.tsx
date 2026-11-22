@@ -1,7 +1,21 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Receipt, ExternalLink, FileText } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { voidInvoice } from '@/lib/actions/invoice-void'
 import { formatMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { InvoiceRow } from '@/lib/queries/invoice'
@@ -23,6 +37,80 @@ const STATUS_LABELS: Record<InvoiceRow['status'], string> = {
   paid: 'Paid',
   void: 'Void',
   uncollectible: 'Uncollectible',
+}
+
+type VoidResult = { error: string } | { success: true }
+
+/**
+ * "Void" button + confirmation for one open invoice. Shared by the estimate
+ * editor's panel and the change order invoice row. `onVoid` defaults to the real
+ * server action so callers (and tests) can inject a fake.
+ */
+export function VoidInvoiceButton({
+  invoiceId,
+  onVoid = voidInvoice,
+}: {
+  invoiceId: string
+  onVoid?: (invoiceId: string) => Promise<VoidResult>
+}) {
+  const { t } = useTranslation()
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function confirm() {
+    setBusy(true)
+    try {
+      const result = await onVoid(invoiceId)
+      if ('error' in result) {
+        toast.error(t(result.error))
+        return
+      }
+      toast.success(t('Invoice voided'))
+      setOpen(false)
+      router.refresh()
+    } catch {
+      toast.error(t('Could not void the invoice. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="void-invoice"
+        className="inline-flex items-center text-xs font-medium text-destructive hover:underline"
+      >
+        {t('Void')}
+      </button>
+      <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Void this invoice?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('Your client will no longer be able to pay it. This cannot be undone.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              data-testid="void-invoice-confirm"
+              onClick={(e) => {
+                e.preventDefault()
+                void confirm()
+              }}
+            >
+              {t('Void invoice')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
 }
 
 /**
@@ -49,6 +137,7 @@ export function IssuedInvoicesPanel({ invoices }: IssuedInvoicesPanelProps) {
         <ul className="space-y-2">
           {invoices.map((inv) => {
             const isPaid = inv.status === 'paid'
+            const isVoid = inv.status === 'void'
             return (
               <li
                 key={inv.id}
@@ -67,11 +156,21 @@ export function IssuedInvoicesPanel({ invoices }: IssuedInvoicesPanelProps) {
                       className={
                         isPaid
                           ? 'font-medium text-[hsl(var(--success))]'
-                          : 'text-muted-foreground'
+                          : isVoid
+                            ? 'text-muted-foreground line-through'
+                            : 'text-muted-foreground'
                       }
                     >
                       {t(STATUS_LABELS[inv.status])}
                     </span>
+                    {isPaid && inv.refunded_cents > 0 && (
+                      <span data-testid="invoice-refund-label" className="font-medium text-amber-600 dark:text-amber-400">
+                        {' · '}
+                        {inv.refunded_cents >= inv.amount_cents
+                          ? t('Refunded')
+                          : `${t('Partly refunded')}: ${formatMinorUnits(inv.refunded_cents, inv.currency_code)}`}
+                      </span>
+                    )}
                   </p>
                 </div>
 
@@ -98,6 +197,7 @@ export function IssuedInvoicesPanel({ invoices }: IssuedInvoicesPanelProps) {
                       {t('PDF')}
                     </a>
                   )}
+                  {inv.status === 'open' && <VoidInvoiceButton invoiceId={inv.id} />}
                 </div>
               </li>
             )

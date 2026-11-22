@@ -28,8 +28,8 @@ import { useTranslation } from '@/lib/i18n/use-translation'
  * Everything that shapes a new estimate, in one form with one save: pricing
  * defaults, the terms printed on it, and how it reaches the client. This
  * replaces three separate forms (defaults, terms, delivery) that each had
- * their own save button, and the "Require digital signature" switch that
- * lived in two of them.
+ * their own save button. The digital signature switch no longer lives here: it
+ * is owner-only, on the Client actions page.
  */
 
 const schema = z.object({
@@ -39,7 +39,6 @@ const schema = z.object({
   defaultWarrantyTerms: z.string().optional().or(z.literal('')),
   estimateTermsEnabled: z.boolean(),
   estimateTermsText: z.string(),
-  digitalSignatureEnabled: z.boolean(),
   emailDeliveryEnabled: z.boolean(),
   smsDeliveryEnabled: z.boolean(),
   // SEED-056 document blocks (company defaults for NEW estimates).
@@ -55,7 +54,6 @@ const schema = z.object({
 type Values = z.infer<typeof schema>
 
 type SwitchName =
-  | 'digitalSignatureEnabled'
   | 'emailDeliveryEnabled'
   | 'smsDeliveryEnabled'
   | 'estimateTermsEnabled'
@@ -77,7 +75,6 @@ function initialValues(company: CompanySettings): Values {
     defaultWarrantyTerms: company.default_warranty_terms || '',
     estimateTermsEnabled: company.estimate_terms_enabled,
     estimateTermsText: company.estimate_terms_text ?? '',
-    digitalSignatureEnabled: company.digital_signature_enabled,
     emailDeliveryEnabled: company.email_delivery_enabled,
     smsDeliveryEnabled: company.sms_delivery_enabled,
     // Absent key = system default: summary and photos on, text blocks on when
@@ -122,7 +119,6 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
         }),
         // Delivery touches no document_blocks key, so it can run alongside.
         updateDeliverySettings({
-          digitalSignatureEnabled: values.digitalSignatureEnabled,
           emailDeliveryEnabled: values.emailDeliveryEnabled,
           smsDeliveryEnabled: values.smsDeliveryEnabled,
         }),
@@ -335,8 +331,8 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
           </SettingsCard>
 
           <SettingsCard
-            title={t('Sending and signature')}
-            description={t('How estimates reach your clients and how they accept them.')}
+            title={t('Sending')}
+            description={t('How estimates reach your clients.')}
           >
             <SettingsRows>
               <SettingsRow
@@ -352,13 +348,6 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
                 description={t('Text the estimate link to the client.')}
               >
                 {switchField('smsDeliveryEnabled', 'sms-delivery')}
-              </SettingsRow>
-              <SettingsRow
-                htmlFor="sig-enabled"
-                label={t('Online approval with signature')}
-                description={t("Clients can accept the estimate on its page by drawing their signature. When off, the page has no accept buttons and you record the client's answer in the app.")}
-              >
-                {switchField('digitalSignatureEnabled', 'sig-enabled')}
               </SettingsRow>
             </SettingsRows>
           </SettingsCard>

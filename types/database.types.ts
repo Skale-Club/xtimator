@@ -730,6 +730,7 @@ export type Database = {
           default_warranty_terms: string | null
           document_blocks: Json | null
           demo_estimate_quota: number | null
+          digital_signature_allowed: boolean
           digital_signature_enabled: boolean
           email: string | null
           email_delivery_enabled: boolean
@@ -750,6 +751,8 @@ export type Database = {
           notify_on_accept: boolean | null
           notify_on_decline: boolean | null
           notify_on_view: boolean | null
+          online_payments_allowed: boolean
+          online_payments_enabled: boolean
           owner_name: string | null
           phone: string | null
           slug: string | null
@@ -811,6 +814,7 @@ export type Database = {
           default_warranty_terms?: string | null
           document_blocks?: Json | null
           demo_estimate_quota?: number | null
+          digital_signature_allowed?: boolean
           digital_signature_enabled?: boolean
           email?: string | null
           email_delivery_enabled?: boolean
@@ -831,6 +835,8 @@ export type Database = {
           notify_on_accept?: boolean | null
           notify_on_decline?: boolean | null
           notify_on_view?: boolean | null
+          online_payments_allowed?: boolean
+          online_payments_enabled?: boolean
           owner_name?: string | null
           phone?: string | null
           slug?: string | null
@@ -892,6 +898,7 @@ export type Database = {
           default_warranty_terms?: string | null
           document_blocks?: Json | null
           demo_estimate_quota?: number | null
+          digital_signature_allowed?: boolean
           digital_signature_enabled?: boolean
           email?: string | null
           email_delivery_enabled?: boolean
@@ -912,6 +919,8 @@ export type Database = {
           notify_on_accept?: boolean | null
           notify_on_decline?: boolean | null
           notify_on_view?: boolean | null
+          online_payments_allowed?: boolean
+          online_payments_enabled?: boolean
           owner_name?: string | null
           phone?: string | null
           slug?: string | null
@@ -1857,7 +1866,10 @@ export type Database = {
           kind: string
           paid_at: string | null
           project_name: string | null
+          refunded_at: string | null
+          refunded_cents: number
           status: string
+          stripe_account_id: string | null
           stripe_customer_id: string | null
           stripe_invoice_id: string | null
           updated_at: string
@@ -1875,7 +1887,10 @@ export type Database = {
           kind: string
           paid_at?: string | null
           project_name?: string | null
+          refunded_at?: string | null
+          refunded_cents?: number
           status?: string
+          stripe_account_id?: string | null
           stripe_customer_id?: string | null
           stripe_invoice_id?: string | null
           updated_at?: string
@@ -1893,7 +1908,10 @@ export type Database = {
           kind?: string
           paid_at?: string | null
           project_name?: string | null
+          refunded_at?: string | null
+          refunded_cents?: number
           status?: string
+          stripe_account_id?: string | null
           stripe_customer_id?: string | null
           stripe_invoice_id?: string | null
           updated_at?: string

@@ -55,7 +55,6 @@ describe('paywalled company: business settings are read-only on the server', () 
     const result = await updateDeliverySettings({
       emailDeliveryEnabled: true,
       smsDeliveryEnabled: false,
-      digitalSignatureEnabled: true,
     })
     expect(result).toEqual({ error: PAYWALLED.error })
     expect(update).not.toHaveBeenCalled()

@@ -283,15 +283,20 @@ interface AddModeMockOpts {
   sourceTier?: string
   sourceTrialEndsAt?: string | null
   sourceCompanyId?: string | null
+  /** Make the service-role tier update fail. */
+  tierUpdateError?: { message: string } | null
 }
 
 let capturedAddInsertRow: Record<string, unknown> | null = null
+// Service-role UPDATE of companies (tier inheritance): payload and target id.
+let capturedTierUpdate: { row: Record<string, unknown>; id: string } | null = null
 let capturedMemberInsertRow: Record<string, unknown> | null = null
 let cookieSetSpy: ReturnType<typeof vi.fn>
 
 function makeAddModeSupabaseMock(opts: AddModeMockOpts) {
   capturedAddInsertRow = null
   capturedMemberInsertRow = null
+  capturedTierUpdate = null
   cookieSetSpy = vi.fn()
 
   vi.mocked(nextCookies).mockResolvedValue({
@@ -343,6 +348,16 @@ function makeAddModeSupabaseMock(opts: AddModeMockOpts) {
   vi.mocked(requireServiceClient).mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'company_members') return { insert: memberInsert }
+      if (table === 'companies') {
+        return {
+          update: (row: Record<string, unknown>) => ({
+            eq: (_col: string, id: string) => {
+              capturedTierUpdate = { row, id }
+              return Promise.resolve({ error: opts.tierUpdateError ?? null })
+            },
+          }),
+        }
+      }
       return {}
     }),
   } as never)
@@ -405,7 +420,10 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceCompanyId: 'existing-co',
     })
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
-    expect(capturedAddInsertRow!.tier).toBe('pro')
+    // The client insert never carries `tier` (service-role-only column); the
+    // inherited tier is applied by the service client after the insert.
+    expect('tier' in capturedAddInsertRow!).toBe(false)
+    expect(capturedTierUpdate).toEqual({ row: { tier: 'pro' }, id: 'new-company-id' })
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
     // SEED-055 Phase C (owner decision): an added company gets no automatic lot,
     // even on an inherited paid tier.
@@ -420,7 +438,8 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceCompanyId: 'existing-co',
     })
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
-    expect(capturedAddInsertRow!.tier).toBe('free')
+    expect('tier' in capturedAddInsertRow!).toBe(false)
+    expect(capturedTierUpdate).toEqual({ row: { tier: 'free' }, id: 'new-company-id' })
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
     expect(grantSignupCredits).not.toHaveBeenCalled()
     expect(grantMonthlyLot).not.toHaveBeenCalled()
@@ -433,7 +452,8 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceCompanyId: 'existing-co',
     })
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
-    expect(capturedAddInsertRow!.tier).toBe('business')
+    expect('tier' in capturedAddInsertRow!).toBe(false)
+    expect(capturedTierUpdate).toEqual({ row: { tier: 'business' }, id: 'new-company-id' })
     expect(grantMonthlyLot).not.toHaveBeenCalled()
     expect(grantCredits).not.toHaveBeenCalled()
   })
@@ -453,10 +473,40 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
       sourceCompanyId: null,
     })
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
-    expect(capturedAddInsertRow!.tier).toBeUndefined()
+    expect('tier' in capturedAddInsertRow!).toBe(false)
+    expect(capturedTierUpdate).toBeNull()
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
     expect(grantSignupCredits).not.toHaveBeenCalled()
     expect(grantMonthlyLot).not.toHaveBeenCalled()
+  })
+
+  it('T11: the add-mode insert sends no billing/ownership column except user_id', async () => {
+    makeAddModeSupabaseMock({ sourceTier: 'business', sourceCompanyId: 'existing-co' })
+    await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
+    const protectedCols = [
+      'tier', 'tier_trial_ends_at', 'tier_renews_at', 'tier_cancelled_at', 'credit_balance',
+      'byok_enabled', 'byok_openrouter_key', 'byok_key_last4', 'stripe_customer_id',
+      'stripe_subscription_id', 'stripe_subscription_status', 'stripe_subscription_interval',
+      'stripe_account_id', 'stripe_connect_status', 'ai_model_override', 'demo_estimate_quota',
+    ]
+    for (const col of protectedCols) expect(col in capturedAddInsertRow!).toBe(false)
+  })
+
+  it('T12: a failed service-role tier update does not fail the action; it is logged and the flow continues', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    makeAddModeSupabaseMock({
+      sourceTier: 'pro',
+      sourceCompanyId: 'existing-co',
+      tierUpdateError: { message: 'boom' },
+    })
+    const result = await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch((e) => e)
+    // Not an `{ error }` return: the flow went on past the tier update (it ends in
+    // updateTag/redirect, which throw outside a real server action).
+    expect(result).toBeInstanceOf(Error)
+    expect(cookieSetSpy).toHaveBeenCalledWith('active_company_id', 'new-company-id', expect.anything())
+    expect(capturedMemberInsertRow).not.toBeNull()
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('could not apply inherited tier'))
+    errSpy.mockRestore()
   })
 })
 

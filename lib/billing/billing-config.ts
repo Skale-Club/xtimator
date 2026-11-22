@@ -136,6 +136,14 @@ export type BillingConfig = {
   whisperUsdPerMinute: number // runtime source for the Phase-110 transcription rate const; default 0.006
   estimateFeePct: number // 0.01 = 1% (SEED-036); default 0.01
   estimateFeeMinCents: number // Stripe rejects $0 fee — sane floor for Phase 114 FEE-04; default 1
+  /**
+   * Global stop for client payments (owner decision XTM-D-20261121-feature-switches).
+   * False closes Stripe Connect onboarding and new-invoice issuing for EVERY
+   * company (lib/features/company-features.ts). Already-issued invoices and the
+   * webhook are unaffected. A stored row saved before this field existed
+   * resolves to true via the {...DEFAULT, ...stored} merge.
+   */
+  connectPaymentsOpen: boolean
   seatPriceCents: number // monthly price of one billable seat in integer cents (SEED-037); CALIBRATE BEFORE CHARGING placeholder
   seatPriceAnnualCents: number // global ANNUAL per-seat price in integer cents (SEED-038); CALIBRATE BEFORE CHARGING placeholder
   tiers: Record<BillingTier, TierBilling>
@@ -254,6 +262,7 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   whisperUsdPerMinute: 0.006,
   estimateFeePct: 0.01,
   estimateFeeMinCents: 1,
+  connectPaymentsOpen: true,
   // Billing v2 (v1 launch decision): seats are FREE — teammates share the
   // company's credit pool, so usage is already metered by credits and per-seat
   // billing would be double-dipping. Price 0 means syncSeatBilling's price

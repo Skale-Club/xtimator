@@ -10,6 +10,8 @@ import { SupportModeButton } from './support-mode-button'
 import { CompaniesControls } from './companies-controls'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { tiers } from '@/lib/entitlements'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +23,11 @@ type CompanyRow = {
   tier: string
   ai_model_override: string | null
   demo_estimate_quota: number | null
+  online_payments_allowed?: boolean | null
+  online_payments_enabled?: boolean | null
+  stripe_account_id?: string | null
+  stripe_connect_status?: string | null
+  stripe_charges_enabled?: boolean | null
 }
 
 export default async function AdminCompaniesPage({
@@ -38,6 +45,7 @@ export default async function AdminCompaniesPage({
   const tierFilter = sp.tier ?? ''
   const overrideFilter = sp.override ?? ''
   const demoFilter = sp.demo ?? ''
+  const paymentsFilter = sp.payments ?? ''
 
   // Email → company ids resolution (ADMINCO-01): only when term looks like an
   // email. company_members (not companies.email) is the account-holder join —
@@ -62,13 +70,15 @@ export default async function AdminCompaniesPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mainQ: any = svc
     .from('companies')
-    .select('id, name, tier, ai_model_override, demo_estimate_quota', { count: 'exact' })
+    .select(`id, name, tier, ai_model_override, demo_estimate_quota, ${COMPANY_FEATURE_COLUMNS}`, { count: 'exact' })
 
   if (tierFilter) mainQ = mainQ.eq('tier', tierFilter)
   if (overrideFilter === 'has') mainQ = mainQ.not('ai_model_override', 'is', null)
   if (overrideFilter === 'none') mainQ = mainQ.is('ai_model_override', null)
   if (demoFilter === 'demo') mainQ = mainQ.not('demo_estimate_quota', 'is', null)
   if (demoFilter === 'real') mainQ = mainQ.is('demo_estimate_quota', null)
+  if (paymentsFilter === 'allowed') mainQ = mainQ.eq('online_payments_allowed', true)
+  if (paymentsFilter === 'not_allowed') mainQ = mainQ.eq('online_payments_allowed', false)
 
   if (search) {
     if (resolvedCompanyIds !== null) {
@@ -90,6 +100,12 @@ export default async function AdminCompaniesPage({
     .range(from, from + PAGE_SIZE - 1)
 
   const companies = (data ?? []) as CompanyRow[]
+  const platform = await getPlatformFeatureState()
+  function paymentsState(c: CompanyRow): 'off' | 'allowed' | 'live' {
+    const f = resolveCompanyFeatures(c, platform).onlinePayments
+    if (f.canIssue) return 'live'
+    return c.online_payments_allowed === true ? 'allowed' : 'off'
+  }
   const total = count ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -108,11 +124,12 @@ export default async function AdminCompaniesPage({
     if (tierFilter) params.set('tier', tierFilter)
     if (overrideFilter) params.set('override', overrideFilter)
     if (demoFilter) params.set('demo', demoFilter)
+    if (paymentsFilter) params.set('payments', paymentsFilter)
     params.set('page', String(p))
     return `/admin/companies?${params.toString()}`
   }
 
-  const hasActiveFilters = !!(search || tierFilter || overrideFilter || demoFilter)
+  const hasActiveFilters = !!(search || tierFilter || overrideFilter || demoFilter || paymentsFilter)
 
   return (
     <div className="space-y-8">
@@ -183,6 +200,7 @@ export default async function AdminCompaniesPage({
         tier={tierFilter}
         override={overrideFilter}
         demo={demoFilter}
+        payments={paymentsFilter}
       />
 
       {/* All Companies */}
@@ -198,13 +216,14 @@ export default async function AdminCompaniesPage({
                   <th className="text-left px-4 py-3 font-medium">Name</th>
                   <th className="text-left px-4 py-3 font-medium">Tier</th>
                   <th className="text-left px-4 py-3 font-medium">AI Model Override</th>
+                  <th className="text-left px-4 py-3 font-medium">Payments</th>
                   <th className="text-right px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {companies.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8">
+                    <td colSpan={5} className="px-4 py-8">
                       {hasActiveFilters ? (
                         <EmptyState
                           icon={Search}
@@ -237,6 +256,11 @@ export default async function AdminCompaniesPage({
                         ) : (
                           <span className="text-muted-foreground">platform default</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" data-testid="payments-state">
+                          {paymentsState(c)}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 text-right flex items-center justify-end gap-3">
                         <SupportModeButton companyId={c.id} />
