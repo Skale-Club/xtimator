@@ -47,7 +47,7 @@ export interface VersionSlot {
   /** Retries a failed save. Undefined when a retry cannot help (read-only
    *  content, or a save conflict waiting for the user's choice). */
   onRetrySave?: () => void
-  /** Opens the status sheet (timeline, client response, engagement). */
+  /** Opens the status and analytics panel (progress, client response, engagement). */
   onOpenStatus?: () => void
   /** Declined estimate only: clears the client's answer (kept in the activity
    *  history) so the content is editable again and the client can answer

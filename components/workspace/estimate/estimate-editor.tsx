@@ -54,7 +54,6 @@ import { DEFAULT_EDIT_LABELS, type EditLabels } from './preview-template/editabl
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import { useEditorFrameContext } from '@/components/workspace/editor-frame/context'
 import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
-import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
 import { EstimateAnalyticsDrawer } from './analytics/estimate-analytics-drawer'
 import { ContractCard, useCreateChangeOrder } from '@/components/workspace/change-orders/contract-card'
 import { formatEstimateNumber } from '@/lib/estimate/document/format'
@@ -319,15 +318,12 @@ export function EstimateEditor({
   // mount point) and the status sheet replaces the pill's response control.
   // No provider (unit tests, /dev fixtures) means v1: the floating pill.
   const { frame, dockEl } = useEditorFrameContext()
-  const [statusOpen, setStatusOpen] = useState(false)
-  const openStatus = useCallback(() => setStatusOpen(true), [])
-  // Per-estimate analytics drawer. Owned here so the status sheet button and the
-  // `?analytics=1` deep link (dashboard) open the same one.
+  // One panel for status and analytics (owner decision 2026-11-22): the top
+  // bar's status chip opens it in one click, and the `?analytics=1` deep link
+  // (dashboard) opens the same one. The status block (progress + record the
+  // client's answer) sits at its top.
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
-  const openAnalytics = useCallback(() => {
-    setStatusOpen(false)
-    setAnalyticsOpen(true)
-  }, [])
+  const openStatus = useCallback(() => setAnalyticsOpen(true), [])
   useEffect(() => {
     if (typeof window === 'undefined') return
     const url = new URL(window.location.href)
@@ -1519,24 +1515,21 @@ export function EstimateEditor({
           />,
           dockEl,
         )}
-      {frame === 'v2' && (
-        <EstimateStatusSheet
-          open={statusOpen}
-          onOpenChange={setStatusOpen}
-          estimateId={state.id}
-          createdAt={estimate.created_at}
-          sentAt={state.sent_at}
-          viewCount={engagementFields.view_count}
-          lastViewedAt={engagementFields.last_viewed_at}
-          clientResponse={state.client_response}
-          respondedAt={state.responded_at}
-          signedOnline={state.hasSignature}
-          recordDisabled={!isCurrent || state.isDirty || saveStatus === 'saving'}
-          onRecord={handleRecordClientResponse}
-          onOpenAnalytics={openAnalytics}
-        />
-      )}
-      <EstimateAnalyticsDrawer open={analyticsOpen} onOpenChange={setAnalyticsOpen} estimateId={state.id} />
+      <EstimateAnalyticsDrawer
+        open={analyticsOpen}
+        onOpenChange={setAnalyticsOpen}
+        estimateId={state.id}
+        status={{
+          createdAt: estimate.created_at,
+          viewCount: engagementFields.view_count,
+          lastViewedAt: engagementFields.last_viewed_at,
+          clientResponse: state.client_response,
+          respondedAt: state.responded_at,
+          signedOnline: state.hasSignature,
+          recordDisabled: !isCurrent || state.isDirty || saveStatus === 'saving',
+          onRecord: handleRecordClientResponse,
+        }}
+      />
 
       {/* Platform-admin only; outside the document stage, so never part of the page view,
           the share page, a PDF or a message. */}

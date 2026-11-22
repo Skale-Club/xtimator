@@ -58,7 +58,6 @@ vi.mock('@/components/workspace/estimate/estimate-floating-actions', () => ({ Es
 vi.mock('@/components/workspace/estimate/presentation-settings-panel', () => ({ PresentationSettingsPanel: () => null }))
 vi.mock('@/components/workspace/estimate/issued-invoices-panel', () => ({ IssuedInvoicesPanel: () => null }))
 vi.mock('@/components/workspace/estimate/generate-invoice-dialog', () => ({ GenerateInvoiceDialog: () => null }))
-vi.mock('@/components/workspace/editor-frame/estimate-status-sheet', () => ({ EstimateStatusSheet: () => null }))
 vi.mock('@/components/workspace/estimate/analytics/estimate-analytics-drawer', () => ({ EstimateAnalyticsDrawer: () => null }))
 
 type DockProps = {

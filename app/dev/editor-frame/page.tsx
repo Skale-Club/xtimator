@@ -10,7 +10,7 @@ import {
 } from '@/components/workspace/estimate-version-context'
 import { EditorTopBar } from '@/components/workspace/editor-frame/editor-top-bar'
 import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
-import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
+import { EstimateAnalyticsDrawer } from '@/components/workspace/estimate/analytics/estimate-analytics-drawer'
 import type { EstimateViewMode } from '@/components/workspace/estimate/estimate-floating-actions'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { History, Plus, RotateCcw } from 'lucide-react'
@@ -188,19 +188,20 @@ function Frame({ state: urlState }: { state: FixtureState }) {
         />
       </div>
 
-      <EstimateStatusSheet
+      <EstimateAnalyticsDrawer
         open={statusOpen}
         onOpenChange={setStatusOpen}
         estimateId="dev-estimate"
-        createdAt="2026-11-05T12:00:00.000Z"
-        sentAt={shared ? '2026-11-16T09:00:00.000Z' : null}
-        viewCount={slot?.viewCount ?? 0}
-        lastViewedAt={slot?.lastViewedAt ?? null}
-        clientResponse={answered ? state : null}
-        respondedAt={answered ? '2026-11-16T15:00:00.000Z' : null}
-        signedOnline={false}
-        recordDisabled={state === 'saving'}
-        onRecord={async () => {}}
+        status={{
+          createdAt: '2026-11-05T12:00:00.000Z',
+          viewCount: slot?.viewCount ?? 0,
+          lastViewedAt: slot?.lastViewedAt ?? null,
+          clientResponse: answered ? state : null,
+          respondedAt: answered ? '2026-11-16T15:00:00.000Z' : null,
+          signedOnline: false,
+          recordDisabled: state === 'saving',
+          onRecord: async () => {},
+        }}
       />
     </div>
   )

@@ -304,6 +304,36 @@ describe('EstimateAnalyticsDrawer', () => {
     expect(mockAnalytics).toHaveBeenCalledTimes(2)
   })
 
+  it('shows the status block (progress + record the answer) at the top, even while loading', () => {
+    mockAnalytics.mockReturnValue(new Promise(() => {}))
+    render(
+      <EstimateAnalyticsDrawer
+        open
+        onOpenChange={() => {}}
+        estimateId="est-1"
+        status={{
+          createdAt: iso(48 * HOUR),
+          viewCount: 2,
+          lastViewedAt: iso(HOUR),
+          clientResponse: null,
+          respondedAt: null,
+          signedOnline: false,
+          recordDisabled: false,
+          onRecord: async () => {},
+        }}
+      />,
+    )
+    const summary = screen.getByTestId('estimate-status-summary')
+    expect(summary.querySelector('[data-step="opened"]')?.getAttribute('data-done')).toBe('true')
+    expect(screen.getByTestId('analytics-skeleton')).toBeTruthy()
+  })
+
+  it('has no status block when no status is passed (dashboard deep link)', () => {
+    mockAnalytics.mockReturnValue(new Promise(() => {}))
+    renderDrawer()
+    expect(screen.queryByTestId('estimate-status-summary')).toBeNull()
+  })
+
   it('does not fetch while closed', () => {
     render(<EstimateAnalyticsDrawer open={false} onOpenChange={() => {}} estimateId="est-1" />)
     expect(mockAnalytics).not.toHaveBeenCalled()

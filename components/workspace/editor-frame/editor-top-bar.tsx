@@ -54,11 +54,12 @@ function SaveState({ slot }: { slot: VersionSlot }) {
   )
 }
 
-/** Always shown, so status and analytics are reachable on every estimate. Locked content shows a lock (the status sheet says why). */
+/** Always shown: one click opens the status and analytics panel. Locked content shows a lock (the panel's status block says why). */
 function StatusChip({ slot }: { slot: VersionSlot }) {
   return (
     <EstimateStatusChip
       viewCount={slot.viewCount}
+      lastViewedAt={slot.lastViewedAt}
       clientResponse={slot.clientResponse}
       respondedAt={slot.respondedAt}
       onClick={slot.onOpenStatus}

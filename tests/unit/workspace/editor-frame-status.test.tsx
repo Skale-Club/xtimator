@@ -48,6 +48,18 @@ describe('EstimateStatusChip labels', () => {
     expect(screen.getByText('Viewed 3×')).toBeTruthy()
   })
 
+  it('viewed says how long ago the client last opened it', () => {
+    render(<EstimateStatusChip viewCount={2} lastViewedAt={new Date(Date.now() - 2 * 3_600_000).toISOString()} />)
+    expect(screen.getByText('Viewed 2× · 2 h ago')).toBeTruthy()
+  })
+
+  it('a clickable chip shows the analytics icon; a plain one does not', () => {
+    const { rerender } = render(<EstimateStatusChip viewCount={1} onClick={() => {}} />)
+    expect(screen.getByTestId('estimate-status-analytics-icon')).toBeTruthy()
+    rerender(<EstimateStatusChip viewCount={1} />)
+    expect(screen.queryByTestId('estimate-status-analytics-icon')).toBeNull()
+  })
+
   it('viewed without sentAt', () => {
     render(<EstimateStatusChip sentAt={null} viewCount={2} />)
     expect(screen.getByText('Viewed 2×')).toBeTruthy()

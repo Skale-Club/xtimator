@@ -1,6 +1,6 @@
 /**
  * Static pt/es copy for the estimate analytics drawer and the status sheet
- * (components/workspace/estimate/analytics/*, editor-frame/estimate-status-sheet.tsx).
+ * (components/workspace/estimate/analytics/*, editor-frame/estimate-status-summary.tsx).
  * Keys are the exact English strings passed to t(). Templates with {name}
  * placeholders are translated whole and filled in afterwards, so the numbers
  * never travel through the translation call. Spread into staticDict in

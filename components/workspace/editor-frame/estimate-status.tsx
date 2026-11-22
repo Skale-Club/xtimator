@@ -1,8 +1,9 @@
 'use client'
 
-import { Lock } from 'lucide-react'
+import { BarChart3, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { relativeAgo } from '@/components/workspace/estimate/analytics/format'
 
 /**
  * Where the estimate stands, told only by what the client did. There is no
@@ -40,6 +41,8 @@ const TONE: Record<EstimateStatus, { pill: string; dot: string }> = {
 
 interface EstimateStatusChipProps extends StatusInput {
   respondedAt?: string | null
+  /** Last time the client opened the link: an opened estimate says how long ago. */
+  lastViewedAt?: string | null
   onClick?: () => void
   /** Content lock (accepted, or signed and waiting): a lock replaces the dot.
    *  A declined estimate keeps its dot: it can be reopened. */
@@ -50,6 +53,7 @@ export function EstimateStatusChip({
   viewCount = 0,
   clientResponse,
   respondedAt,
+  lastViewedAt,
   onClick,
   locked = false,
 }: EstimateStatusChipProps) {
@@ -61,7 +65,10 @@ export function EstimateStatusChip({
   let label: string
   if (status === 'accepted') label = date ? `${t('Accepted')} · ${date}` : t('Accepted')
   else if (status === 'declined') label = date ? `${t('Declined')} · ${date}` : t('Declined')
-  else if (status === 'viewed') label = `${t('Viewed')} ${viewCount}×`
+  else if (status === 'viewed') {
+    const ago = lastViewedAt ? relativeAgo(lastViewedAt, t) : ''
+    label = ago ? `${t('Viewed')} ${viewCount}× · ${ago}` : `${t('Viewed')} ${viewCount}×`
+  }
   else label = locked ? t('Locked') : t('Not opened yet')
 
   const tone = TONE[status]
@@ -77,6 +84,8 @@ export function EstimateStatusChip({
         <span aria-hidden className={cn('size-[7px] shrink-0 rounded-full', tone.dot)} />
       )}
       {label}
+      {/* Clickable chip: the chart icon says it opens the status and analytics panel. */}
+      {onClick && <BarChart3 aria-hidden className="size-3.5 shrink-0 opacity-80" data-testid="estimate-status-analytics-icon" />}
     </>
   )
 

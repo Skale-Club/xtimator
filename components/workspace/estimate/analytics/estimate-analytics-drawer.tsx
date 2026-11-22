@@ -15,6 +15,10 @@ import type { EstimateAnalyticsContext } from '@/lib/queries/engagement'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { EngagementHeatmap } from '../engagement-heatmap'
 import { AnalyticsBody, AnalyticsError, AnalyticsSkeleton } from './analytics-content'
+import {
+  EstimateStatusSummary,
+  type EstimateStatusSummaryProps,
+} from '@/components/workspace/editor-frame/estimate-status-summary'
 import { useIsPhone } from '@/components/ui/use-is-phone'
 
 export interface EstimateAnalyticsDrawerProps {
@@ -24,6 +28,12 @@ export interface EstimateAnalyticsDrawerProps {
   /** Optional header context. The drawer always looks the rest up (contact, project, total). */
   clientName?: string | null
   estimateNumber?: string | null
+  /**
+   * The estimate's status (progress line + record the client's answer), shown
+   * at the top. The editor passes it so one panel holds status and analytics;
+   * surfaces without an editor (dashboard deep links, fixtures) omit it.
+   */
+  status?: Omit<EstimateStatusSummaryProps, 'estimateId'>
 }
 
 type Load =
@@ -43,6 +53,7 @@ export function EstimateAnalyticsDrawer({
   estimateId,
   clientName,
   estimateNumber,
+  status,
 }: EstimateAnalyticsDrawerProps) {
   const { t } = useTranslation()
   const phone = useIsPhone()
@@ -84,7 +95,7 @@ export function EstimateAnalyticsDrawer({
     return () => {
       cancelled = true
     }
-  }, [open, estimateId, attempt])
+  }, [open, estimateId, attempt, status?.clientResponse])
 
   const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
@@ -112,7 +123,8 @@ export function EstimateAnalyticsDrawer({
   )
 
   const body = (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4 sm:px-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-6 pt-4 sm:px-5">
+      {status && <EstimateStatusSummary estimateId={estimateId} {...status} />}
       {load.status === 'loading' && <AnalyticsSkeleton />}
       {load.status === 'error' && <AnalyticsError onRetry={retry} />}
       {load.status === 'ready' && (
