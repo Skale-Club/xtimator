@@ -17,6 +17,8 @@ export { cleanupAudioJob } from './cleanup-audio'
 export { storageOrphanCleanupJob } from './storage-orphan-cleanup'
 // Phase 1000 (XPHERE-B4) — Xphere CRM sync job.
 export { xphereSyncJob } from './xphere-sync'
+// Ads tracking (2026-11-21) — server-side GA4 / Meta conversions (dormant until enabled).
+export { marketingConversionJob } from './marketing-conversion'
 // Phase 142 (ANN-02) — monthly AI-credit grant cron (decoupled from invoice cadence).
 export { monthlyCreditGrantJob } from './monthly-credit-grant'
 // SEED-055 Phase B — hourly credit-lot expiry sweep.

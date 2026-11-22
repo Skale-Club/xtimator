@@ -10,6 +10,7 @@ import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
 import { GetTheAppSection } from '@/components/landing/get-the-app-section'
 import { MarketingTags } from '@/components/marketing/marketing-tags'
+import { trackCta } from '@/lib/marketing/events'
 
 const AuthDialog = dynamic(() =>
   import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
@@ -53,6 +54,7 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true,
     const authParam = searchParams.get('auth')
     const nextParam = searchParams.get('next')
     if (authParam === 'login' || authParam === 'signup') {
+      trackCta(authParam === 'signup' ? 'open_signup' : 'open_login', 'link')
       setAuthMode(authParam)
       if (nextParam) setAuthNext(nextParam)
       setAuthOpen(true)
@@ -63,6 +65,7 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true,
   }, [])
 
   function openAuth(mode: 'login' | 'signup') {
+    trackCta(mode === 'signup' ? 'open_signup' : 'open_login')
     setAuthMode(mode)
     setAuthOpen(true)
   }

@@ -7,6 +7,7 @@ export type AuditAction =
   | 'integration.save'
   | 'integration.delete'
   | 'integration.test'
+  | 'integration.ads_tracking'
   | 'ai_provider.set'
   | 'ai_provider.set_model'
   | 'ai_provider.set_transcription_model'

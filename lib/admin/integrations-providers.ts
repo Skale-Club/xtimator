@@ -51,6 +51,8 @@ export type Category = {
   showPlatformEventToggles?: boolean
   /** Academy category renders the Courses / Lessons Notion database id fields below the cards. */
   showNotionAcademyConfig?: boolean
+  /** Ads & Analytics category renders the send switches + consent policy below the cards. */
+  showAdsTrackingConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -203,6 +205,56 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         title: 'Telegram',
         description:
           'Bot token from @BotFather. Set the chat_id below (message the bot, then read it from https://api.telegram.org/bot<token>/getUpdates). Alerts stay off until both are set.',
+      },
+    ],
+  },
+  {
+    slug: 'ads',
+    title: 'Ads & Analytics',
+    navLabel: 'Ads',
+    description:
+      'Server-side conversions for Google (GA4, imported into Google Ads) and Meta: sign up, first estimate and purchase. Off until a key is saved AND its switch below is on. The tags on the public pages are managed in Google Tag Manager.',
+    showAdsTrackingConfig: true,
+    providers: [
+      {
+        id: 'ga4' as IntegrationProvider,
+        title: 'Google Analytics 4',
+        description:
+          'GA4 → Admin → Data streams → the xtimator.com stream → Measurement Protocol API secrets → Create. Mark sign_up, first_estimate and purchase as key events, then import them in Google Ads.',
+        keyParts: [
+          {
+            id: 'measurementId',
+            label: 'Measurement ID',
+            placeholder: 'G-…',
+            helpText: 'Shown on the web data stream. Not a secret.',
+          },
+          {
+            id: 'apiSecret',
+            label: 'Measurement Protocol API secret',
+            secret: true,
+            helpText: 'Created under the stream. Rotate it there if it leaks.',
+          },
+        ],
+      },
+      {
+        id: 'meta_capi' as IntegrationProvider,
+        title: 'Meta Conversions API',
+        description:
+          'Events Manager → the Xtimator dataset → Settings → Conversions API → Generate access token.',
+        keyParts: [
+          {
+            id: 'datasetId',
+            label: 'Dataset (Pixel) ID',
+            placeholder: '1234567890',
+            helpText: 'The number shown under the dataset name. Not a secret.',
+          },
+          {
+            id: 'accessToken',
+            label: 'Conversions API access token',
+            secret: true,
+            helpText: 'Generated in Events Manager. Treat it like a password.',
+          },
+        ],
       },
     ],
   },

@@ -10,6 +10,7 @@
 import { continueOrPauseForCredits, type StepLike } from '@/lib/inngest/credit-pause'
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
+import { queueFirstEstimateConversion } from '@/lib/marketing/conversions/queue'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
 import { buildEstimateGraph } from '@/lib/estimate/graph'
@@ -512,6 +513,12 @@ export const generateEstimateJob = inngest.createFunction(
           attemptId,
         })
       )
+    }
+
+    // Ads tracking: the company's first AI estimate is a conversion (dormant
+    // until enabled in /admin/integrations). Its own memoized step; never throws.
+    if (estimateId && !needsDetails) {
+      await step.run('marketing-first-estimate', () => queueFirstEstimateConversion(companyId))
     }
 
     // Phase 77 NOTIF-04: success notification (opt-in via DEFAULT_PREFERENCES

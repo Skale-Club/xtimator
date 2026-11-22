@@ -48,6 +48,8 @@ export function GooglePlayBadge({ placement, initialVisible = true, className }:
       rel="noopener noreferrer"
       aria-label="Get it on Google Play"
       data-testid={`google-play-badge-${placement}`}
+      data-xt-cta="play_store"
+      data-xt-cta-placement={placement}
       className={cn(
         'inline-flex shrink-0 rounded-lg transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,

@@ -69,7 +69,7 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth, showStoreBadge = t
                   <CookieSettingsLink className="inline-block py-1.5 transition-colors hover:text-white" />
                 </li>
                 <li>
-                  <Link href="/demo/entry" className="inline-block py-1.5 transition-colors hover:text-white">See Demo</Link>
+                  <Link href="/demo/entry" data-xt-cta="demo" data-xt-cta-placement="footer" className="inline-block py-1.5 transition-colors hover:text-white">See Demo</Link>
                 </li>
               </ul>
             </div>

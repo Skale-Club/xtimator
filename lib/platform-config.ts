@@ -99,6 +99,14 @@ export type IntegrationProvider =
   // same platform_integrations path; the Courses / Lessons database ids are
   // non-secret and live in metadata.courses_db / metadata.lessons_db.
   | 'notion'
+  // Ads tracking (2026-11-21) — server-side conversions, dormant until
+  // metadata.enabled is true. Keys stored as two parts joined by ':':
+  // ga4 = "G-…:<Measurement Protocol API secret>" (metadata.consent_policy also
+  // lives here); meta_capi = "<dataset id>:<Conversions API token>"
+  // (metadata.test_event_code, metadata.graph_version). See
+  // lib/marketing/conversions/config.ts.
+  | 'ga4'
+  | 'meta_capi'
 
 const TTL_MS = 30_000
 

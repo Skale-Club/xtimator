@@ -8,6 +8,7 @@
  */
 
 import { MARKETING_GA4_ID, MARKETING_GTM_ID } from '@/lib/marketing/tags'
+import { scrubAttributionClickIds } from '@/lib/marketing/attribution'
 
 export const CONSENT_STORAGE_KEY = 'xt-consent'
 export const CONSENT_VERSION = 1
@@ -62,8 +63,35 @@ export function readStoredConsent(): ConsentChoice | null {
   }
 }
 
+/**
+ * The choice as the server sees it: a first-party cookie read at onboarding
+ * (lib/marketing/server-signals.ts), so server-side conversions follow the same
+ * consent as the tags. 'accepted_gpc' = analytics allowed, ads denied by Global
+ * Privacy Control.
+ */
+export const CONSENT_COOKIE = 'xt_consent'
+export type ConsentCookieValue = 'accepted' | 'accepted_gpc' | 'rejected'
+const CONSENT_COOKIE_MAX_AGE_S = 180 * 24 * 60 * 60
+
+export function consentCookieValue(choice: ConsentChoice, gpc: boolean): ConsentCookieValue {
+  if (choice === 'rejected') return 'rejected'
+  return gpc ? 'accepted_gpc' : 'accepted'
+}
+
+/** Mirrors the choice into the consent cookie (never throws). */
+export function writeConsentCookie(choice: ConsentChoice): void {
+  try {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `${CONSENT_COOKIE}=${consentCookieValue(choice, hasGlobalPrivacyControl())}; Max-Age=${CONSENT_COOKIE_MAX_AGE_S}; Path=/; SameSite=Lax${secure}`
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Persists the choice. Returns false when storage is unavailable (never throws). */
 export function storeConsent(choice: ConsentChoice): boolean {
+  writeConsentCookie(choice)
+  if (choice === 'rejected') scrubAttributionClickIds()
   try {
     window.localStorage.setItem(
       CONSENT_STORAGE_KEY,

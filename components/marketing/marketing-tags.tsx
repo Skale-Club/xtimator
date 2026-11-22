@@ -6,10 +6,17 @@ import Script from 'next/script'
 import { CookieConsent } from '@/components/marketing/cookie-consent'
 import {
   buildGtmBootstrapScript,
+  readStoredConsent,
   resumeMarketingTags,
   suspendMarketingTags,
+  writeConsentCookie,
 } from '@/lib/marketing/consent'
+import { captureAttribution } from '@/lib/marketing/attribution'
+import { ctaFromClickTarget, trackCta } from '@/lib/marketing/events'
 import { MARKETING_GTM_ID, isMarketingPath, isTwaClient } from '@/lib/marketing/tags'
+
+/** One capture per page load (module state survives client-side navigation). */
+let attributionCaptured = false
 
 /**
  * Loads Google Tag Manager (GA4, Meta Pixel, Clarity live inside the container)
@@ -38,6 +45,28 @@ export function MarketingTags() {
     }
     resumeMarketingTags()
     return () => suspendMarketingTags()
+  }, [onMarketingPage])
+
+  // Signup attribution (first-party cookie, read at onboarding) and the consent
+  // cookie the server reads. Once per page load: a client-side navigation keeps
+  // the original document.referrer, so re-capturing would invent touches.
+  useEffect(() => {
+    if (!onMarketingPage || attributionCaptured) return
+    attributionCaptured = true
+    const stored = readStoredConsent()
+    if (stored) writeConsentCookie(stored)
+    captureAttribution({ keepClickIds: stored !== 'rejected' })
+  }, [onMarketingPage])
+
+  // Clicks on elements marked data-xt-cta become Tag Manager events.
+  useEffect(() => {
+    if (!onMarketingPage) return
+    function onClick(event: MouseEvent) {
+      const hit = ctaFromClickTarget(event.target)
+      if (hit) trackCta(hit.cta, hit.placement)
+    }
+    document.addEventListener('click', onClick, { capture: true })
+    return () => document.removeEventListener('click', onClick, { capture: true })
   }, [onMarketingPage])
 
   if (!onMarketingPage) return null

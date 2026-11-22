@@ -31,6 +31,8 @@ import { invalidateStripeDisplayPricesCache } from '@/lib/billing/stripe-display
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 import { sendTelegramMessage } from '@/lib/telegram/client'
 import { invalidateAcademyCache } from '@/lib/academy/catalog'
+import { META_GRAPH_VERSION_DEFAULT, splitKey } from '@/lib/marketing/conversions/config'
+import { coerceConsentPolicy } from '@/lib/marketing/signals'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -275,6 +277,50 @@ async function runTestIntegrationKey(
         ok: true,
         message: `Verified. Account "${json.friendly_name ?? accountSid}" is ${json.status ?? 'active'}.`,
       }
+    }
+
+    if (input.provider === 'ga4') {
+      // Validation endpoint: checks the measurement id + secret without
+      // recording anything in the property.
+      const parts = splitKey(key)
+      if (!parts || !/^G-[A-Z0-9]+$/i.test(parts[0])) {
+        return { ok: false, message: 'Enter the Measurement ID (G-…) and the Measurement Protocol API secret.' }
+      }
+      const res = await fetch(
+        `https://www.google-analytics.com/debug/mp/collect?measurement_id=${encodeURIComponent(parts[0])}&api_secret=${encodeURIComponent(parts[1])}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ client_id: '123.456', events: [{ name: 'xt_key_check', params: {} }] }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      )
+      if (!res.ok) return { ok: false, message: `GA4 answered ${res.status}.` }
+      const json = (await res.json().catch(() => ({}))) as { validationMessages?: Array<{ description?: string }> }
+      const issue = json.validationMessages?.[0]?.description
+      return issue
+        ? { ok: false, message: `GA4: ${issue}` }
+        : {
+            ok: true,
+            message: `Reachable for ${parts[0]}. Google does not confirm the API secret here: the first real conversion shows in GA4 Realtime once sending is on.`,
+          }
+    }
+
+    if (input.provider === 'meta_capi') {
+      // Reads the dataset with the token (records no event).
+      const parts = splitKey(key)
+      if (!parts || !/^\d{5,20}$/.test(parts[0])) {
+        return { ok: false, message: 'Enter the dataset (Pixel) ID and the Conversions API access token.' }
+      }
+      const res = await fetch(
+        `https://graph.facebook.com/${META_GRAPH_VERSION_DEFAULT}/${encodeURIComponent(parts[0])}?fields=id,name&access_token=${encodeURIComponent(parts[1])}`,
+        { signal: AbortSignal.timeout(10_000) },
+      )
+      const json = (await res.json().catch(() => ({}))) as { name?: string; error?: { message?: string } }
+      if (!res.ok) {
+        return { ok: false, message: `Meta rejected the token (${res.status}). ${json.error?.message ?? ''}`.trim() }
+      }
+      return { ok: true, message: `Verified. Dataset "${json.name ?? parts[0]}".` }
     }
 
     if (input.provider === 'stripe_connect_client_id') {
@@ -1373,4 +1419,62 @@ export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
     targetId: 'billing_config',
   })
   return { ok: true, message: 'Billing config saved.' }
+}
+
+/**
+ * Ads tracking switches (/admin/integrations → Ads & Analytics). Metadata only:
+ * the keys are saved through saveIntegrationKey. Sending stays off until the
+ * matching switch is on AND its key is saved.
+ */
+export async function saveAdsTrackingSettings(input: {
+  ga4Enabled: boolean
+  metaEnabled: boolean
+  consentPolicy: string
+  metaTestEventCode: string
+}): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const testCode = input.metaTestEventCode.trim()
+  if (testCode && !/^[A-Za-z0-9_-]{1,40}$/.test(testCode)) {
+    return { ok: false, message: 'The test event code looks wrong (letters and numbers, e.g. TEST12345).' }
+  }
+  const svc = requireServiceClient()
+  const { data: rows, error: readErr } = await svc
+    .from('platform_integrations')
+    .select('provider, ciphertext, iv, auth_tag, metadata')
+    .in('provider', ['ga4', 'meta_capi'])
+  if (readErr) return { ok: false, message: readErr.message }
+  const byProvider = new Map((rows ?? []).map((r) => [r.provider as string, r]))
+
+  const updates: Array<{ provider: 'ga4' | 'meta_capi'; metadata: Record<string, unknown> }> = [
+    { provider: 'ga4', metadata: { enabled: input.ga4Enabled === true, consent_policy: coerceConsentPolicy(input.consentPolicy) } },
+    { provider: 'meta_capi', metadata: { enabled: input.metaEnabled === true, test_event_code: testCode } },
+  ]
+  for (const update of updates) {
+    const existing = byProvider.get(update.provider)
+    const { error } = await svc.from('platform_integrations').upsert(
+      {
+        provider: update.provider,
+        ciphertext: existing?.ciphertext ?? null,
+        iv: existing?.iv ?? null,
+        auth_tag: existing?.auth_tag ?? null,
+        metadata: { ...((existing?.metadata as object) ?? {}), ...update.metadata },
+        updated_at: new Date().toISOString(),
+        updated_by: ctx.userId,
+      },
+      { onConflict: 'provider' },
+    )
+    if (error) return { ok: false, message: error.message }
+  }
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.ads_tracking',
+    targetType: 'integration',
+    targetId: 'ads_tracking',
+    metadata: { ga4: input.ga4Enabled, meta: input.metaEnabled, policy: coerceConsentPolicy(input.consentPolicy) },
+  })
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+  return { ok: true, message: 'Saved.' }
 }

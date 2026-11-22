@@ -24,6 +24,8 @@ export const integrationKeySchema = z.object({
     'xphere',
     'telegram',
     'notion',
+    'ga4',
+    'meta_capi',
   ]),
   apiKey: z.string().min(1, 'API key is required'),
 })

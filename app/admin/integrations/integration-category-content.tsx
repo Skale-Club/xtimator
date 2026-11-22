@@ -22,6 +22,8 @@ import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { TelegramChatIdForm, TelegramLeadsChatIdForm } from './telegram-chat-id-form'
 import { NotionAcademyForm } from './notion-academy-form'
+import { AdsTrackingForm, type AdsTrackingFormValues } from './ads-tracking-form'
+import { coerceConsentPolicy } from '@/lib/marketing/signals'
 import { PlatformEventTogglesForm } from './platform-event-toggles-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
 import { DEFAULT_BILLING_CONFIG, getBillingConfig } from '@/lib/billing/billing-config'
@@ -138,6 +140,31 @@ export async function IntegrationCategoryContent({
     notionLessonsDb = meta.lessons_db ?? ''
   }
 
+  let adsTracking: AdsTrackingFormValues = {
+    ga4Enabled: false,
+    metaEnabled: false,
+    consentPolicy: coerceConsentPolicy(null),
+    metaTestEventCode: '',
+  }
+  let adsKeys = { ga4: false, meta: false }
+  if (category.showAdsTrackingConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('provider, ciphertext, metadata')
+      .in('provider', ['ga4', 'meta_capi'])
+    const rows = new Map((data ?? []).map((r) => [r.provider as string, r]))
+    const ga4Meta = (rows.get('ga4')?.metadata ?? {}) as { enabled?: unknown; consent_policy?: unknown }
+    const metaMeta = (rows.get('meta_capi')?.metadata ?? {}) as { enabled?: unknown; test_event_code?: unknown }
+    adsTracking = {
+      ga4Enabled: ga4Meta.enabled === true,
+      metaEnabled: metaMeta.enabled === true,
+      consentPolicy: coerceConsentPolicy(ga4Meta.consent_policy),
+      metaTestEventCode: typeof metaMeta.test_event_code === 'string' ? metaMeta.test_event_code : '',
+    }
+    adsKeys = { ga4: !!rows.get('ga4')?.ciphertext, meta: !!rows.get('meta_capi')?.ciphertext }
+  }
+
   const platformEventToggles = category.showPlatformEventToggles
     ? await loadPlatformEventToggles()
     : []
@@ -230,6 +257,10 @@ export async function IntegrationCategoryContent({
           <TelegramChatIdForm current={telegramChatId} />
           <TelegramLeadsChatIdForm current={telegramLeadsChatId} />
         </>
+      )}
+
+      {category.showAdsTrackingConfig && (
+        <AdsTrackingForm current={adsTracking} ga4KeySaved={adsKeys.ga4} metaKeySaved={adsKeys.meta} />
       )}
 
       {category.showNotionAcademyConfig && (

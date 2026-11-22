@@ -1,5 +1,6 @@
 import { type NextRequest } from 'next/server'
 import type Stripe from 'stripe'
+import { queueMarketingConversion } from '@/lib/marketing/conversions/queue'
 import { getStripeClient, readPeriodEnd, resolvePendingCancelAt, SEAT_ITEM_METADATA_KIND } from '@/lib/billing/stripe-client'
 import {
   connectEventRequiresCompanyResolution,
@@ -487,6 +488,28 @@ async function grantTopupCredits(
 // (Originally the body of handleStripeEvent; renamed verbatim for the
 // Connect branch in plan 70-04.)
 // ------------------------------------------------------------------
+/**
+ * Ads tracking: a paid plan invoice or credit purchase is a `purchase`
+ * conversion (dormant until enabled in /admin/integrations). Fire-and-forget,
+ * never throws, deduped by the payment object's id, so a Stripe redelivery or a
+ * second event for the same payment never counts twice.
+ */
+function reportPurchase(
+  companyId: string | null | undefined,
+  paymentRef: string,
+  amountCents: number | null | undefined,
+  currency: string | null | undefined,
+): void {
+  if (!companyId || typeof amountCents !== 'number' || amountCents <= 0) return
+  void queueMarketingConversion({
+    companyId,
+    name: 'purchase',
+    eventId: `purchase:${paymentRef}`,
+    value: amountCents / 100,
+    currency: currency ?? 'usd',
+  })
+}
+
 async function handlePlatformEvent(
   event: Stripe.Event,
   stripe: Stripe,
@@ -503,6 +526,7 @@ async function handlePlatformEvent(
       // (also persists stripe_customer_id — see that helper). Idempotent on event.id.
       if (session.metadata?.type === 'credit_topup' && session.payment_status === 'paid') {
         await grantTopupCredits(session, svc, event.id)
+        reportPurchase(session.metadata.companyId, `cs:${session.id}`, session.amount_total, session.currency)
         break
       }
 
@@ -695,6 +719,7 @@ async function handlePlatformEvent(
       const session = event.data.object as Stripe.Checkout.Session
       if (session.metadata?.type === 'credit_topup') {
         await grantTopupCredits(session, svc, event.id)
+        reportPurchase(session.metadata.companyId, `cs:${session.id}`, session.amount_total, session.currency)
       }
       break
     }
@@ -864,6 +889,7 @@ async function handlePlatformEvent(
           currency: invoice.currency ?? 'usd',
           eventId: event.id,
         })
+        reportPurchase(grantCompany.id, `in:${invoice.id ?? subId}`, invoice.amount_paid, invoice.currency)
       }
       break
     }
@@ -898,6 +924,7 @@ async function handlePlatformEvent(
             refId: pi.id,
             idempotencyKey: `${keyPrefix}:${pi.id}`,
           })
+          reportPurchase(topupCompanyId, `pi:${pi.id}`, pi.amount_received, pi.currency)
         }
       }
       break

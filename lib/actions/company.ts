@@ -30,6 +30,7 @@ import { sendWelcomeTemplate } from '@/lib/whatsapp/welcome-template'
 import { WHATSAPP_WELCOME_COOKIE } from '@/lib/whatsapp/welcome-card'
 import { assertWritable } from '@/lib/demo/guard'
 import { attributeReferralFromCookie } from '@/lib/affiliates/attribution-server'
+import { recordSignupAcquisition } from '@/lib/marketing/acquisition-server'
 
 interface CompanyFormData {
   companyName?: string
@@ -511,6 +512,13 @@ export async function createOrUpdateCompany(
     attributeReferralFromCookie(newCompany.id).catch(
       captureBackgroundError('company.affiliateAttribution'),
     )
+
+    // Ads tracking: where this signup came from (first-party cookies) and the
+    // sign_up conversion, dormant until enabled in /admin/integrations. First
+    // company only, same rule as the affiliate attribution above. Never throws.
+    if (!priorMembershipCount) {
+      recordSignupAcquisition(newCompany.id).catch(captureBackgroundError('company.signupAcquisition'))
+    }
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.

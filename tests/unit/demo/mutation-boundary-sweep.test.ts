@@ -490,6 +490,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ),
   ...excepted('app/admin/integrations/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
     'deleteIntegrationKey',
+    'saveAdsTrackingSettings',
     'saveBillingConfig',
     'saveIntegrationKey',
     'saveNotionAcademyConfig',
@@ -1157,6 +1158,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('lib/inngest/functions/whatsapp-process.ts', 'assertCompanyWritable', [
     'whatsAppIntentRouterJob',
     'whatsAppProcessJob',
+  ]),
+  ...guarded('lib/inngest/functions/marketing-conversion.ts', 'assertCompanyWritable', [
+    'marketingConversionJob',
   ]),
   ...guarded('lib/inngest/functions/xphere-sync.ts', 'assertCompanyWritable', ['xphereSyncJob']),
 

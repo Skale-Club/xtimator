@@ -263,6 +263,25 @@ export type XphereSyncRequestedPayload = {
 }
 
 /**
+ * Ads tracking (2026-11-21) — report one server-side conversion (sign_up,
+ * first_estimate, purchase) to GA4 and Meta. Dormant until enabled in
+ * /admin/integrations → Ads & Analytics; the job records every request in
+ * marketing_conversions (unique event_id) whether or not it sends.
+ */
+export const EVENT_MARKETING_CONVERSION = 'marketing/conversion.requested' as const
+
+export type MarketingConversionPayload = {
+  companyId: string
+  name: 'sign_up' | 'first_estimate' | 'purchase'
+  /** Unique per conversion: dedupes retries, redeliveries and both platforms. */
+  eventId: string
+  /** ISO8601 time the conversion happened. */
+  occurredAt: string
+  value?: number | null
+  currency?: string | null
+}
+
+/**
  * Phase 193-01 — first-view owner-notification email, moved OFF the public
  * share-page request path. app/estimate/[token]/actions.ts's logEstimateView
  * still does the first-view `viewed_at` write, the `estimate_activity` row,

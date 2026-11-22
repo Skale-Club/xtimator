@@ -47,6 +47,8 @@ We use session cookies and similar storage that are required to sign you in and 
 
 On our public marketing pages (such as the home page, industry pages, blog and legal pages) we use or may use analytics and advertising technologies, loaded through Google Tag Manager: Google Analytics, to understand how visitors use the site; Microsoft Clarity, which records how visitors move, click and scroll on these pages (with form fields masked) so we can improve them; and the Meta Pixel, to measure our advertising and show our ads to people who visited the site. These tools set cookies or similar identifiers and send information such as the pages you view, your interactions, your device and browser, and an approximate location to Google, Microsoft and Meta, which may combine it with other information they hold. They only run after you accept them in the cookie banner. We do not use them inside the signed-in app or on the estimate pages that businesses share with their clients.
 
+We also remember, in a first-party cookie, how you arrived at our site (for example the campaign or ad link you clicked, the page you landed on and the referring website), and attach it to your account if you sign up, so we know which of our marketing works. If you came from an ad and did not reject advertising cookies, we may report to Google and Meta, from our servers, that you signed up, created your first estimate or made a purchase (with the purchase amount), together with the ad click identifier and a hashed (irreversibly scrambled) copy of your email address and phone number, so they can measure and improve our ads. We never send them the content of your estimates, your clients' information or your payment details. If you reject advertising cookies or your browser sends a Global Privacy Control signal, we do not send this information to Google or Meta.
+
 You can opt out of analytics and advertising cookies through the cookie settings on our website, by enabling a Global Privacy Control signal in your browser, with your browser's cookie controls, or with the opt-out tools offered by Google (https://tools.google.com/dlpage/gaoptout) and Meta (in your Facebook or Instagram ad settings). Disabling required cookies may stop some features from working.
 
 ## How We Use Your Information
@@ -75,9 +77,9 @@ We share data with the following providers only as needed to operate the platfor
 - **Sentry and Langfuse** - error monitoring and diagnostic traces of AI requests.
 - **Web push services of your browser or device** - push notifications you opt in to.
 - **Our own servers** - the application and its PostgreSQL database run on infrastructure we manage.
-- **Google Tag Manager and Google Analytics (Google LLC)** - loading of tags and website analytics on our public marketing pages.
+- **Google Tag Manager and Google Analytics (Google LLC)** - loading of tags and website analytics on our public marketing pages, and conversion reporting from our servers (used to measure Google Ads) as described above.
 - **Microsoft Clarity (Microsoft Corporation)** - session replay and heatmaps on our public marketing pages.
-- **Meta Pixel (Meta Platforms, Inc.)** - advertising measurement and audiences on our public marketing pages.
+- **Meta Pixel and Meta Conversions API (Meta Platforms, Inc.)** - advertising measurement and audiences on our public marketing pages, and conversion reporting from our servers as described above.
 
 We do not sell your personal information for money. The use of advertising cookies on our marketing pages may count as "sharing" personal information for cross-context behavioral advertising under some US state laws, such as California's. You can opt out of that sharing as described in "Cookies and Similar Technologies" above, and we honor Global Privacy Control signals.
 
