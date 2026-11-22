@@ -165,7 +165,13 @@ describe('change_orders migration: SQLSTATE registry', () => {
     const others = readdirSync(MIGRATIONS).filter((f) => f !== '20261117000001_change_orders.sql')
     for (const file of others) {
       const text = readFileSync(join(MIGRATIONS, file), 'utf8')
-      expect(text, file).not.toMatch(/ERRCODE = 'P001[0-6]'/)
+      // A later migration may redefine a change-order function (which keeps
+      // raising its own codes); outside such a redefinition the codes are unused.
+      const outside = text.replace(
+        /CREATE OR REPLACE FUNCTION public\.(sign_change_order_atomic|save_change_order_atomic|create_change_order)\([\s\S]*?\n\$\$;/g,
+        '',
+      )
+      expect(outside, file).not.toMatch(/ERRCODE = 'P001[0-6]'/)
     }
   })
 })

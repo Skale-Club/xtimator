@@ -1279,6 +1279,7 @@ export function EstimateEditor({
             clientResponse={state.client_response}
             respondedAt={state.responded_at}
             signedOnline={state.hasSignature}
+            estimateId={state.id}
             disabled={state.isDirty || saveStatus === 'saving'}
             onRecord={handleRecordClientResponse}
           />

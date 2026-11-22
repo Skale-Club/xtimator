@@ -95,7 +95,8 @@ describe('lib/estimate/document/labels — state-tolerant golden parity (ENGINE-
     // of adoption state.
     // (SEED-056 added `validUntil`, the header line of the valid_until block: 56.)
     // (`payment`, the Payment box title over deposit + balance due: 57.)
-    expect(Object.keys(LABELS.en).length).toBe(57)
+    // (the 16 `cert*` labels of the PDF signature certificate page: 73.)
+    expect(Object.keys(LABELS.en).length).toBe(74)
   })
 
   it('LANG_INDICATOR matches the shared module — pre- or post-adoption', () => {

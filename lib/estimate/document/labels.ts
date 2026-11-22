@@ -79,6 +79,25 @@ export interface DocumentLabels {
   /** Suffix appended to a section title on the page that CONTINUES that
    *  section's item rows from the previous page (PDF + paginated preview). */
   continued: string
+  /** Signature certificate page (last page of a signed estimate's PDF). */
+  certTitle: string
+  certIntro: string
+  certEmail: string
+  certNotProvided: string
+  certSignedOn: string
+  certIpAddress: string
+  certNotRecorded: string
+  certDevice: string
+  certAmountSigned: string
+  certSignature: string
+  certIntegrity: string
+  certIntegrityVerified: string
+  certIntegrityMismatch: string
+  certIntegrityUnavailable: string
+  certFingerprint: string
+  /** Small line under the hash on the certificate page. */
+  certFingerprintNote: string
+  certConsent: string
 }
 
 export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
@@ -99,6 +118,12 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     addDiscount: 'Add discount', removeDiscount: 'Remove discount', deleteLine: 'Delete line',
     deleteSection: 'Delete section', rowActions: 'Line actions', sectionActions: 'Section actions',
     continued: '(cont.)',
+    certTitle: 'Signature certificate', certIntro: 'This page records how and when this estimate was signed online.',
+    certEmail: 'Email', certNotProvided: 'Not provided', certSignedOn: 'Signed on', certIpAddress: 'IP address',
+    certNotRecorded: 'Not recorded', certDevice: 'Device', certAmountSigned: 'Amount signed', certSignature: 'Signature',
+    certIntegrity: 'Integrity', certIntegrityVerified: 'Content unchanged since signing',
+    certIntegrityMismatch: 'Stored content does not match its fingerprint', certIntegrityUnavailable: 'Fingerprint not available',
+    certFingerprint: 'Fingerprint', certFingerprintNote: 'SHA-256 of the signed content', certConsent: 'Consent shown',
   },
   pt: {
     estimate: 'ORÇAMENTO', project: 'Projeto', billTo: 'Faturar Para', summary: 'Resumo',
@@ -117,6 +142,12 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     addDiscount: 'Adicionar desconto', removeDiscount: 'Remover desconto', deleteLine: 'Excluir linha',
     deleteSection: 'Excluir seção', rowActions: 'Ações da linha', sectionActions: 'Ações da seção',
     continued: '(cont.)',
+    certTitle: 'Certificado de assinatura', certIntro: 'Esta página registra como e quando este orçamento foi assinado online.',
+    certEmail: 'E-mail', certNotProvided: 'Não informado', certSignedOn: 'Assinado em', certIpAddress: 'Endereço IP',
+    certNotRecorded: 'Não registrado', certDevice: 'Dispositivo', certAmountSigned: 'Valor assinado', certSignature: 'Assinatura',
+    certIntegrity: 'Integridade', certIntegrityVerified: 'Conteúdo inalterado desde a assinatura',
+    certIntegrityMismatch: 'O conteúdo armazenado não corresponde à sua impressão digital', certIntegrityUnavailable: 'Impressão digital indisponível',
+    certFingerprint: 'Impressão digital', certFingerprintNote: 'SHA-256 do conteúdo assinado', certConsent: 'Consentimento exibido',
   },
   es: {
     estimate: 'PRESUPUESTO', project: 'Proyecto', billTo: 'Facturar A', summary: 'Resumen',
@@ -135,6 +166,12 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     addDiscount: 'Agregar descuento', removeDiscount: 'Quitar descuento', deleteLine: 'Eliminar línea',
     deleteSection: 'Eliminar sección', rowActions: 'Acciones de línea', sectionActions: 'Acciones de sección',
     continued: '(cont.)',
+    certTitle: 'Certificado de firma', certIntro: 'Esta página registra cómo y cuándo se firmó este presupuesto en línea.',
+    certEmail: 'Correo electrónico', certNotProvided: 'No proporcionado', certSignedOn: 'Firmado el', certIpAddress: 'Dirección IP',
+    certNotRecorded: 'No registrado', certDevice: 'Dispositivo', certAmountSigned: 'Monto firmado', certSignature: 'Firma',
+    certIntegrity: 'Integridad', certIntegrityVerified: 'Contenido sin cambios desde la firma',
+    certIntegrityMismatch: 'El contenido almacenado no coincide con su huella digital', certIntegrityUnavailable: 'Huella digital no disponible',
+    certFingerprint: 'Huella digital', certFingerprintNote: 'SHA-256 del contenido firmado', certConsent: 'Consentimiento mostrado',
   },
 }
 

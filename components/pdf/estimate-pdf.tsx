@@ -57,6 +57,8 @@ import { PdfTermsCard } from './shared/pdf-terms-section'
 import { PdfTotalsBlock } from './shared/pdf-totals-block'
 import { PdfPhotoGrid } from './shared/pdf-photo-grid'
 import { PdfSignatureBlock } from './shared/pdf-signature-block'
+import { PdfSignatureCertificate } from './shared/pdf-signature-certificate'
+import type { SignatureEvidence } from '@/lib/estimate/signature-evidence'
 
 /** Plan-checker blocker 3 — the EXACT dispatch map (mirrors
  *  pdf-terms-section.tsx:88-163's Fragment order/title lookup verbatim). A
@@ -160,6 +162,8 @@ export interface EstimatePDFProps {
   attachedPhotos?: { url: string; caption: string | null }[]
   /** PDFPAR-02 — signature-display data (signer name, signed date, signature image). null = unsigned estimate: no signature block rendered at all. */
   signature?: DocumentSignature | null
+  /** Signature certificate — when non-null, the PDF gets one extra LAST page recording how/when the estimate was signed (signer, IP, device, fingerprint). null/undefined = no certificate page (unsigned, or signed before evidence existed). Loaded server-side by lib/pdf/render-estimate-pdf.ts. */
+  signatureEvidence?: SignatureEvidence | null
   /** Phase 184 Plan 05 (PGBRK-01/03/04) — deterministic page assignments computed by lib/estimate/pagination/engine.ts's computePageBreaks(). Every caller (lib/pdf/render-estimate-pdf.ts + every direct-call test) computes this via the shared blocksFromModel()+computePageBreaks() pipeline before calling this component. */
   pages: PageAssignment[]
 }
@@ -455,6 +459,7 @@ export default function EstimatePDF({
   preparedBy,
   attachedPhotos,
   signature,
+  signatureEvidence,
   pages,
 }: EstimatePDFProps) {
   // SENDHUB-04 (Phase 163): resolve once at the render boundary. Cast-with-fallback
@@ -784,6 +789,37 @@ export default function EstimatePDF({
           </Page>
         )
       })}
+      {signatureEvidence
+        ? PdfSignatureCertificate({
+            evidence: signatureEvidence,
+            L,
+            language,
+            pageStyle: styles.page,
+            header: {
+              companyName: company.name,
+              estimateIdentifier: `${L.estimateNum}${estimateNumber}`,
+              headerBorderColor: brandColor,
+              companyNameColor: COMPANY_NAME_COLOR,
+              styles: {
+                compactHeader: styles.compactHeader,
+                compactCompanyName: styles.compactCompanyName,
+                compactEstimateId: styles.compactEstimateId,
+              },
+            },
+            footer: { styles: { footer: styles.footer }, L, companyName: company.name, estimateNumber },
+            theme: {
+              ink: COMPANY_NAME_COLOR,
+              body: '#1f2937',
+              label: '#9ca3af',
+              secondary: '#6b7280',
+              rule: '#e5e7eb',
+              fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamily,
+              fontFamilyBold: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
+              fontFamilyTitle: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyTitle,
+              cardFill: cardTintFill(brandColor),
+            },
+          })
+        : null}
     </Document>
   )
 }

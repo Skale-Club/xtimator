@@ -205,6 +205,7 @@ export function EstimateStatusSheet({
                     clientResponse={clientResponse}
                     respondedAt={respondedAt}
                     signedOnline={signedOnline}
+                    estimateId={estimateId}
                     disabled={recordDisabled}
                     onRecord={onRecord}
                   />
