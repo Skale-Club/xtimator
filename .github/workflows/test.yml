@@ -46,13 +46,17 @@ on:
         description: 'Compile a production-mode artifact with development resources; never publish or deploy it'
         type: boolean
         default: false
+      payment_sandbox:
+        description: 'Run the Stripe test-mode ledger cases against the designated development database'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   unit:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.qa || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.qa && !inputs.payment_sandbox || github.ref_type != 'branch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
     name: Typecheck + unit/eval suite
     runs-on: ubuntu-latest
     # 15 min stopped fitting: the full suite (~8k tests) took 11.5 min on one
@@ -152,7 +156,7 @@ jobs:
 
   acceptance:
     name: Isolated acceptance campaign
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' || github.event_name == 'push' && github.ref == 'refs/heads/dev' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa && !inputs.payment_sandbox && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' || github.event_name == 'push' && github.ref == 'refs/heads/dev' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     outputs:
@@ -197,6 +201,46 @@ jobs:
         with:
           name: acceptance-evidence-${{ github.run_id }}
           path: qa-results/
+          retention-days: 7
+          if-no-files-found: warn
+
+  payment-sandbox:
+    name: Stripe test-mode ledger readiness
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_sandbox && github.ref_type == 'branch' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: xtimator-development-stripe-test
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install test dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Exercise Stripe test mode and the development ledger
+        env:
+          RUN_PAYMENT_SANDBOX: '1'
+          RUN_PAYMENT_BROWSER: '0'
+          NODE_ENV: test
+          DATA_API_MODE: supabase
+          NEXT_PUBLIC_AUTH_MODE: owned
+          NEXT_PUBLIC_SUPABASE_URL: https://prmqgcrnpuvpzruyzvuv.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QA_DEV_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QA_DEV_SERVICE_ROLE_KEY }}
+          QA_DEV_DATABASE_URL: ${{ secrets.QA_DEV_DATABASE_URL }}
+          QA_STRIPE_TEST_KEY: ${{ secrets.QA_STRIPE_TEST_KEY }}
+        run: ./node_modules/.bin/vitest run tests/integration/payment-sandbox-readiness.test.ts
+      - name: Retain synthetic sandbox evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: payment-sandbox-${{ github.run_id }}-${{ github.run_attempt }}
+          path: qa-results/payment-sandbox.json
           retention-days: 7
           if-no-files-found: warn
 

@@ -20,11 +20,16 @@ function enabled(condition, github, inputs) {
 test('manual acceptance and focused diagnostics cannot bypass main/dev regression', () => {
   assert.equal(full.length, 2, 'Both full determinism passes must remain configured')
   for (const ref of ['refs/heads/main', 'refs/heads/dev']) {
-    const github = { ref, event_name: 'workflow_dispatch' }
-    for (const qa of [false, true]) {
-      const inputs = { qa, unit_scope: 'generation-credits' }
+    const github = { ref, ref_type: 'branch', event_name: 'workflow_dispatch' }
+    for (const inputs of [
+      { qa: false, payment_sandbox: false, unit_scope: 'generation-credits' },
+      { qa: true, payment_sandbox: false, unit_scope: 'generation-credits' },
+      { qa: false, payment_sandbox: true, unit_scope: 'generation-credits' },
+      { qa: true, payment_sandbox: true, unit_scope: 'generation-credits' },
+    ]) {
       assert.equal(enabled(job('unit'), github, inputs), true)
       assert.equal(enabled(job('acceptance'), github, inputs), false)
+      assert.equal(enabled(job('payment-sandbox'), github, inputs), false)
       for (const condition of full) assert.equal(enabled(condition, github, inputs), true)
       assert.equal(enabled(focused, github, inputs), false)
     }
@@ -32,7 +37,7 @@ test('manual acceptance and focused diagnostics cannot bypass main/dev regressio
 })
 
 test('branch diagnostics select the requested job without changing push/PR gates', () => {
-  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', event_name: 'workflow_dispatch' }
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch' }
   assert.equal(enabled(job('acceptance'), github, { qa: true }), true)
   assert.equal(enabled(job('unit'), github, { qa: true }), false)
   assert.equal(enabled(focused, github, { qa: false, unit_scope: 'generation-credits' }), true)
@@ -43,6 +48,26 @@ test('branch diagnostics select the requested job without changing push/PR gates
     assert.equal(enabled(job('acceptance'), event, {}), false)
     for (const condition of full) assert.equal(enabled(condition, event, {}), true)
   }
+})
+
+test('payment is opt-in on branch dispatches and cannot run on pushes, PRs or tags', () => {
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch' }
+  assert.equal(enabled(job('payment-sandbox'), github, { payment_sandbox: false }), false)
+  const inputs = { payment_sandbox: true, qa: true }
+  assert.equal(enabled(job('payment-sandbox'), github, inputs), true)
+  assert.equal(enabled(job('acceptance'), github, inputs), false)
+  assert.equal(enabled(job('unit'), github, inputs), false)
+  assert.equal(enabled(job('unit'), github, { payment_sandbox: true, qa: false }), false)
+  for (const event_name of ['push', 'pull_request']) {
+    for (const ref of [github.ref, 'refs/heads/main', 'refs/heads/dev']) {
+      const event = { ...github, event_name, ref }
+      assert.equal(enabled(job('payment-sandbox'), event, inputs), false)
+      assert.equal(enabled(job('unit'), event, inputs), true)
+    }
+  }
+  const tag = { ...github, ref: 'refs/tags/test', ref_type: 'tag' }
+  assert.equal(enabled(job('payment-sandbox'), tag, inputs), false)
+  assert.equal(enabled(job('unit'), tag, inputs), true)
 })
 
 test('acceptance runs automatically for dev pushes and internal PRs, never main pushes or forks', () => {
