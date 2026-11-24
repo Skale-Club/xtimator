@@ -422,6 +422,33 @@
       "routes": ["/onboarding", "/dashboard"],
       "hypothesis": "An already verified owned account with no tenant can resume the real wizard and provision exactly one first company.",
       "expectedEvidence": "A server-saved draft resumes after its local copy is removed. The wizard creates one company and owner membership, links the completed draft and active-company cookie, and persists one signup ledger entry and lot matching the development billing allowance. Reload and revisit preserve those same records. Identity is seeded; phone verification, logo upload, and outbound consent are omitted."
+    },
+    {
+      "id": "ADM-CONTENT-SCREENS",
+      "titleToken": "[QA:ADM-CONTENT-SCREENS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin/blog", "/admin/blog/new", "/admin/knowledge", "/admin/knowledge/new", "/admin/branding", "/admin/landing", "/admin/pages", "/admin/seo", "/admin/design-system"],
+      "hypothesis": "An owned development platform admin can render the content editors and design catalog without saving global changes.",
+      "expectedEvidence": "Nine routes return the admin shell, exact destination and heading, and their native form or catalog control. Browser exceptions and first-party server errors fail. Captures and privileged writes are disabled; evidence contains only route templates and structural results."
+    },
+    {
+      "id": "ADM-OPERATIONS-SCREENS",
+      "titleToken": "[QA:ADM-OPERATIONS-SCREENS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin/academy", "/admin/billing", "/admin/companies", "/admin/notifications", "/admin/inbox", "/admin/inbox/settings", "/admin/integrations/[slug]"],
+      "hypothesis": "An owned development platform admin can read monitoring and provisioning screens without taking an administrative action.",
+      "expectedEvidence": "Seven routes render their exact heading and table/tab/category controls. Company-specific screens use only the generated company and verify its link or empty inbox. No message, provider configuration, account creation, billing action or role change is submitted."
+    },
+    {
+      "id": "ADM-LEGACY-ALIASES",
+      "titleToken": "[QA:ADM-LEGACY-ALIASES]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin/legal", "/admin/whatsapp", "/admin/whatsapp-templates"],
+      "hypothesis": "An owned development platform admin can open legacy bookmarks and reach the canonical content or inbox screen.",
+      "expectedEvidence": "Each alias ends at its exact canonical URL with the expected heading and selected tab or native control. Uncaught browser exceptions and first-party server errors fail; no settings are saved."
     }
   ],
   "capabilities": [
@@ -444,7 +471,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/settings/payments", "/settings/integrations/stripe", "/settings/billing", "/estimate/[token]"],
-      "reason": "Six isolated real Stripe TEST API/ledger cases pass, covering charges, duplicate/replay recovery, cumulative refunds, 3DS cancellation and subscription Checkout reuse. Hosted browser completion is under test. Signed callback delivery to the app HTTP endpoint and a complete browser-to-ledger journey still need fresh evidence; seeded invoice presentation cannot establish processing."
+      "reason": "Seven isolated real Stripe TEST cases pass, including hosted paid subscription Checkout, charges, duplicate/replay recovery, refunds, 3DS cancellation and invoice-before-Checkout ledger repair. Actual webhook Request signatures and replay pass. External signed callback delivery to a deployed HTTP endpoint and the owner's app billing-screen journey remain unproved."
     },
     {
       "id": "AI-LIVE",
@@ -465,14 +492,14 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/", "/dashboard", "/clients", "/onboarding", "/projects/[id]", "/estimate/[token]"],
-      "reason": "Initial automated scans and client keyboard behavior have browser evidence. New keyboard-only estimate and change-order signing need fresh passing evidence; broader keyboard journeys and real screen-reader validation remain open. Automated rules do not establish WCAG conformance."
+      "reason": "Automated scans, client keyboard interaction and keyboard-only estimate/change-order signing have passing browser evidence. A fresh complete final-revision matrix, broader keyboard journeys and real screen-reader validation remain open. Automated rules do not establish WCAG conformance."
     },
     {
       "id": "ADMIN",
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
-      "reason": "Scoped read-only admin pages pass all three browser projects; post-denial login is under retest after a canonical-origin fix. Administrative grant/revoke interactions, global configuration writes, support mode, audit records and the remaining admin surfaces still require isolated acceptance."
+      "reason": "Five read-only admin surfaces and post-denial login have passing browser evidence; request-level denial covers all28 routes. Three new read-only scenarios add19 surfaces but await browser validation. Positive dynamic article/industry-knowledge/learner details, grant/revoke, global writes, support mode and audit interactions still require isolated acceptance."
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",
