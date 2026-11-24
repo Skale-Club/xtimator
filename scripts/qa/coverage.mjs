@@ -8,7 +8,10 @@ const projectName = /^[a-zA-Z0-9_-]+$/
 
 export function routeFromPage(source) {
   const directories = source.replaceAll('\\', '/').split('/')
-  if (directories.shift() !== 'app' || directories.pop() !== 'page.tsx') return null
+  if (directories.shift() !== 'app') return null
+  const file = directories.pop()
+  const workspaceHandler = file === 'route.ts' && directories.includes('(app)') && !directories.includes('api')
+  if (file !== 'page.tsx' && !workspaceHandler) return null
   if (directories.some(segment => segment.startsWith('_'))) return null
   const route = '/' + directories.filter(segment => !/^\([^/]+\)$/.test(segment) && !segment.startsWith('@')).join('/')
   let category = 'public'
@@ -16,7 +19,7 @@ export function routeFromPage(source) {
   else if (route === '/admin' || route.startsWith('/admin/')) category = 'admin'
   else if (directories.includes('(app)') || directories.includes('(capture)')) category = 'workspace'
   else if (directories.includes('(auth)') || /^\/(onboarding$|invite\/|oauth\/)/.test(route)) category = 'identity'
-  return { route, category, source: source.replaceAll('\\', '/') }
+  return { route, category, source: source.replaceAll('\\', '/'), ...(workspaceHandler ? { kind: 'workspace-handler' } : {}) }
 }
 
 export async function inventoryRoutes(root) {
@@ -25,7 +28,7 @@ export async function inventoryRoutes(root) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const path = resolve(directory, entry.name)
       if (entry.isDirectory() && !entry.name.startsWith('_')) await visit(path)
-      else if (entry.isFile() && entry.name === 'page.tsx') entries.push(routeFromPage(relative(root, path)))
+      else if (entry.isFile() && ['page.tsx', 'route.ts'].includes(entry.name)) entries.push(routeFromPage(relative(root, path)))
     }
   }
   await visit(resolve(root, 'app'))
@@ -264,7 +267,7 @@ export function toMarkdown(summary) {
   }
   const { routes, unmappedRoutes, staleMappings } = summary.inventory
   lines.push('', '## Route inventory', '',
-    `Discovered ${routes.length} page sources. ${unmappedRoutes.length} have no scenario mapping. A mapping identifies intended evidence for a page and does not establish coverage of every page state, interaction, API or job.`, '',
+    `Discovered ${routes.length} page and workspace-handler sources. ${unmappedRoutes.length} have no scenario mapping. A mapping identifies intended navigation evidence and does not establish coverage of every page state, interaction, API or job.`, '',
     '| Route | Surface | Scenario IDs | Capability gates | Source |', '| --- | --- | --- | --- | --- |')
   for (const entry of routes) {
     lines.push(`| ${code(entry.route)} | ${entry.category} | ${entry.scenarios.join(', ') || '**Unmapped**'} | ${entry.capabilities.join(', ') || '—'} | ${code(entry.source)} |`)

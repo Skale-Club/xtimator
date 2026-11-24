@@ -41,7 +41,7 @@ describe('ItemSummaryRow', () => {
   it('opens the editor on tap', () => {
     const onOpen = vi.fn()
     render(<ItemSummaryRow item={makeItem()} onOpen={onOpen} />)
-    fireEvent.click(screen.getByRole('button', { name: /Edit item: Recurring home cleaning/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Edit item:\s*Recurring home cleaning/ }))
     expect(onOpen).toHaveBeenCalledTimes(1)
   })
 

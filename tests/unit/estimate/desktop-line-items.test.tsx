@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import {
   EstimateDocument,
   type EstimateDocumentData,
@@ -104,7 +104,8 @@ describe('desktop line items', () => {
 
   it('the row menu duplicates a line right after itself', async () => {
     const dispatch = renderEdit(makeData())
-    const kebab = document.querySelector('tr[data-item-id="a"] button[aria-label]') as HTMLElement
+    const row = document.querySelector<HTMLElement>('tr[data-item-id="a"]')!
+    const kebab = within(row).getByRole('button', { name: 'Line actions' })
     fireEvent.pointerDown(kebab, { button: 0, pointerType: 'mouse' })
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Duplicate' }))
     expect(dispatch).toHaveBeenCalledWith(
@@ -119,7 +120,8 @@ describe('desktop line items', () => {
 
   it('Details opens the shared item editor', async () => {
     renderEdit(makeData())
-    const kebab = document.querySelector('tr[data-item-id="b"] button[aria-label]') as HTMLElement
+    const row = document.querySelector<HTMLElement>('tr[data-item-id="b"]')!
+    const kebab = within(row).getByRole('button', { name: 'Line actions' })
     fireEvent.pointerDown(kebab, { button: 0, pointerType: 'mouse' })
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Details' }))
     const sheet = await screen.findByTestId('item-editor-sheet')

@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useClientReady } from "@/hooks/use-client-ready"
 import { useTranslation } from "@/lib/i18n/use-translation"
 import { cn } from "@/lib/utils"
 
@@ -60,13 +61,14 @@ export function ContextualTooltip({
   tooltipKey: _tooltipKey,
 }: ContextualTooltipProps) {
   const { t } = useTranslation()
+  // Keep Radix trigger markup consistent through the first hydration render.
+  const canReadMedia = useClientReady() && typeof window.matchMedia === 'function'
 
   // Mirror the prefers-reduced-transparency gate from tour-spotlight.tsx (TOUR-QA-03).
   // TooltipContent uses `bg-popover` by default; under reduced-transparency, explicitly
   // suppress any backdrop-filter from glass utility classes that may be applied via className.
   const reducedTransparency =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
+    canReadMedia &&
     window.matchMedia('(prefers-reduced-transparency: reduce)').matches
 
   // Defensive: if there's no child to anchor against, render nothing tooltip-related.
@@ -76,8 +78,7 @@ export function ContextualTooltip({
   // drops a large floating box over the UI (and over dialog content on phones)
   // that only goes away on a second tap. Skip the tooltip entirely there.
   const noHover =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
+    canReadMedia &&
     window.matchMedia('(hover: none)').matches
   if (noHover) return <>{children}</>
 

@@ -166,7 +166,8 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
     const uploadedKey = await test.step('Record a synthetic microphone stream and observe the real audio upload', async () => {
       const microphone = page.getByTestId('capture-mic')
       await expect(microphone).toHaveAccessibleName('Start recording')
-      await microphone.click()
+      if (info.project.use.hasTouch) await microphone.tap()
+      else await microphone.click()
       await expect(microphone).toHaveAccessibleName('Stop recording')
       await expect(page.getByTestId('capture-timer')).toHaveText(/^(?!00:0[01]$)\d{2}:\d{2}$/, { timeout: 15_000 })
       recordingDiagnostics = await readMicrophoneDiagnostics(page)
@@ -177,7 +178,7 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
       const [ticket] = await Promise.all([
         page.waitForResponse(response => new URL(response.url()).pathname === '/api/storage/upload-ticket'
           && response.request().method() === 'POST', { timeout: 30_000 }),
-        microphone.click(),
+        info.project.use.hasTouch ? microphone.tap() : microphone.click(),
       ])
       expect(ticket.status()).toBe(200)
       const request = ticket.request().postDataJSON()

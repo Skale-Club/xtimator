@@ -218,6 +218,42 @@
       "routes": ["/estimate/[token]", "/projects/[id]", "/projects/[id]/change-orders/[coId]", "/change-order/[token]"],
       "hypothesis": "An anonymous customer can decline a shared change order without changing the accepted base contract or its signature.",
       "expectedEvidence": "Actual original signing, owner draft/save/share and anonymous confirmed decline. Persisted change-order response is declined with no signature; public contract and project remain at 1000 and the original signature hash is unchanged. Owner sees the declined revision control."
+    },
+    {
+      "id": "ADM-DENIAL",
+      "titleToken": "[QA:ADM-DENIAL]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin"],
+      "hypothesis": "An authenticated ordinary tenant cannot read platform-admin pages or invoke the protected model catalog API.",
+      "expectedEvidence": "The actual session identifies the generated owner, admin API returns401 before provider access, admin navigation redirects through logout to sign-in, and the session becomes absent. Evidence contains only booleans and response statuses."
+    },
+    {
+      "id": "ADM-READONLY",
+      "titleToken": "[QA:ADM-READONLY]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin", "/admin/admins", "/admin/companies/[id]", "/admin/events", "/admin/integrations"],
+      "hypothesis": "A generated development platform admin can read the administrative dashboard, its own grant and company, scoped events and integration catalog.",
+      "expectedEvidence": "Grant only the marked random account when a non-QA admin already exists. Each core admin page returns200 with its expected controls, no uncaught exceptions or first-party HTTP5xx. No credentials are revealed and artifacts retain only sanitized states. Remove the exact marked grant during teardown. This does not establish administrative write/support workflows."
+    },
+    {
+      "id": "ESTIMATE-TOTALS",
+      "titleToken": "[QA:ESTIMATE-TOTALS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/estimate/[token]"],
+      "hypothesis": "Editing the quantity and decimal price of an existing line updates every persisted total and every document surface consistently.",
+      "expectedEvidence": "One UI replacement sets quantity3 and unit price125.50. Item, section, estimate and project total must equal376.50 with zero tax/discount. Reloaded width/page editor, semantic owner PDF and anonymous document show the same amount and original scope in all browser projects."
+    },
+    {
+      "id": "ESTIMATE-LOCK",
+      "titleToken": "[QA:ESTIMATE-LOCK]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/estimate/[token]"],
+      "hypothesis": "An accepted signed estimate stays immutable to the owner and to a direct service-role line update; additions use change orders.",
+      "expectedEvidence": "Actual anonymous signing produces a snapshot digest. The owner sees Accepted and the change-order action, with no line edit controls. An update scoped to the marked account and exact company/section/item is rejected with P0022; line, signature and all totals remain unchanged."
     }
   ],
   "capabilities": [
@@ -265,10 +301,10 @@
     },
     {
       "id": "ADMIN",
-      "state": "unimplemented",
+      "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
-      "reason": "The QA tenant fixture has no platform privileges. Administrative roles, audit records and support operations need isolated browser evidence."
+      "reason": "Scoped admin denial and read-only browser cases are implemented and need evidence. Administrative grant/revoke interactions, global configuration writes, support mode, audit records and the remaining admin surfaces still require isolated acceptance."
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",

@@ -51,11 +51,10 @@ export function CreditChip({
         href="/settings/billing"
         className={linkClass}
         title={t('Credits')}
-        aria-label={`${formattedBalance} ${t('credits')}`}
       >
-        <Coins className="h-4 w-4 shrink-0" />
-        <span className="font-mono font-medium tabular-nums">{formattedBalance}</span>
-        <span className="hidden text-xs lg:inline">{t('credits')}</span>
+        <Coins aria-hidden="true" className="h-4 w-4 shrink-0" />
+        <span className="font-mono font-medium tabular-nums">{formattedBalance}</span>{' '}
+        <span className="sr-only text-xs lg:not-sr-only">{t('credits')}</span>
       </Link>
     )
   }
@@ -65,17 +64,17 @@ export function CreditChip({
       href="/settings/billing"
       className={linkClass}
       title={t('Usage')}
-      aria-label={`${percentUsed}% ${t('used')} · ${t('Credits')}`}
     >
-      <Coins className="h-4 w-4 shrink-0" />
+      <Coins aria-hidden="true" className="h-4 w-4 shrink-0" />
       <Progress
+        aria-hidden="true"
         value={percentUsed}
         className={cn(compact ? 'h-1.5 w-8 sm:w-14' : 'h-1.5 w-10 sm:w-14', usageBandClass(percentUsed))}
       />
-      <span className={cn('font-mono font-medium tabular-nums', compact && 'hidden sm:inline')}>
+      <span className={cn('font-mono font-medium tabular-nums', compact && 'sr-only sm:not-sr-only')}>
         {percentUsed}%
-      </span>
-      <span className="hidden text-xs lg:inline">{t('used')}</span>
+      </span>{' '}
+      <span className="sr-only text-xs lg:not-sr-only">{t('used')}</span>
     </Link>
   )
 }

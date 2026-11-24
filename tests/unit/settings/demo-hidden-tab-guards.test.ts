@@ -64,8 +64,8 @@ describe('demo-hidden settings tab guards (181-03, PARITY-02)', () => {
     })
   })
 
-  describe('app/(app)/settings/(tabs)/defaults/page.tsx', () => {
-    const src = read('app/(app)/settings/(tabs)/defaults/page.tsx')
+  describe('app/(app)/settings/(tabs)/defaults/route.ts', () => {
+    const src = read('app/(app)/settings/(tabs)/defaults/route.ts')
 
     it('gates the redirect target on isDemoCompany(companyId)', () => {
       expect(src).toContain(

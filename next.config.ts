@@ -150,8 +150,14 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      // Resolve the settings alias before rendering the authenticated shell.
+      // Resolve legacy aliases before rendering the authenticated shell.
       { source: '/settings', destination: '/settings/company', permanent: false },
+      { source: '/settings/general', destination: '/settings/account', permanent: false },
+      { source: '/settings/staff', destination: '/settings/team', permanent: false },
+      { source: '/settings/delivery', destination: '/settings/estimates', permanent: false },
+      // Next forwards the Stripe return query to the canonical page.
+      { source: '/settings/integrations/stripe', destination: '/settings/client-actions', permanent: false },
+      { source: '/chat', destination: '/dashboard', permanent: false },
       // Trash was removed (deletes are permanent); old links land on Projects.
       { source: '/trash', destination: '/projects', permanent: false },
     ];

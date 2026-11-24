@@ -1,12 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 
 /**
  * Phase 152 Plan 01 (CREDITUI-03 / CREDITUI-04) — CreditChip rewrite.
  *
- * The topbar chip now accepts ONLY `{ percentUsed }` — the raw `balance` prop
- * is GONE (app/(app)/layout.tsx computes percentUsed via
- * lib/billing/usage-percent.ts before this component ever sees a number).
+ * The topbar chip shows usage as a percentage whenever a credit lot exists.
+ * The raw balance is the fallback when there is no usage denominator.
  *
  * Phase 156 (CREDITFIX-02) — added a real visual progress-bar element, reusing
  * the same color-escalation thresholds as UsageProgressBar via the shared
@@ -20,12 +19,11 @@ vi.mock('@/lib/i18n/use-translation', () => ({
 const { CreditChip } = await import('@/components/app-shell/credit-chip')
 
 describe('CreditChip (CREDITFIX-02 / CREDITUI-04)', () => {
-  it('Test 8: renders "{percentUsed}%" and "used", never "credits"', () => {
-    const { container } = render(<CreditChip percentUsed={67} />)
-    const html = container.innerHTML
-    expect(html).toContain('67%')
-    expect(html.toLowerCase()).toContain('used')
-    expect(html.toLowerCase()).not.toContain('credits')
+  it('Test 8: displays and announces percentage used without a raw credit balance', () => {
+    render(<CreditChip percentUsed={67} />)
+    const usage = screen.getByRole('link', { name: '67% used' })
+    expect(usage.textContent?.trim()).toBe('67% used')
+    expect(usage.getAttribute('href')).toBe('/settings/billing')
   })
 
   it('Test 9 (CREDITUI-04): never renders "$" or a raw multi-digit number followed by "credits"', () => {
@@ -58,7 +56,7 @@ describe('CreditChip (CREDITFIX-02 / CREDITUI-04)', () => {
   describe('null percentUsed (nothing granted this cycle) — CREDITFIX-01', () => {
     it('Test 13: renders the balance, not a progress bar', () => {
       const { container } = render(<CreditChip percentUsed={null} balance={7500} />)
-      expect(container.textContent).toContain('7,500')
+      expect(screen.getByRole('link', { name: '7,500 credits' }).textContent?.trim()).toBe('7,500 credits')
       expect(container.querySelector('[data-slot="progress"]')).toBeNull()
     })
 

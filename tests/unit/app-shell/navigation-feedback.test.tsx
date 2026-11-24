@@ -34,7 +34,7 @@ describe('navigation feedback', () => {
     const clients = screen.getByRole('link', { name: 'Clients' })
     expect(within(clients).getByRole('status', { name: 'Loading...' })).toBeTruthy()
     expect(within(screen.getByRole('link', { name: 'Projects' })).queryByRole('status')).toBeNull()
-    expect(screen.getByRole('link', { name: 'Price Book' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('link', { name: 'Prices · Price Book' }).getAttribute('aria-current')).toBe('page')
 
     route.pendingHref = null
     route.pathname = '/clients'
@@ -51,14 +51,14 @@ describe('navigation feedback', () => {
     route.pendingHref = null
     rerender(<BottomNav />)
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.getByRole('link', { name: 'Price Book' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('link', { name: 'Prices · Price Book' }).getAttribute('aria-current')).toBe('page')
   })
 })
 
 describe('bottom bar labels and primary button', () => {
-  it('shows short labels on the bar but keeps the full accessible names', () => {
+  it('shows short labels on the bar and includes the visible Prices label in the link name', () => {
     render(<BottomNav />)
-    const prices = screen.getByRole('link', { name: 'Price Book' })
+    const prices = screen.getByRole('link', { name: 'Prices · Price Book' })
     expect(prices.textContent).toContain('Prices')
     expect(prices.textContent).not.toContain('Price Book')
     const create = screen.getByRole('button', { name: 'New Xtimate' })

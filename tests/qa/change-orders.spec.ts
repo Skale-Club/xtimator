@@ -115,6 +115,7 @@ async function shareOrder(page: Page, baseURL: string, fixture: Tenant, id: stri
     await preview.close()
   }
 
+  await page.goto('about:blank')
   await context.clearCookies()
   expect((await page.goto(publicUrl))?.status()).toBe(200)
   await expect(page.getByTestId('owner-preview-band')).toHaveCount(0)
@@ -163,7 +164,8 @@ async function verifyPdf(page: Page, fixture: Tenant, baseURL: string, id: strin
   for (const content of [order.title, order.reason, ...order.lines.map(line => line.description), signer]) {
     expect(text).toContain(content)
   }
-  expect(text).toMatch(/approved and signed by/i)
+  // The uppercase PDF label uses letter spacing, which pypdf can extract as spaces between letters.
+  expect(text.replace(/\s/g, '').toLowerCase()).toContain(`approvedandsignedby${signer.replace(/\s/g, '').toLowerCase()}`)
   for (const amount of [fixture.total, order.total, fixture.total + order.total]) {
     expect(text).toContain(CURRENCY.format(amount))
   }

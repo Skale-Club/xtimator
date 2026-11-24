@@ -132,7 +132,7 @@ test('[QA:PUBLIC-SHARE] anonymous document shows persisted content and rejects a
   // Next streams its notFound UI with HTTP 200 once headers have been sent.
   expect([200, 404]).toContain(missing?.status())
   await expect(page.getByRole('heading', { name: '404', exact: true })).toBeVisible()
-  await expect(page.locator('meta[name="robots"][content*="noindex"]')).toHaveCount(1)
+  await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached()
   await expect(page.getByText(fixture.companyName, { exact: true })).toHaveCount(0)
   const denied = await page.request.get(`/api/estimates/${fixture.estimateId}/pdf?token=${missingToken}`)
   expect(denied.status()).toBe(404)

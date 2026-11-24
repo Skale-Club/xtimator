@@ -203,7 +203,6 @@ export function CompanySelector({
         ) : (
           <button
             type="button"
-            aria-label={`${active?.name ?? t('Select company')} · ${t('Switch company')}`}
             className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring transition-colors"
           >
             <Avatar aria-hidden="true" className="h-6 w-6 shrink-0">
@@ -217,7 +216,8 @@ export function CompanySelector({
             <span className="max-w-[160px] truncate">
               {active?.name ?? t('Select company')}
             </span>
-            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="sr-only">{` · ${t('Switch company')}`}</span>
+            <ChevronsUpDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </button>
         )}
       </DropdownMenuTrigger>

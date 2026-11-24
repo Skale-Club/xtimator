@@ -21,7 +21,7 @@ function check(operation: string, error: { code?: string } | null) {
 }
 
 /** Per-run data only. Pair every call to seed() with cleanup() in a finally block. */
-export function createQaFixture(baseURL: string, { captureStorage = false } = {}) {
+export function createQaFixture(baseURL: string, { captureStorage = false, platformAdmin = false } = {}) {
   const { localApp, supabaseOrigin, serviceKey } = requireQaDevelopment(baseURL)
   const campaignId = process.env.GITHUB_RUN_ID
   const campaignAttempt = process.env.GITHUB_RUN_ATTEMPT
@@ -48,6 +48,7 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
 
   const prefix = `qa-${runId} `
   const email = `qa-${runId}@example.invalid`
+  const platformAdminNotes = `${prefix}platform admin`
   const companyName = `${prefix}Company`
   const clientName = `${prefix}Client`
   const projectName = `${prefix}Project`
@@ -60,7 +61,25 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
   let cookieExpiry = 0
   let closing = false
 
+  async function hasMarkedAccount() {
+    const account = await db.from('xtimator_accounts').select('email, raw_user_meta_data').eq('id', userId).maybeSingle()
+    check('verify the isolated owned account', account.error)
+    if (!account.data) return false
+    if (account.data.email !== email || account.data.raw_user_meta_data?.qa_run_id !== runId) {
+      throw new Error('QA fixture refused to change an unmarked owned account')
+    }
+    return true
+  }
+
   async function insertRows(status: 'draft' | 'sent') {
+    if (platformAdmin) {
+      // The database forbids removing the last admin, including during account
+      // erasure. Never make the campaign fixture the only platform admin.
+      const existing = await db.from('platform_admins').select('user_id', { head: true, count: 'exact' })
+        .or('notes.is.null,notes.not.like.qa-*')
+      check('verify a preexisting development administrator', existing.error)
+      if (!existing.count) throw new Error('QA fixture requires a preexisting development platform admin')
+    }
     const now = Date.now()
     const timestamp = new Date(now).toISOString()
     // Owned identity migrates public auth.users foreign keys to xtimator_accounts.
@@ -115,6 +134,12 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
       // The owned proxy renews sessions below seven days. Stay above that during QA.
       expires_at: new Date(now + 8 * 24 * HOUR_MS).toISOString(),
     })).error)
+    if (platformAdmin) {
+      if (!(await hasMarkedAccount())) throw new Error('QA fixture account is missing before the admin grant')
+      check('grant platform admin to the marked development fixture', (await db.from('platform_admins').insert({
+        user_id: userId, notes: platformAdminNotes,
+      })).error)
+    }
     cookieExpiry = Math.floor((now + 2 * HOUR_MS) / 1000)
   }
 
@@ -191,6 +216,21 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
     if (result.data?.id !== itemId) throw new Error('QA fixture did not revise its generated estimate line')
   }
 
+  async function tryReviseOwnAcceptedLine() {
+    if (!cookieExpiry || closing || !(await hasMarkedAccount())) {
+      throw new Error('Seed the marked QA fixture before probing the accepted estimate lock')
+    }
+    const estimate = await readOwn('estimates', estimateId)
+    const section = await readOwn('estimate_sections', sectionId)
+    if (estimate?.project_id !== projectId || estimate.client_response !== 'accepted' || section?.estimate_id !== estimateId) {
+      throw new Error('QA lock probe requires its own accepted estimate and generated section')
+    }
+    const result = await db.from('estimate_items').update({ description: `${lineDescription} modified after acceptance` })
+      .eq('id', itemId).eq('section_id', sectionId).eq('company_id', companyId)
+      .eq('description', lineDescription).select('id')
+    return { errorCode: result.error?.code ?? null, changedRows: result.data?.length ?? 0 }
+  }
+
   async function readGenerationEvidence() {
     if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its generation evidence')
     const [estimates, events] = await Promise.all([
@@ -243,6 +283,16 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
     if (!seedWork) return
     await seedWork.catch(() => undefined)
 
+    if (platformAdmin && await hasMarkedAccount()) {
+      const grant = await db.from('platform_admins').select('notes').eq('user_id', userId).maybeSingle()
+      check('verify the synthetic platform admin grant', grant.error)
+      if (grant.data) {
+        if (grant.data.notes !== platformAdminNotes) throw new Error('QA fixture refused to erase an unmarked admin grant')
+        check('remove the synthetic platform admin grant', (await db.from('platform_admins').delete()
+          .eq('user_id', userId).eq('notes', platformAdminNotes)).error)
+      }
+    }
+
     check('remove the owned session', (await db.from('xtimator_sessions').delete()
       .eq('id', sessionId).eq('user_id', userId).eq('token_hash', tokenHash)).error)
 
@@ -261,12 +311,7 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
     const companies = await db.from('companies').select('id').eq('user_id', userId).limit(1)
     check('verify that the fixture owner owns no remaining companies', companies.error)
     if (companies.data?.length) throw new Error('QA fixture refused to erase an owner of another company')
-    const account = await db.from('xtimator_accounts').select('email, raw_user_meta_data').eq('id', userId).maybeSingle()
-    check('verify the isolated owned account', account.error)
-    if (!account.data) return
-    if (account.data.email !== email || account.data.raw_user_meta_data?.qa_run_id !== runId) {
-      throw new Error('QA fixture refused to erase an unmarked owned account')
-    }
+    if (!(await hasMarkedAccount())) return
     check('erase the isolated owned account', (await db.from('xtimator_accounts').delete()
       .eq('id', userId).eq('email', email).eq('raw_user_meta_data->>qa_run_id', runId)).error)
   }
@@ -283,9 +328,9 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
 
   return {
     companyId, clientId, projectId, estimateId, userId, sectionId, itemId, shareToken,
-    companyName, clientName, projectName, summary, sectionTitle, lineDescription, total,
+    companyName, clientName, projectName, summary, sectionTitle, lineDescription, total, userEmail: email,
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
-    readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, cleanup,
+    readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,
     readClient: (id = clientId) => readOwn('clients', id),
     readProject: (id = projectId) => readOwn('projects', id),
     readEstimate: (id: string = estimateId) => readOwn('estimates', id),

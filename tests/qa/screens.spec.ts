@@ -156,7 +156,7 @@ test('[QA:ESTIMATE-SETTINGS-SCREENS] estimate, billing, integrations and knowled
     }
     await visitSurfaces(page, baseURL!, info, [
       { path: '/settings/estimates', verify: defaults },
-      { path: '/settings/defaults', destination: '/settings/estimates', verify: defaults },
+      { path: '/settings/defaults', destination: '/settings/estimates', redirectStatus: 307, verify: defaults },
       { path: '/settings/delivery', destination: '/settings/estimates', verify: defaults },
       { path: '/settings/estimate-templates', verify: async p => {
         await heading(p, 'Client message')
@@ -202,7 +202,7 @@ test('[QA:WORKSPACE-SCREENS] notifications, Academy catalog and retired chat rou
         await expect.soft(p.getByTestId('notifications-empty')).toHaveText('No notifications yet.', { timeout: 5_000 })
       } },
       { path: '/academy', verify: async p => {
-        await heading(p, 'Academy')
+        await visible(p.getByRole('main').getByRole('heading', { name: 'Academy', exact: true, level: 1 }))
         const course = p.getByRole('link', { name: 'Getting started with Xtimator', exact: true })
         await visible(course)
         await expect.soft(course).toHaveAttribute('href', '/academy/fixture-course-0001', { timeout: 5_000 })

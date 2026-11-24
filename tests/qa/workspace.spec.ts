@@ -154,8 +154,38 @@ test('[QA:PRICEBOOK-CRUD] create and edit a service and category, then delete bo
       await page.getByRole('option', { name: categoryName, exact: true }).click()
       await edit.getByPlaceholder('e.g. General Labor', { exact: true }).fill(updatedItem)
       const price = edit.getByPlaceholder('0.00', { exact: true })
+      await price.evaluate(node => {
+        const input = node as HTMLInputElement
+        const events: Array<Record<string, unknown>> = []
+        const record = (type: string, event?: Event) => {
+          if (events.length >= 100) return
+          events.push({ type, value: input.value, start: input.selectionStart, end: input.selectionEnd,
+            focused: document.activeElement === input, connected: input.isConnected,
+            trusted: event?.isTrusted ?? null, inputType: (event as InputEvent | undefined)?.inputType ?? null,
+            data: (event as InputEvent | undefined)?.data ?? null })
+        }
+        Object.assign(window, { __qaMoneyReplacement: { input, events, initial: input.value } })
+        for (const type of ['focus', 'focusin', 'beforeinput', 'input', 'select', 'blur', 'focusout']) {
+          input.addEventListener(type, event => {
+            record(type, event)
+            queueMicrotask(() => record(`${type}:microtask`))
+          })
+        }
+        document.addEventListener('selectionchange', event => {
+          if (document.activeElement === input) record('selectionchange', event)
+        })
+      })
       await price.fill('129.75')
       await price.press('Tab')
+      const replacement = await price.evaluate(node => {
+        const diagnostic = (window as Window & { __qaMoneyReplacement?: {
+          input: HTMLInputElement; events: Array<Record<string, unknown>>; initial: string
+        } }).__qaMoneyReplacement
+        return { initial: diagnostic?.initial, current: (node as HTMLInputElement).value,
+          sameNode: diagnostic?.input === node, events: diagnostic?.events ?? [] }
+      })
+      await info.attach('money-replacement-events.json', { body: JSON.stringify(replacement, null, 2), contentType: 'application/json' })
+      await expect(price).toHaveValue('129.75')
       await edit.getByRole('button', { name: 'Update Service', exact: true }).click()
       await expect.poll(() => fixture.readPriceBook('item', { id: itemId }))
         .toMatchObject({ name: updatedItem, unit_price: 129.75, folder_id: categoryId })
