@@ -22,6 +22,87 @@ async function withTenant(page: Page, baseURL: string, run: (fixture: Tenant) =>
   }
 }
 
+async function readCalibrationFocus(page: Page) {
+  return page.evaluate(() => {
+    const active = document.activeElement
+    const tags = ['A', 'BODY', 'BUTTON', 'DIV', 'HTML', 'INPUT', 'P', 'SELECT', 'TEXTAREA']
+    const roles = ['button', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'tab', 'textbox']
+    const types = ['button', 'checkbox', 'hidden', 'number', 'radio', 'search', 'submit', 'text']
+    const role = active?.getAttribute('role')
+    const type = active instanceof HTMLButtonElement || active instanceof HTMLInputElement ? active.type : null
+    const controls = document.querySelectorAll('a[href],button,input,select,textarea,[tabindex],[contenteditable]')
+    return {
+      hasFocus: document.hasFocus(),
+      visibility: document.visibilityState,
+      active: active ? {
+        tag: tags.includes(active.tagName) ? active.tagName : 'other',
+        type: type && types.includes(type) ? type : null,
+        role: role && roles.includes(role) ? role : null,
+        tabIndex: active instanceof HTMLElement ? active.tabIndex : null,
+        disabled: active.matches(':disabled') || active.getAttribute('aria-disabled') === 'true',
+        controlIndex: Array.from(controls).indexOf(active),
+        isRenameTrigger: active.matches('button[aria-label="Rename project"]'),
+      } : null,
+    }
+  })
+}
+
+async function runFocusCalibration(original: Page, key: 'Tab' | 'Alt+Tab', projectPath?: string) {
+  type Focus = Awaited<ReturnType<typeof readCalibrationFocus>>
+  let probe: Page | undefined
+  const evidence = {
+    surface: projectPath ? 'fresh-owned-editor' : 'native-engine-fixture',
+    key,
+    stage: 'open-page',
+    httpStatus: null as number | null,
+    before: null as Focus | null,
+    strokes: [] as { before: Focus; after: Focus }[],
+    reachedRename: false,
+    closed: false,
+  }
+  try {
+    probe = await original.context().newPage()
+    evidence.stage = 'load-document'
+    if (projectPath) {
+      const response = await probe.goto(projectPath, { waitUntil: 'load', timeout: 15_000 })
+      evidence.httpStatus = response?.status() ?? null
+      if (evidence.httpStatus !== 200) return evidence
+      evidence.stage = 'wait-for-rename'
+      const rename = probe.getByRole('button', { name: 'Rename project', exact: true })
+      await expect(rename).toBeVisible({ timeout: 5_000 })
+      await expect(rename).toBeEnabled({ timeout: 5_000 })
+    } else {
+      // Scratch markup calibrates the browser's keyboard behavior independently of the app.
+      await probe.setContent('<a href="#calibration">Link</a><button type="button">Button</button><label for="calibration">Text</label><input id="calibration" type="text">', { timeout: 5_000 })
+    }
+
+    evidence.stage = 'activate-page'
+    await probe.bringToFront()
+    evidence.before = await readCalibrationFocus(probe)
+    if (!evidence.before.hasFocus) {
+      evidence.stage = 'page-focus-missing'
+      return evidence
+    }
+
+    evidence.stage = 'send-keys'
+    const maxStrokes = projectPath ? 8 : 5
+    for (let step = 0; step < maxStrokes && !evidence.reachedRename; step++) {
+      const before = await readCalibrationFocus(probe)
+      await probe.keyboard.press(key)
+      const after = await readCalibrationFocus(probe)
+      evidence.strokes.push({ before, after })
+      evidence.reachedRename = after.hasFocus && after.active?.isRenameTrigger === true
+    }
+    evidence.stage = 'complete'
+    return evidence
+  } catch {
+    // The last safe stage indicates where the probe itself stopped.
+    return evidence
+  } finally {
+    if (probe) evidence.closed = await probe.close().then(() => true, () => false)
+  }
+}
+
 test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new record only', async ({ page, baseURL }, info) => {
   await withTenant(page, baseURL!, async fixture => {
     const { projectId, estimateId } = await test.step('Create a project and blank estimate through New Xtimate', async () => {
@@ -129,17 +210,29 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
           return { before, records, after: snapshot('after'), dropped }
         }
       })
+      function finishTraversalObservation() {
+        return page.evaluate(() => {
+          const diagnostics = window as Window & { __qaRenameTraversal?: () => unknown }
+          return diagnostics.__qaRenameTraversal?.() ?? null
+        }).catch(() => null)
+      }
+
+      let observation: unknown
+      const calibration: Awaited<ReturnType<typeof runFocusCalibration>>[] = []
       try {
         // Option temporarily reverses WebKit's traversal preference. Start with
         // ordinary Tab on the freshly activated editor, before focus can leave it.
         await tabTo(page, rename, 'Tab')
+      } catch (traversalError) {
+        observation = await finishTraversalObservation()
+        calibration.push(await runFocusCalibration(page, 'Tab'))
+        calibration.push(await runFocusCalibration(page, 'Alt+Tab'))
+        calibration.push(await runFocusCalibration(page, 'Tab', `/projects/${projectId}?tab=estimate&estimate=${estimateId}`))
+        throw traversalError
       } finally {
-        const observation = await page.evaluate(() => {
-          const diagnostics = window as Window & { __qaRenameTraversal?: () => unknown }
-          return diagnostics.__qaRenameTraversal?.() ?? null
-        }).catch(() => null)
+        if (observation === undefined) observation = await finishTraversalObservation()
         await info.attach('project-rename-focus.json', {
-          body: JSON.stringify({ browser: page.context().browser()?.browserType().name(), platform: process.platform, traversalKey: 'Tab', observation }),
+          body: JSON.stringify({ browser: page.context().browser()?.browserType().name(), platform: process.platform, traversalKey: 'Tab', observation, calibration }),
           contentType: 'application/json',
         })
       }

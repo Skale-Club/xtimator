@@ -5,7 +5,7 @@ import { focusTraversalKey } from './keyboard-navigation'
 
 export async function tabTo(page: Page, target: Locator, traversalKey?: 'Tab' | 'Alt+Tab') {
   await expect(target).toBeVisible()
-  const key = traversalKey ?? focusTraversalKey(process.platform, page.context().browser()?.browserType().name())
+  const key = traversalKey ?? focusTraversalKey(process.platform, page.context().browser()?.browserType().name(), process.env.XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION === '1')
   for (let count = 0; count < 60; count++) {
     if (await target.evaluate(element => element === document.activeElement)) return
     await page.keyboard.press(key)

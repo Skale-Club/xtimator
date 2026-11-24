@@ -15,6 +15,7 @@ export default defineConfig({
     testedRevision: process.env.GITHUB_SHA ?? 'local-working-tree',
     githubRunId: process.env.GITHUB_RUN_ID ?? null,
     providerMode: 'synthetic', dataEnvironment: 'development',
+    nativeKeyboardNavigation: process.env.XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION === '1' ? 'full' : 'host-default',
     applicationRuntime: 'compiled-standalone', publicTransport: 'loopback-https-front',
   },
   testDir: './tests/qa', testMatch: '**/*.spec.ts',

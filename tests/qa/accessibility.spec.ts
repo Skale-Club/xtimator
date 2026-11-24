@@ -115,7 +115,7 @@ test('[QA:AXE-PUBLIC] anonymous estimate and signing dialog expose named control
 
 async function tabTo(page: Page, target: Locator, label: string) {
   await expect(target).toBeVisible()
-  const key = focusTraversalKey(process.platform, page.context().browser()?.browserType().name())
+  const key = focusTraversalKey(process.platform, page.context().browser()?.browserType().name(), process.env.XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION === '1')
   for (let count = 0; count <= 45; count++) {
     if (await target.evaluate(element => element === document.activeElement)) return
     await page.keyboard.press(key)

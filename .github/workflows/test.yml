@@ -252,6 +252,13 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Select OpenSSL for native HTTPS checks
         run: echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+      # WebKit inherits the host's native keyboard-navigation preference.
+      # Scope it to this disposable runner's Playwright app, before any launch.
+      - name: Enable native macOS keyboard navigation
+        run: |
+          defaults write org.webkit.Playwright AppleKeyboardUIMode -int 2
+          test "$(defaults read org.webkit.Playwright AppleKeyboardUIMode)" = "2"
+          echo "XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION=1" >> "$GITHUB_ENV"
       - name: Verify campaign infrastructure
         run: npm run qa:infrastructure
       - name: Verify browser fixture loading without browser startup

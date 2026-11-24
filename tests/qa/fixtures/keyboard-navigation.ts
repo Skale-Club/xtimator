@@ -1,4 +1,4 @@
-/** macOS WebKit supports the alternate native Option-Tab traversal mode. */
-export function focusTraversalKey(platform: string, browserName: string | undefined): 'Tab' | 'Alt+Tab' {
-  return platform === 'darwin' && browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
+/** Option reverses WebKit's preference; verified full navigation uses plain Tab. */
+export function focusTraversalKey(platform: string, browserName: string | undefined, fullKeyboardNavigation = false): 'Tab' | 'Alt+Tab' {
+  return platform === 'darwin' && browserName === 'webkit' && !fullKeyboardNavigation ? 'Alt+Tab' : 'Tab'
 }
