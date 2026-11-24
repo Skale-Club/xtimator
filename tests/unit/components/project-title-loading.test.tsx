@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
@@ -66,22 +66,58 @@ describe('project title while the workspace streams', () => {
     }
   })
 
-  it.each(['v1', 'v2'] as const)('still edits and saves from the loaded %s header', async frame => {
+  it.each(['v1', 'v2'] as const)('restores focus after keyboard cancel, no-op and save in the loaded %s header', async frame => {
     render(
       <BreadcrumbProvider>
         {frame === 'v2' ? <EditorTopBar project={project} /> : <ProjectHeader project={project} />}
       </BreadcrumbProvider>,
     )
-    const rename = screen.getByRole<HTMLButtonElement>('button', { name: 'Rename project' })
-    expect(rename.disabled).toBe(false)
-    fireEvent.click(rename)
-    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' })
-    expect(input.value).toBe(project.name)
+    const rename = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Rename project' })
+    const enterEdit = () => {
+      fireEvent.click(rename())
+      const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' })
+      expect(input.value).toBe(project.name)
+      expect(document.activeElement).toBe(input)
+      return input
+    }
+
+    expect(rename().disabled).toBe(false)
+    const cancelled = enterEdit()
+    fireEvent.change(cancelled, { target: { value: 'Discard this draft' } })
+    fireEvent.keyDown(cancelled, { key: 'Escape' })
+    expect(screen.getByRole('heading', { name: project.name })).toBeTruthy()
+    expect(document.activeElement).toBe(rename())
+    expect(renameProject).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(enterEdit(), { key: 'Enter' })
+    expect(document.activeElement).toBe(rename())
+    expect(renameProject).not.toHaveBeenCalled()
+
+    const input = enterEdit()
     fireEvent.change(input, { target: { value: 'Replace porch railing' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
     expect(await screen.findByRole('heading', { name: 'Replace porch railing' })).toBeTruthy()
+    expect(document.activeElement).toBe(rename())
     expect(renameProject).toHaveBeenCalledExactlyOnceWith(project.id, 'Replace porch railing')
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps focus on the next control when leaving the input saves the draft', async () => {
+    render(
+      <BreadcrumbProvider>
+        <EditorTopBar project={project} />
+        <button type="button">Next control</button>
+      </BreadcrumbProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }))
+    const input = screen.getByRole('textbox', { name: 'Project name' })
+    fireEvent.change(input, { target: { value: 'Replace porch railing' } })
+    const next = screen.getByRole('button', { name: 'Next control' })
+    act(() => next.focus())
+
+    expect(await screen.findByRole('heading', { name: 'Replace porch railing' })).toBeTruthy()
+    expect(renameProject).toHaveBeenCalledExactlyOnceWith(project.id, 'Replace porch railing')
+    expect(document.activeElement).toBe(next)
   })
 })

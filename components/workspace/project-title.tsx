@@ -26,12 +26,17 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
   const { t } = useTranslation()
   const compact = size === 'compact'
   const inputRef = useRef<HTMLInputElement>(null)
+  const renameButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreRenameFocus = useRef(false)
 
-  // Focus + select-all when entering edit mode
+  // Select the draft on entry and return keyboard focus when the trigger remounts.
   useEffect(() => {
     if (editing) {
       inputRef.current?.focus()
       inputRef.current?.select()
+    } else if (restoreRenameFocus.current) {
+      restoreRenameFocus.current = false
+      if (document.activeElement === document.body) renameButtonRef.current?.focus()
     }
   }, [editing])
 
@@ -41,18 +46,20 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
   }
 
   function handleCancel() {
+    restoreRenameFocus.current = true
     setEditing(false)
     setDraft(name)
   }
 
-  function handleSubmit() {
-    // Guard against double-submit (Enter then blur during pending save)
-    if (isPending) return
+  function handleSubmit(fromKeyboard = false) {
+    // Ignore blur while a keyboard close is already removing the input.
+    if (isPending || restoreRenameFocus.current) return
 
     const trimmed = draft.trim()
 
     // No-op: nothing changed — just close edit mode without server call
     if (trimmed === name) {
+      restoreRenameFocus.current = fromKeyboard
       setEditing(false)
       return
     }
@@ -76,6 +83,7 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
         return
       }
       setName(trimmed)
+      restoreRenameFocus.current = fromKeyboard
       setEditing(false)
       onRenameSuccess?.(trimmed)
       router.refresh()
@@ -93,13 +101,13 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            handleSubmit()
+            handleSubmit(true)
           } else if (e.key === 'Escape') {
             e.preventDefault()
             handleCancel()
           }
         }}
-        onBlur={handleSubmit}
+        onBlur={() => handleSubmit()}
         disabled={isPending}
         maxLength={200}
         aria-label={t('Project name')}
@@ -120,10 +128,11 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
         {name}
       </h1>
       <button
+        ref={renameButtonRef}
         type="button"
         onClick={canRename ? enterEdit : undefined}
         disabled={!canRename}
-        className={`inline-flex items-center justify-center rounded-md ${compact ? 'p-1' : 'p-1.5'} text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 disabled:pointer-events-none`}
+        className={`inline-flex items-center justify-center rounded-md ${compact ? 'p-1' : 'p-1.5'} text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0 disabled:pointer-events-none`}
         aria-label={t('Rename project')}
       >
         <Pencil className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />

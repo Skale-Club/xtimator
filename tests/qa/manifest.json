@@ -108,8 +108,8 @@
       "requiredForExecution": true,
       "requiredForLaunch": true,
       "routes": ["/projects/new", "/projects", "/projects/[id]"],
-      "hypothesis": "An owner can create a manual project, rename it and permanently delete it from the Projects list.",
-      "expectedEvidence": "New Xtimate creates a new project and blank estimate. The title survives reload. The action removes exactly the new project and its estimate and preserves the fixture's original project."
+      "hypothesis": "An owner can create a manual project, cancel and save renames with the keyboard, and permanently delete it from the Projects list.",
+      "expectedEvidence": "New Xtimate creates a new project and blank estimate. Native keyboard traversal reveals the focused Rename project control; Escape preserves the saved name and returns focus, then Enter saves a new title and returns focus without pointer events. Reload retains the title. Deletion removes exactly the new project and its estimate and preserves the fixture's original project."
     },
     {
       "id": "SETTINGS-PERSIST",

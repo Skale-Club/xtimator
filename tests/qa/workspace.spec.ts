@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './test'
+import { tabTo } from './fixtures/keyboard-signature'
 import { createQaFixture } from './fixtures/tenant'
 
 const DEVELOPMENT_ORIGIN = 'https://prmqgcrnpuvpzruyzvuv.supabase.co'
@@ -49,15 +50,44 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
     })
 
     const projectName = `QA manual project ${projectId.slice(0, 8)}`
-    await test.step('Rename the project and recover the saved title after a reload', async () => {
+    await test.step('Cancel and save project renames using only the keyboard', async () => {
       await expect(page.locator('[data-editor-dock]').getByRole('button', { name: 'Share', exact: true })).toBeVisible()
-      await page.getByRole('button', { name: 'Rename project', exact: true }).click()
+      const rename = page.getByRole('button', { name: 'Rename project', exact: true })
+      await expect(rename).toBeEnabled()
+      const originalName = (await fixture.readOwn('projects', projectId))?.name
+      if (typeof originalName !== 'string' || !originalName) throw new Error('The new project has no saved name')
+      const originalHeading = page.getByRole('heading', { level: 1, name: originalName, exact: true })
+      await expect(originalHeading).toBeVisible()
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.dataset.qaRenamePointers = '0'
+        document.addEventListener('pointerdown', () => {
+          root.dataset.qaRenamePointers = String(Number(root.dataset.qaRenamePointers) + 1)
+        }, true)
+      })
+
+      await tabTo(page, rename)
+      await expect(rename).toBeFocused()
+      await expect(rename).toHaveCSS('opacity', '1')
+      await page.keyboard.press('Enter')
       const name = page.getByRole('textbox', { name: 'Project name', exact: true })
-      await expect(name).toBeVisible()
-      await name.fill(projectName)
-      await name.press('Enter')
+      await expect(name).toBeFocused()
+      await page.keyboard.type('Discard this draft')
+      await expect(name).toHaveValue('Discard this draft')
+      await page.keyboard.press('Escape')
+      await expect(originalHeading).toBeVisible()
+      await expect(rename).toBeFocused()
+      expect((await fixture.readOwn('projects', projectId))?.name).toBe(originalName)
+
+      await page.keyboard.press('Enter')
+      await expect(name).toBeFocused()
+      await page.keyboard.type(projectName)
+      await expect(name).toHaveValue(projectName)
+      await page.keyboard.press('Enter')
       await expect.poll(async () => (await fixture.readOwn('projects', projectId))?.name).toBe(projectName)
       await expect(page.getByRole('heading', { level: 1, name: projectName, exact: true })).toBeVisible()
+      await expect(rename).toBeFocused()
+      await expect(page.locator('html')).toHaveAttribute('data-qa-rename-pointers', '0')
       await page.reload()
       await expect(page.getByRole('heading', { level: 1, name: projectName, exact: true })).toBeVisible()
     })
