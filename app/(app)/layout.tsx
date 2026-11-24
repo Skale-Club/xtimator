@@ -142,7 +142,7 @@ export default async function AppShellLayout({
                   credits={{ percentUsed: supportPercentUsed, balance: supportBalance }}
                 />
                 <SupportModeBanner companyName={supportCompany.name} adminEmail={adminEmail} />
-                <main data-shell="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+                <main data-shell="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
                   {children}
                 </main>
               </div>
@@ -280,7 +280,7 @@ export default async function AppShellLayout({
                 appName={branding.appName}
               />
             )}
-            <main data-shell="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+            <main data-shell="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               <BillingStateProvider state={paywall.state}>{children}</BillingStateProvider>
             </main>
           </div>

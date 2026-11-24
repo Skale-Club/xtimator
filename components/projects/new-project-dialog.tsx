@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useLayoutEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { closeModalParam } from '@/lib/utils/modal-url'
 import {
@@ -39,6 +39,12 @@ interface NewXtimateFrameProps {
   children: React.ReactNode
 }
 
+function isExternalFocus(element: Element | null, dialog: EventTarget | null): element is HTMLElement {
+  return element instanceof HTMLElement && element.isConnected && element !== document.body &&
+    element !== document.documentElement && !element.hasAttribute('data-radix-focus-guard') &&
+    !(dialog instanceof Node && dialog.contains(element))
+}
+
 /**
  * Presentational shell of the New Xtimate / Edit with AI popup: bottom sheet on
  * phones, 560px dialog from sm up. Exported so a dev fixture can render it
@@ -61,11 +67,46 @@ export function NewXtimateFrame({
   children,
 }: NewXtimateFrameProps) {
   const { t } = useTranslation()
+  const openerRef = useRef<{ element: HTMLElement; pathname: string } | null>(null)
+  const openRef = useRef(open)
+  useLayoutEffect(() => { openRef.current = open }, [open])
+
+  function captureOpener(event: Event) {
+    const active = document.activeElement
+    openerRef.current = isExternalFocus(active, event.target)
+      ? { element: active, pathname: window.location.pathname }
+      : null
+  }
+
+  function restoreFocus(event: Event) {
+    // Radix can run its teardown after a remount or after a close is reversed.
+    if (openRef.current) return
+    event.preventDefault()
+    const opener = openerRef.current
+    openerRef.current = null
+    const openerElement = opener?.element ?? null
+    const samePage = opener?.pathname === window.location.pathname
+    const active = document.activeElement
+    if (isExternalFocus(active, event.target) && (samePage || active !== openerElement)) return
+
+    if (samePage && isExternalFocus(openerElement, event.target)) {
+      openerElement.focus({ preventScroll: true })
+      if (document.activeElement === openerElement) return
+    }
+    // The URL-controlled sheet has no Radix trigger. The shell survives the route change.
+    document.querySelector<HTMLElement>('main[data-shell="main"]')?.focus({ preventScroll: true })
+  }
+
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
       {/* Bottom sheet on phones (drag the handle or header down to close),
           centred 560px dialog from sm up. */}
-      <BottomSheetContent className="nx-surface" desktopClassName="sm:max-w-[560px]">
+      <BottomSheetContent
+        className="nx-surface"
+        desktopClassName="sm:max-w-[560px]"
+        onOpenAutoFocus={captureOpener}
+        onCloseAutoFocus={restoreFocus}
+      >
         {/* Scope the language to this popup only — selecting a language re-skins
             the popup + the estimate, never the rest of the app. */}
         <ScopedLanguageProvider language={estimateLanguage} setLanguage={setEstimateLanguage}>
