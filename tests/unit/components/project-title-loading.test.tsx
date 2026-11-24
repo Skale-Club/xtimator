@@ -98,7 +98,7 @@ describe('project title while the workspace streams', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     expect(await screen.findByRole('heading', { name: 'Replace porch railing' })).toBeTruthy()
-    expect(document.activeElement).toBe(rename())
+    await waitFor(() => expect(document.activeElement).toBe(rename()))
     expect(renameProject).toHaveBeenCalledExactlyOnceWith(project.id, 'Replace porch railing')
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
   })
