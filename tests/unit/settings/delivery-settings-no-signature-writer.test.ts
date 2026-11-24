@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // The tenant digital signature switch has ONE writer (setDigitalSignatureEnabled,
 // owner-only). updateDefaults and updateDeliverySettings must never write it.
 
-const billingEditDenied = vi.fn(async () => null)
+type CompanyId = Parameters<typeof import('@/lib/billing/access-guard').billingEditDenied>[0]
+const billingEditDenied = vi.fn(async (_companyId: CompanyId) => null)
 vi.mock('@/lib/billing/access-guard', () => ({
-  billingEditDenied: (...args: unknown[]) => billingEditDenied(...args),
+  billingEditDenied: (companyId: CompanyId) => billingEditDenied(companyId),
 }))
 
 const update = vi.fn()

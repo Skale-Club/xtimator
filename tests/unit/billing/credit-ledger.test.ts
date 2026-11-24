@@ -6,8 +6,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Sentry/Telegram.
 const mockNotifyOps = vi.fn().mockResolvedValue(undefined)
 // Credits plan 2026-11-20: grants announce billing/credits.granted to Inngest.
-const mockInngestSend = vi.fn(async () => ({ ids: ['e1'] }))
-vi.mock('@/lib/inngest/client', () => ({ inngest: { send: (...a: unknown[]) => mockInngestSend(...a) } }))
+type SendArgs = Parameters<typeof import('@/lib/inngest/client').inngest.send>
+const mockInngestSend = vi.fn(async (..._args: SendArgs) => ({ ids: ['e1'] }))
+vi.mock('@/lib/inngest/client', () => ({ inngest: { send: (...args: SendArgs) => mockInngestSend(...args) } }))
 
 vi.mock('@/lib/observability/ops-alert', () => ({
   notifyOps: (...args: unknown[]) => mockNotifyOps(...args),

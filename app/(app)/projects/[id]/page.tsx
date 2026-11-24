@@ -108,7 +108,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const companyPromise = supabase
     .from('companies')
-    .select(`name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, ${COMPANY_FEATURE_COLUMNS}, estimate_terms_enabled, estimate_terms_text, estimate_template_style`)
+    .select(`name, slug, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, ${COMPANY_FEATURE_COLUMNS}, estimate_terms_enabled, estimate_terms_text, estimate_template_style`)
     .eq('id', project.company_id)
     .single()
 
@@ -238,6 +238,7 @@ async function ProjectTabs({
       issuedInvoices={issuedInvoices}
       paymentsEnabled={canIssueInvoice}
       companyName={companyName}
+      companySlug={company?.slug ?? null}
       ownerName={ownerName}
       companyBrandColor={companyBrandColor}
       company={documentCompany}

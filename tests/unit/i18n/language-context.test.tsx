@@ -93,6 +93,13 @@ describe('LanguageProvider', () => {
 })
 
 describe('setLanguage', () => {
+  it('allows a fixed server-supplied language without serializing a callback', () => {
+    render(<ScopedLanguageProvider language="es"><LanguageDisplay /></ScopedLanguageProvider>)
+    expect(screen.getByTestId('lang').textContent).toBe('es')
+    act(() => screen.getByText('Set PT').click())
+    expect(screen.getByTestId('lang').textContent).toBe('es')
+  })
+
   it('updates language state and writes to localStorage', async () => {
     render(
       <LanguageProvider>

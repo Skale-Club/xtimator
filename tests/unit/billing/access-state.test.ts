@@ -399,18 +399,11 @@ describe('spendable balance for non-subscribers (SEED-055 D4)', () => {
   })
 
   it('falls back to the cached balance when the lots cannot be read', async () => {
-    const client = {
-      from: (table: string) => {
-        if (table === 'credit_lots') {
-          return {
-            select: () => ({
-              eq: () => ({ in: async () => ({ data: null, error: { message: 'boom' } }) }),
-            }),
-          }
-        }
-        return fakeClient({ row: { ...base, credit_balance: 7 }, ledgerCount: 1 }).from(table)
-      },
-    } as never
+    const client = fakeClient({
+      row: { ...base, credit_balance: 7 },
+      ledgerCount: 1,
+      lotReadFailure: { error: { message: 'boom' } },
+    })
     expect((await getAccessState(COMPANY, client)).state).toBe('active')
   })
 })

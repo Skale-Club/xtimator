@@ -60,10 +60,25 @@ const ESTIMATE_ID = 'estimate-1'
 const COMPANY_ID = 'company-1'
 
 const MOCK_ESTIMATE_CONTEXT = {
-  estimate: { id: ESTIMATE_ID, sections: [] } as never,
-  project: { name: 'Kitchen Reno', project_type: 'renovation', client: null } as never,
-  company: { id: COMPANY_ID, name: 'Acme Builders' } as never,
-}
+  estimate: {
+    id: ESTIMATE_ID, project_id: 'project-1', company_id: COMPANY_ID, version: 1, estimate_seq: 1,
+    estimate_number: null, estimate_date: null, is_current: true, share_token: 'share-test', public_slug_token: null,
+    status: 'draft', language: 'en', currency_code: 'USD', summary: null, notes: null, timeline: null,
+    payment_terms: null, warranty_terms: null, subtotal: 0, discount_type: null, discount_value: 0,
+    discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 0, deposit_type: 'none', deposit_value: null,
+    balance_due: null, sent_at: null, viewed_at: null, responded_at: null, view_count: 0, last_viewed_at: null,
+    share_password_hash: null, share_password_set_at: null, client_response: null, created_by_user_id: null,
+    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    presentation_settings: null, sections: [], attachedPhotos: [],
+  },
+  project: { name: 'Kitchen Reno', project_type: 'renovation', client: null },
+  company: {
+    name: 'Acme Builders', owner_name: null, phone: null, email: null, website: null, address: null,
+    city: null, state: null, zip: null, logo_url: null, brand_primary_color: null,
+    estimate_terms_enabled: false, estimate_terms_text: null, estimate_template_style: 'classic',
+  },
+  signatureRow: null,
+} satisfies NonNullable<Awaited<ReturnType<typeof getEstimateWithContext>>>
 
 type MockSupabase = {
   storage: {
@@ -152,9 +167,8 @@ describe('generateAndUploadEstimatePDF', () => {
 
   it('resolves via the shared renderEstimatePdf resolver — template selection is exercised (PDFPAR-04)', async () => {
     mockGetEstimate.mockResolvedValue({
-      estimate: { id: ESTIMATE_ID, sections: [], attachedPhotos: [], created_by_user_id: null, language: 'en', updated_at: '2026-01-01T00:00:00Z' } as never,
-      project: { name: 'Kitchen Reno', project_type: 'renovation', client: null } as never,
-      company: { id: COMPANY_ID, name: 'Acme Builders', owner_name: null, estimate_template_style: 'modern' } as never,
+      ...MOCK_ESTIMATE_CONTEXT,
+      company: { ...MOCK_ESTIMATE_CONTEXT.company, estimate_template_style: 'modern' },
     })
     const supabase = makeSupabase()
 

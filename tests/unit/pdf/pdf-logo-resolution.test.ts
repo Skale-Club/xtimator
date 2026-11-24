@@ -129,9 +129,11 @@ function contextWithLogo(logoUrl: string | null, estimateOverrides: object = {})
 
 /** The company object each of the three downstream consumers actually received. */
 function companiesSeenDownstream() {
+  const blocksCompany = mockBlocks.mock.calls[0][0].company
+  if (!('logo_url' in blocksCompany)) throw new Error('Expected the resolved company logo field in pagination')
   return {
     constraints: mockConstraints.mock.calls[0][0] as { logo_url: string | null },
-    blocks: (mockBlocks.mock.calls[0][0] as { company: { logo_url: string | null } }).company,
+    blocks: blocksCompany,
     element: (mockCreateElement.mock.calls[0][1] as { company: { logo_url: string | null } })
       .company,
   }

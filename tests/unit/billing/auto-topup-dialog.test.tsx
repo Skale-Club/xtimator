@@ -13,11 +13,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 const T = (s: string) => s
 vi.mock('@/lib/i18n/use-translation', () => ({ useTranslation: () => ({ t: T }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
-const saveAutoTopupSettings = vi.fn(async () => ({ success: true }))
+type SaveInput = Parameters<typeof import('@/lib/actions/auto-topup').saveAutoTopupSettings>[0]
+const saveAutoTopupSettings = vi.fn(async (_input: SaveInput) => ({ success: true }))
 const disableAutoTopup = vi.fn(async () => ({ success: true }))
 vi.mock('@/lib/actions/auto-topup', () => ({
-  saveAutoTopupSettings: (...a: unknown[]) => saveAutoTopupSettings(...a),
-  disableAutoTopup: (...a: unknown[]) => disableAutoTopup(...a),
+  saveAutoTopupSettings: (input: SaveInput) => saveAutoTopupSettings(input),
+  disableAutoTopup: () => disableAutoTopup(),
 }))
 
 const { AutoTopupDialogLauncher } = await import('@/components/billing/auto-topup-dialog')

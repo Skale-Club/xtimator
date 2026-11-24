@@ -73,7 +73,7 @@ export default async function SharePage({ params }: SharePageProps) {
     const cookieValue = cookieStore.get(ESTIMATE_UNLOCK_COOKIE)?.value
     if (!hasValidUnlock(cookieValue, lock.shareToken)) {
       return (
-        <ScopedLanguageProvider language={lock.language as Language} setLanguage={() => {}}>
+        <ScopedLanguageProvider language={lock.language as Language}>
           <EstimateUnlockForm
             token={token}
             companyName={lock.branding.companyName}

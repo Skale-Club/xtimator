@@ -21,7 +21,7 @@ const FAKE_ENV = {
   S3_SECRET_ACCESS_KEY: 'fake-secret-access-key-do-not-leak',
 }
 
-const serverStorageBackendMock = vi.fn<[], 'r2' | 'supabase'>()
+const serverStorageBackendMock = vi.fn<typeof import('@/lib/storage/server').serverStorageBackend>()
 
 vi.mock('@/lib/storage/server', () => ({
   serverStorageBackend: () => serverStorageBackendMock(),

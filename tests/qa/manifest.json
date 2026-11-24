@@ -313,6 +313,32 @@
       "titleToken": "[QA:CO-KEYBOARD-SIGN]",
       "requiredForExecution": true,
       "requiredForLaunch": true
+    },
+    {
+      "id": "DESCRIBE-GENERATE",
+      "routes": [
+        "/projects/[id]/describe",
+        "/projects/[id]",
+        "/estimate/[token]"
+      ],
+      "hypothesis": "A dedicated text-entry screen saves the exact description and generates the next current estimate.",
+      "expectedEvidence": "An initially disabled CTA enables after one exact fill. The actual202 request has manual_text lineage; the recording, successful pipeline event, version2/total1000 and anonymous generated lines persist.",
+      "titleToken": "[QA:DESCRIBE-GENERATE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true
+    },
+    {
+      "id": "PHOTOS-GENERATE",
+      "routes": [
+        "/projects/[id]/photos-input",
+        "/projects/[id]",
+        "/estimate/[token]"
+      ],
+      "hypothesis": "The photo-only screen requires its own uploaded photo before generating an estimate.",
+      "expectedEvidence": "A real browser file upload creates a scoped WebP object; photo lineage succeeds through Inngest, stores vision output and version2/total1000, and renders the anonymous document without creating an audio recording. Media/provider inputs are synthetic.",
+      "titleToken": "[QA:PHOTOS-GENERATE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true
     }
   ],
   "capabilities": [

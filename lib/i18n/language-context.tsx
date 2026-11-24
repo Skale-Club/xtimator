@@ -139,13 +139,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
  * the loading overlay. Used by the New Xtimate popup so its language selector
  * re-skins only the popup (and the estimate), not the app.
  */
+const keepScopedLanguage = () => {}
+
 export function ScopedLanguageProvider({
   language,
-  setLanguage,
+  setLanguage = keepScopedLanguage,
   children,
 }: {
   language: Language
-  setLanguage: (lang: Language) => void
+  setLanguage?: (lang: Language) => void
   children: React.ReactNode
 }) {
   const translationsVersion = useContext(TranslationsVersionContext)

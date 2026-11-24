@@ -27,7 +27,7 @@ const LEGACY_ABSOLUTE =
   'https://prmqgcrnpuvpzruyzvuv.supabase.co/storage/v1/object/public/logos/co-1/logo.webp'
 
 function blobAsset(bytes: Uint8Array, contentType: string) {
-  const blob = new Blob([bytes], { type: contentType })
+  const blob = new Blob([Uint8Array.from(bytes)], { type: contentType })
   return { body: blob, contentType, contentLength: blob.size, source: 'supabase' as const }
 }
 

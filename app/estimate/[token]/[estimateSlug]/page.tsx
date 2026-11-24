@@ -82,7 +82,7 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
     const cookieValue = cookieStore.get(ESTIMATE_UNLOCK_COOKIE)?.value
     if (!hasValidUnlock(cookieValue, lock.shareToken)) {
       return (
-        <ScopedLanguageProvider language={lock.language as Language} setLanguage={() => {}}>
+        <ScopedLanguageProvider language={lock.language as Language}>
           <EstimateUnlockForm
             token={lock.shareToken}
             companyName={lock.branding.companyName}

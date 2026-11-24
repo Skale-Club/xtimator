@@ -31,6 +31,7 @@ interface OverviewTabProps {
   photos: Photo[]
   priceBookItems: PriceBookItem[]
   companyName: string
+  companySlug?: string | null
   ownerName: string
   estimateTemplate: EstimateTemplate
   /** Phase 185 (PGMODE-02) — forwarded to EstimateTab -> EstimateEditor. */
@@ -72,6 +73,7 @@ export function OverviewTab({
   photos,
   priceBookItems,
   companyName,
+  companySlug,
   ownerName,
   estimateTemplate,
   estimateTemplateId,
@@ -150,6 +152,7 @@ export function OverviewTab({
         onOpenPhotos={onOpenPhotos}
         priceBookItems={priceBookItems}
         companyName={companyName}
+        companySlug={companySlug}
         ownerName={ownerName}
         estimateTemplate={estimateTemplate}
         estimateTemplateId={estimateTemplateId}

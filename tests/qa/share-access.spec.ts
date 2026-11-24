@@ -131,7 +131,7 @@ test('[QA:SHARE-BRANDED] the owner opens a branded estimate link that resolves b
 
 test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate unlocks only after the correct password', async ({ page, baseURL }) => {
   test.setTimeout(240_000)
-  await withTenant(page, baseURL!, {}, async fixture => {
+  await withTenant(page, baseURL!, { brandedShare: true }, async fixture => {
     const path = `/estimate/${fixture.shareToken}`
     const password = 'QA synthetic estimate password'
     const dialog = await openOwnerShare(page, fixture)
@@ -146,11 +146,13 @@ test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate u
     }).toBe(true)
 
     await leaveOwner(page)
-    expect((await page.goto(path))?.status()).toBe(200)
-    await expect(page.getByRole('heading', { name: 'This estimate is password-protected', exact: true })).toBeVisible()
-    await expect(page).toHaveTitle('Protected estimate')
-    // The public lock screen displays the sender's branding, with no estimate fields.
-    await expectHiddenEstimate(page, fixture, true)
+    for (const lockedPath of [path, brandedPath(fixture)]) {
+      expect((await page.goto(lockedPath))?.status()).toBe(200)
+      await expect(page.getByRole('heading', { name: 'This estimate is password-protected', exact: true })).toBeVisible()
+      await expect(page).toHaveTitle('Protected estimate')
+      // The public lock screen displays the sender's branding, with no estimate fields.
+      await expectHiddenEstimate(page, fixture, true)
+    }
     await expectSignedPdfDenied(page, fixture, 403, 'link_locked')
     expect(await hasUnlockCookie(page.context())).toBe(false)
 
@@ -170,6 +172,8 @@ test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate u
     expect(cookie && { httpOnly: cookie.httpOnly, secure: cookie.secure, sameSite: cookie.sameSite, path: cookie.path })
       .toEqual({ httpOnly: true, secure: true, sameSite: 'Lax', path: '/' })
     expect((await page.reload())?.status()).toBe(200)
+    await expectEstimateContent(page, fixture)
+    expect((await page.goto(path))?.status()).toBe(200)
     await expectEstimateContent(page, fixture)
   })
 })

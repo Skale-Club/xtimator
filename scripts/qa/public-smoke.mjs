@@ -7,7 +7,10 @@ const origin = 'https://xtimator.com'
 const paths = ['/', '/login', '/industries', '/industries/general-contractors', '/blog',
   '/privacy-policy', '/terms-of-service', '/delete-account', '/offline']
 const evidence = { checkedAt: new Date().toISOString(), origin, mode: 'anonymous-read-only',
-  candidateReadiness: false, deployedRevision: null, pages: [] }
+  candidateReadiness: false, completed: false, deployedRevision: null, pages: [] }
+mkdirSync('.bg-shell/qa', { recursive: true })
+// A failed/interrupted invocation must not leave the previous report current.
+writeFileSync('.bg-shell/qa/production-public-smoke.json', JSON.stringify(evidence, null, 2))
 const health = await fetch(`${origin}/api/health?quick=1`, { redirect: 'error', signal: AbortSignal.timeout(20_000) })
 const status = await health.json()
 if (!health.ok || !/^[0-9a-f]{40}$/.test(status.sha ?? status.commit ?? '')) {
@@ -20,12 +23,14 @@ for (const path of paths) {
   const headings = [...body.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)]
     .map(match => match[1].replace(/<[^>]+>/g, '').trim())
   const legal = ['/privacy-policy', '/terms-of-service'].includes(path)
+  const articleLength = (body.match(/<article\b[^>]*class="[^"]*\bprose\b[^"]*"[^>]*>([\s\S]*?)<\/article>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').trim().length
   const passed = response.status === 200 && headings.length > 0 && !headings.some(h => /^404\b/.test(h))
-    && (!legal || (/<article\b/.test(body) && /Privacy Policy|Terms of Service/i.test(headings.join(' '))))
+    && (!legal || (articleLength >= 300 && /Privacy Policy|Terms of Service/i.test(headings.join(' '))))
   evidence.pages.push({ path, status: response.status, headings, passed,
+    ...(legal ? { articleLength } : {}),
     contentSha256: createHash('sha256').update(body).digest('hex') })
 }
-mkdirSync('.bg-shell/qa', { recursive: true })
+evidence.completed = true
 writeFileSync('.bg-shell/qa/production-public-smoke.json', JSON.stringify(evidence, null, 2))
 console.log(JSON.stringify(evidence, null, 2))
 process.exitCode = evidence.pages.every(page => page.passed) ? 0 : 1

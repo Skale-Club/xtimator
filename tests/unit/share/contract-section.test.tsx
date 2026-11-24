@@ -5,7 +5,7 @@ import { ContractSection } from '@/components/share/contract-section'
 import type { ContractSummary } from '@/lib/change-orders/types'
 
 function row(over: Partial<ContractSummary['changeOrders'][number]>): ContractSummary['changeOrders'][number] {
-  return { id: 'x', number: 1, title: '', status: 'sent', total: 0, sent_at: null, responded_at: null, view_count: 0, ...over }
+  return { id: 'x', number: 1, title: '', status: 'sent', total: 0, sent_at: null, responded_at: null, view_count: 0, invoice_status: null, ...over }
 }
 
 function summary(over: Partial<ContractSummary> = {}): ContractSummary {

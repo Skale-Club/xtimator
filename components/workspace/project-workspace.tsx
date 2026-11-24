@@ -40,6 +40,7 @@ interface ProjectWorkspaceProps {
   /** PAYGATE-01/02 — forward-looking payment gate (Connect active), computed server-side. */
   paymentsEnabled: boolean
   companyName: string
+  companySlug?: string | null
   ownerName: string
   companyBrandColor: string | null
   company: DocumentCompany
@@ -65,7 +66,7 @@ interface ProjectWorkspaceProps {
 
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
-  currentEstimate, allVersions, issuedInvoices, paymentsEnabled, companyName,
+  currentEstimate, allVersions, issuedInvoices, paymentsEnabled, companyName, companySlug,
   ownerName, companyBrandColor, company, companyDefaults, estimateTemplate,
   estimateTemplateId, preparedBy, smsDeliveryEnabled = false,
   whatsappEnabled,
@@ -143,6 +144,7 @@ export function ProjectWorkspace({
           photos={photos}
           priceBookItems={priceBookItems}
           companyName={companyName}
+          companySlug={companySlug}
           ownerName={ownerName}
           estimateTemplate={estimateTemplate}
           estimateTemplateId={estimateTemplateId}

@@ -334,8 +334,8 @@ describe('ChangeOrderEditor - invoicing', () => {
       total: 515,
       subtotal: 515,
       items: [
-        { id: 'i1', change_order_id: 'co-1', description: 'Extra work', quantity: 1, unit: null, unit_price: 515, amount: 515, taxable: false, sort_order: 0 },
-      ] as ChangeOrder['items'],
+        { id: 'i1', description: 'Extra work', quantity: 1, unit: null, unit_price: 515, total: 515, taxable: false, sort_order: 0 },
+      ],
       ...over,
     })
   const INVOICE = {
@@ -364,7 +364,7 @@ describe('ChangeOrderEditor - invoicing', () => {
     expect(screen.queryByTestId('change-order-invoice')).toBeNull()
     hasInvoice.unmount()
 
-    renderEditor(approved({ total: -100, subtotal: -100, items: [{ id: 'i2', change_order_id: 'co-1', description: 'Skip a coat', quantity: 1, unit: null, unit_price: -100, amount: -100, taxable: false, sort_order: 0 }] as ChangeOrder['items'] }), fakeActions(), { paymentsEnabled: true, invoice: null })
+    renderEditor(approved({ total: -100, subtotal: -100, items: [{ id: 'i2', description: 'Skip a coat', quantity: 1, unit: null, unit_price: -100, total: -100, taxable: false, sort_order: 0 }] }), fakeActions(), { paymentsEnabled: true, invoice: null })
     expect(screen.queryByTestId('change-order-invoice')).toBeNull()
   })
 
@@ -408,7 +408,7 @@ describe('ChangeOrderEditor - invoicing', () => {
   })
 
   it('shows a one-line note for an approved credit', () => {
-    renderEditor(approved({ total: -100, subtotal: -100, items: [{ id: 'i2', change_order_id: 'co-1', description: 'Skip a coat', quantity: 1, unit: null, unit_price: -100, amount: -100, taxable: false, sort_order: 0 }] as ChangeOrder['items'] }), fakeActions(), { paymentsEnabled: true, invoice: null })
+    renderEditor(approved({ total: -100, subtotal: -100, items: [{ id: 'i2', description: 'Skip a coat', quantity: 1, unit: null, unit_price: -100, total: -100, taxable: false, sort_order: 0 }] }), fakeActions(), { paymentsEnabled: true, invoice: null })
     expect(screen.getByTestId('change-order-credit-note').textContent).toBe('Credits are applied to the balance invoice.')
   })
 

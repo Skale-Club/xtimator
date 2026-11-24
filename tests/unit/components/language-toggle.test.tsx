@@ -58,7 +58,7 @@ describe('LanguageToggle — I18N-01', () => {
     const menu = await openLanguageMenu()
     expect(menu.getAllByRole('menuitem')).toHaveLength(3)
     for (const name of ['English', 'Português', 'Español']) {
-      expect(menu.getByRole('menuitem', { name, exact: true })).toBeTruthy()
+      expect(menu.getByRole('menuitem', { name })).toBeTruthy()
     }
     expect(setLanguageMock).not.toHaveBeenCalled()
   })
@@ -68,7 +68,7 @@ describe('LanguageToggle — I18N-01', () => {
     ['Español', 'es'],
   ])('selecting %s changes the language to %s', async (label, language) => {
     const menu = await openLanguageMenu()
-    fireEvent.click(menu.getByRole('menuitem', { name: label, exact: true }))
+    fireEvent.click(menu.getByRole('menuitem', { name: label }))
     expect(setLanguageMock).toHaveBeenCalledExactlyOnceWith(language)
   })
 })

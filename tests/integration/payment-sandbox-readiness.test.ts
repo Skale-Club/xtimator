@@ -40,7 +40,9 @@ async function operation(key: string): Promise<BillingOperation> {
 }
 async function event(type: Stripe.Event.Type, objectId: string) {
   for (let i = 0; i < 30; i++) {
-    const found = (await stripe.events.list({ type, limit: 100 })).data.find(e => e.data.object.id === objectId && !eventIds.includes(e.id))
+    const found = (await stripe.events.list({ type, limit: 100 })).data.find(e =>
+      'id' in e.data.object && e.data.object.id === objectId && !eventIds.includes(e.id),
+    )
     if (found) { eventIds.push(found.id); return await stripe.events.retrieve(found.id) }
     await pause()
   }
@@ -71,7 +73,7 @@ sandbox('payment launch against real Stripe sandbox and development PostgreSQL',
     if ((await stripe.balance.retrieve()).livemode) throw new Error('LIVE MODE REFUSED')
     const endpoints = await stripe.webhookEndpoints.list({ limit: 100 })
     if (endpoints.data.some(e => e.status === 'enabled' && new URL(e.url).hostname.endsWith('xtimator.com'))) throw new Error('Sandbox endpoints must not target production')
-    const account = await stripe.accounts.retrieve()
+    const account = await stripe.accounts.retrieveCurrent()
     if (account.id !== 'acct_1TqXToRWC5n20aq6') throw new Error('Wrong Stripe platform account')
     db = new pg.Client({ connectionString: url }); await db.connect()
     const owner = (await db.query('SELECT user_id FROM companies LIMIT 1')).rows[0]?.user_id

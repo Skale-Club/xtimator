@@ -19,7 +19,7 @@ import { formatEstimateForWhatsApp } from '@/lib/whatsapp/formatter'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import { collectTextNodes } from './_pdf-text-walker'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
-import { buildPagesForFixture } from '../pdf/_pages-for-fixture'
+import { buildPagesForFixture, type BuildPagesForFixtureCompany } from '../pdf/_pages-for-fixture'
 
 const SECRET_ITEM_DESCRIPTION = 'CROSS_SURFACE_ITEM_DESC_XYZ_98723'
 const SECRET_SUMMARY = 'CROSS_SURFACE_SUMMARY_XYZ_98724'
@@ -139,7 +139,7 @@ const COMPANY = {
 
 function renderAllSurfaces(
   estimate: Record<string, unknown>,
-  company: Record<string, unknown> = COMPANY,
+  company: BuildPagesForFixtureCompany = COMPANY,
 ): {
   classicPdf: string
   modernPdf: string

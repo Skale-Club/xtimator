@@ -22,6 +22,7 @@ let companyRow: {
   stripe_customer_id?: string | null
   tier?: string | null
   stripe_subscription_status?: string | null
+  stripe_subscription_id?: string | null
   currency_code?: string | null
 } | null = null
 

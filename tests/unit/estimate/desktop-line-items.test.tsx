@@ -43,6 +43,7 @@ function renderEdit(data: EstimateDocumentData, dispatch = vi.fn()) {
       mode="edit"
       data={data}
       dispatch={dispatch}
+      client={null}
       projectName="P"
       projectType={null}
       estimateVersion={1}

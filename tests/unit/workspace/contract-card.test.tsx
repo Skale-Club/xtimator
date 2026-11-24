@@ -39,8 +39,8 @@ function summary(over: Partial<ContractSummary> = {}): ContractSummary {
     signedOnline: true,
     baseTotal: 3486,
     changeOrders: [
-      { id: 'co-1', number: 1, title: 'Garage painting', status: 'accepted', total: 800, sent_at: null, responded_at: '2026-11-10T15:00:00.000Z', view_count: 2 },
-      { id: 'co-2', number: 2, title: '', status: 'sent', total: -150, sent_at: '2026-11-12T15:00:00.000Z', responded_at: null, view_count: 3 },
+      { id: 'co-1', number: 1, title: 'Garage painting', status: 'accepted', total: 800, sent_at: null, responded_at: '2026-11-10T15:00:00.000Z', view_count: 2, invoice_status: null },
+      { id: 'co-2', number: 2, title: '', status: 'sent', total: -150, sent_at: '2026-11-12T15:00:00.000Z', responded_at: null, view_count: 3, invoice_status: null },
     ],
     approvedTotal: 800,
     pendingTotal: -150,

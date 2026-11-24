@@ -39,6 +39,7 @@ const company = {
 } as unknown as DocumentCompany & { estimate_terms_enabled: boolean; estimate_terms_text: string }
 
 const client = {
+  id: 'client-1',
   name: 'Pat Client',
   email: 'pat@client.test',
   phone: null,

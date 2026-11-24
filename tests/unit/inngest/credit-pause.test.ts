@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { BillingBlockedError } from '@/lib/billing/access-guard'
+import type { triggerAutoTopupIfNeeded as triggerTopup } from '@/lib/billing/auto-topup'
+import type { NotifyParams } from '@/lib/notifications/dispatch'
+import type { PipelineEventInput } from '@/lib/observability/pipeline-events'
 
 /**
  * Credits plan 2026-11-20 - continueOrPauseForCredits: a run checks credits
@@ -11,10 +14,10 @@ import { BillingBlockedError } from '@/lib/billing/access-guard'
 const canContinueRun = vi.fn()
 vi.mock('@/lib/billing/access-state', () => ({ canContinueRun: (...a: unknown[]) => canContinueRun(...a) }))
 vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn(async () => ({ creditPauseDays: 7 })) }))
-const recordPipelineEvent = vi.fn(async () => undefined)
-vi.mock('@/lib/observability/pipeline-events', () => ({ recordPipelineEvent: (...a: unknown[]) => recordPipelineEvent(...a) }))
-const notify = vi.fn(async () => ({ ok: true }))
-vi.mock('@/lib/notifications/dispatch', () => ({ notify: (...a: unknown[]) => notify(...a) }))
+const recordPipelineEvent = vi.fn(async (_event: PipelineEventInput) => undefined)
+vi.mock('@/lib/observability/pipeline-events', () => ({ recordPipelineEvent: (event: PipelineEventInput) => recordPipelineEvent(event) }))
+const notify = vi.fn(async (_params: NotifyParams) => ({ ok: true }))
+vi.mock('@/lib/notifications/dispatch', () => ({ notify: (params: NotifyParams) => notify(params) }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
     from: (table: string) => ({
@@ -30,8 +33,9 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
-const triggerAutoTopupIfNeeded = vi.fn(async () => undefined)
-vi.mock('@/lib/billing/auto-topup', () => ({ triggerAutoTopupIfNeeded: (...a: unknown[]) => triggerAutoTopupIfNeeded(...a) }))
+type TopupInput = Parameters<typeof triggerTopup>[0]
+const triggerAutoTopupIfNeeded = vi.fn(async (_input: TopupInput) => undefined)
+vi.mock('@/lib/billing/auto-topup', () => ({ triggerAutoTopupIfNeeded: (input: TopupInput) => triggerAutoTopupIfNeeded(input) }))
 
 const { continueOrPauseForCredits, AWAITING_CREDITS, CREDIT_PAUSE_EXPIRED } = await import('@/lib/inngest/credit-pause')
 
@@ -75,7 +79,7 @@ function fakeStep(waits: Array<unknown | null>) {
   }
 }
 
-const journal = () => recordPipelineEvent.mock.calls.map((c) => c[0] as Record<string, unknown>)
+const journal = () => recordPipelineEvent.mock.calls.map(([event]) => event)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -120,7 +124,7 @@ describe('continueOrPauseForCredits', () => {
         channels: { inApp: true, email: true },
       })
     )
-    expect((notify.mock.calls[0][0] as { body: string }).body).toContain('Buy credits')
+    expect(notify.mock.calls[0][0].body).toContain('Buy credits')
   })
 
   it('waits only for this company\'s credits.granted event, within the pause window', async () => {

@@ -179,7 +179,7 @@ describe('validateProductionEnv', () => {
     Object.assign(process.env, fullyConfiguredEnv())
     process.env.DATA_API_MODE = 'postgrest'
     delete process.env.SUPABASE_SECRET_KEY
-    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    Reflect.deleteProperty(process.env, 'SUPABASE_SERVICE_ROLE_KEY')
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const { validateProductionEnv } = await import('@/lib/observability/env-check')
@@ -202,7 +202,7 @@ describe('validateProductionEnv', () => {
     Object.assign(process.env, fullyConfiguredEnv())
     delete process.env.DATA_API_MODE
     delete process.env.SUPABASE_SECRET_KEY
-    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    Reflect.deleteProperty(process.env, 'SUPABASE_SERVICE_ROLE_KEY')
 
     const { validateProductionEnv } = await import('@/lib/observability/env-check')
     expect(() => validateProductionEnv()).toThrow(/SUPABASE_SECRET_KEY/)
