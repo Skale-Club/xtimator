@@ -3,7 +3,7 @@ import { test, expect } from './test'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createQaFixture } from './fixtures/tenant'
-import { completeServerRefresh } from './fixtures/navigation'
+import { observeSaveRefresh } from './fixtures/navigation'
 
 let fixture: ReturnType<typeof createQaFixture>
 
@@ -83,7 +83,7 @@ test('[QA:CLIENT-CRUD] client form edits persist and survive navigation and relo
   await page.getByRole('menuitem', { name: 'Edit client', exact: true }).click()
   const name = `${fixture.clientName} Updated`
   await page.getByPlaceholder('Client name', { exact: true }).fill(name)
-  await completeServerRefresh(page, `/clients/${createdId}`, () =>
+  await observeSaveRefresh(page, `/clients/${createdId}`, () =>
     page.getByRole('button', { name: 'Update Client', exact: true }).click())
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect.poll(async () => (await fixture.readClient(createdId))?.name).toBe(name)

@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GET as legal } from '@/app/admin/legal/route'
 import { GET as whatsapp } from '@/app/admin/whatsapp/route'
 import { GET as templates } from '@/app/admin/whatsapp-templates/route'
-import { requireAdmin } from '@/lib/auth/admin-context'
+import { getAdminContext } from '@/lib/auth/admin-context'
 
-vi.mock('@/lib/auth/admin-context', () => ({ requireAdmin: vi.fn() }))
-const authorize = vi.mocked(requireAdmin)
+vi.mock('@/lib/auth/admin-context', () => ({ getAdminContext: vi.fn() }))
+const authorize = vi.mocked(getAdminContext)
 
 describe.each([
   { name: 'legal', handler: legal, destination: '/admin/pages' },
@@ -15,7 +15,7 @@ describe.each([
   beforeEach(() => { authorize.mockReset() })
 
   it('returns a private HTTP307 only after successful authorization', async () => {
-    authorize.mockResolvedValueOnce({} as Awaited<ReturnType<typeof requireAdmin>>)
+    authorize.mockResolvedValueOnce({ userId: 'qa-admin', email: 'qa-admin@example.invalid' })
     const response = await handler()
     expect(authorize).toHaveBeenCalledOnce()
     expect(response.status).toBe(307)
@@ -24,20 +24,29 @@ describe.each([
     expect(response.body).toBeNull()
   })
 
-  it('propagates denied authorization before producing a canonical destination', async () => {
-    const denied = new Error('NEXT_REDIRECT: admin access denied')
+  it('sends a non-admin to the same logout boundary as the admin layout', async () => {
+    authorize.mockResolvedValueOnce(null)
+    const response = await handler()
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('/api/logout')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.body).toBeNull()
+  })
+
+  it('propagates failed authorization reads before producing a destination', async () => {
+    const denied = new Error('Could not resolve admin authorization')
     authorize.mockRejectedValueOnce(denied)
     await expect(handler()).rejects.toBe(denied)
   })
 
   it('does not finish a response while authorization remains unresolved', async () => {
-    let allow!: (value: Awaited<ReturnType<typeof requireAdmin>>) => void
+    let allow!: (value: Awaited<ReturnType<typeof getAdminContext>>) => void
     authorize.mockReturnValueOnce(new Promise(resolve => { allow = resolve }))
     let finished = false
     const result = handler().then(response => { finished = true; return response })
     await Promise.resolve()
     expect(finished).toBe(false)
-    allow({} as Awaited<ReturnType<typeof requireAdmin>>)
+    allow({ userId: 'qa-admin', email: 'qa-admin@example.invalid' })
     expect((await result).headers.get('location')).toBe(destination)
   })
 })

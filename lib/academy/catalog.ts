@@ -1,5 +1,6 @@
 import 'server-only'
 import { getAcademyNotionConfig } from '@/lib/platform-config'
+import { academyFixturesEnabledForRuntime } from '@/lib/qa/runtime'
 import { createFixtureSource } from './fixture-source'
 import { resolveCatalogForLanguage, type AcademyLanguage } from './language'
 import { createNotionSource } from './notion-source'
@@ -25,9 +26,9 @@ function nonProduction(): boolean {
   return process.env.NODE_ENV !== 'production'
 }
 
-/** Fixtures are dev-only: never in production, whatever the env says. */
+/** Fixture content is limited to development or the exact isolated compiled CI runtime. */
 export function fixturesEnabled(): boolean {
-  return nonProduction() && process.env.ACADEMY_FIXTURES === '1'
+  return academyFixturesEnabledForRuntime()
 }
 
 function draftsEnabled(): boolean {

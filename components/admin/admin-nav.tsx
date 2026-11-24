@@ -61,6 +61,7 @@ function NavLink({ href, label, Icon, activeBase, pathname, t }: NavItem & {
     <li key={href}>
       <Link
         href={href}
+        prefetch={false}
         aria-current={isActive ? 'page' : undefined}
         className={[
           'relative flex items-center gap-3 h-[40px] px-4 rounded-md text-sm transition-colors',

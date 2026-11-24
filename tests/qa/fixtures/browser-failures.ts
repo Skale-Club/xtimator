@@ -3,7 +3,7 @@ type AssetType = 'script' | 'stylesheet'
 type Observation = {
   source: 'pageerror' | 'console.error' | 'asset-response' | 'asset-requestfailed'
   classification: FatalReactFailure | 'unhandled-exception' | 'http-4xx' | 'http-5xx'
-    | 'connection-retry-limit' | 'load-failed' | 'request-failed' | 'cancelled'
+    | 'connection-retry-limit' | 'load-failed' | 'fetch-rejection' | 'request-failed' | 'cancelled'
   resourceType?: AssetType
   fatal: boolean
   count: number
@@ -34,7 +34,8 @@ export function createBrowserFailureTracker(baseURL: string) {
 
   return {
     pageError(text: string) {
-      record({ source: 'pageerror', classification: classifyReactFailure(text) ?? 'unhandled-exception', fatal: true })
+      const fetchRejected = /^(?:TypeError:\s*)?(?:Load failed|Failed to fetch|NetworkError when attempting to fetch resource\.)$/i.test(text.trim())
+      record({ source: 'pageerror', classification: classifyReactFailure(text) ?? (fetchRejected ? 'fetch-rejection' : 'unhandled-exception'), fatal: true })
     },
     consoleError(text: string) {
       const classification = classifyReactFailure(text)

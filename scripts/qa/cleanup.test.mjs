@@ -201,6 +201,16 @@ test('matches only the selected acceptance attempt and erases exactly the valida
   assert.equal(writes.length, 5)
 })
 
+test('recovers the generated project cover under the same exact owned storage prefix', async () => {
+  const fixture = createFixture(1)
+  fixture.photo.name = `cover-${fixture.photo.id}.webp`
+  const { store, writes } = fakeStore([fixture])
+  const result = await recoverQaCampaign({ env: ENV, openStore: () => store })
+  assert.equal(result.deletedFiles, 2)
+  assert.ok(writes.some(([operation, bucket, paths]) => operation === 'removeObjects'
+    && bucket === 'photos' && paths.length === 1 && paths[0] === `${fixture.directory}/${fixture.photo.name}`))
+})
+
 test('recovers an account left by a partial seed before company creation', async () => {
   const fixture = createFixture(1)
   const { store, writes, storageReads } = fakeStore([{ account: fixture.account }])
@@ -222,6 +232,8 @@ for (const [description, corrupt, error] of [
   ['foreign account member of fixture company', fixture => { fixture.membership.user_id = id(99) }, /membership/],
   ['marked project belonging to another company', fixture => { fixture.project.company_id = id(99) }, /project/],
   ['unrecognized file', fixture => { fixture.audio.name = '../unmarked.webm' }, /unrecognized.*audio/],
+  ['unrecognized cover file', fixture => { fixture.photo.name = 'cover-unmarked.webp' }, /unrecognized.*photos/],
+  ['cover path traversal', fixture => { fixture.photo.name = `../cover-${fixture.photo.id}.webp` }, /unrecognized.*photos/],
   ['storage subdirectory', fixture => { fixture.photo.id = null }, /unrecognized.*photos/],
 ]) {
   test(`${description} aborts recovery before any fixture is touched`, async () => {

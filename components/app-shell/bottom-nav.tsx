@@ -122,7 +122,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
           <Link
             key={item.href}
             href={item.href}
-            prefetch={item.prefetch}
+            prefetch={false}
             data-tour={dataTour}
             data-active={isActive || undefined}
             aria-current={isActive ? 'page' : undefined}
@@ -157,7 +157,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
               const Icon = item.icon
               return (
                 <DropdownMenuItem key={item.href} asChild className="cursor-pointer gap-2">
-                  <Link href={item.href} prefetch={item.prefetch}>
+                  <Link href={item.href} prefetch={false}>
                     <Icon className="h-4 w-4" />
                     {t(item.label)}
                     <NavigationPending label={t('Loading...')} />

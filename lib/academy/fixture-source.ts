@@ -2,7 +2,7 @@ import type { ContentSource, RawCourse, RawLesson } from './types'
 
 /**
  * Dev-only content source so the Academy UI can be exercised without Notion.
- * Only ever selected when NODE_ENV !== 'production' AND ACADEMY_FIXTURES=1
+ * Selected only for development or the isolated compiled CI runtime with ACADEMY_FIXTURES=1.
  * (see lib/academy/catalog.ts).
  *
  * One course, three lessons: a vertical video, a horizontal video and a

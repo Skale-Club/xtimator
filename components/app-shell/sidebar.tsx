@@ -291,7 +291,7 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user,
             <Link
               key={item.href}
               href={item.href}
-              prefetch={item.prefetch}
+              prefetch={false}
               data-tour={dataTour ?? undefined}
               data-active={isActive || undefined}
               aria-current={isActive ? 'page' : undefined}

@@ -19,3 +19,8 @@ export function qaIntegrationKey(provider: string, env: NodeJS.ProcessEnv = proc
   if (!isQaDevelopmentRuntime(env)) return undefined
   return provider === 'openrouter' ? 'qa-synthetic-never-a-real-key' : null
 }
+
+/** Production builds may use fixture content only inside the isolated CI runtime. */
+export function academyFixturesEnabledForRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.ACADEMY_FIXTURES === '1' && (env.NODE_ENV !== 'production' || isQaDevelopmentRuntime(env))
+}

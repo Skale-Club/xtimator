@@ -460,6 +460,33 @@
       "expectedEvidence": "An ordinary owned learner manually completes the text lesson through its real tracking endpoint. After closing that page and changing to the marked admin session, the detail screen shows that learner/company,33% course completion, a completion date and one lesson_complete timeline event. Reload preserves the evidence. Both fixtures are independently cleaned; captures and global writes are disabled."
     },
     {
+      "id": "ESTIMATE-TAX-DISCOUNT",
+      "titleToken": "[QA:ESTIMATE-TAX-DISCOUNT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/estimate/[token]"],
+      "hypothesis": "Taxable and exempt items receive the correct prorated pre-tax discount and identical rounded totals on every estimate surface.",
+      "expectedEvidence": "Actual editor controls set7.25% tax, a taxable item and13.33% discount. Independent cent arithmetic requires subtotal1033.33, discount137.74, tax62.84 and total958.43 in persistence, Classic width/page views, public document and owner PDF. A real typed customer signature freezes the same breakdown and unlocks the signed public PDF."
+    },
+    {
+      "id": "ESTIMATE-DECLINE-REOPEN",
+      "titleToken": "[QA:ESTIMATE-DECLINE-REOPEN]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/estimate/[token]"],
+      "hypothesis": "A customer can decline the original estimate and its owner can reopen and revise it without losing the original response history or changing the public link.",
+      "expectedEvidence": "The anonymous confirmation persists a declined estimate/project and one response activity without a signature. The actual owner Revise and reopen action clears the current response, permits a saved line edit and retains decline/clear activities. Reload and the same anonymous link show the revision and enabled response controls. Delivery remains disabled."
+    },
+    {
+      "id": "PROJECT-ARCHIVE-RESTORE",
+      "titleToken": "[QA:PROJECT-ARCHIVE-RESTORE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects", "/estimate/[token]"],
+      "hypothesis": "Archiving and restoring an owned project changes list visibility without deleting its estimate, client or public link or affecting another tenant.",
+      "expectedEvidence": "Actual row menus and Active/Archived filters toggle archived_at while deleted_at remains null. Reload preserves each state, client/estimate/current share token remain intact, and the public document works while archived and after restoration. An unrelated marked tenant remains unchanged."
+    },
+    {
       "id": "DISABLED-SURFACES",
       "titleToken": "[QA:DISABLED-SURFACES]",
       "requiredForExecution": true,

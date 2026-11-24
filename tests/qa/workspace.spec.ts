@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './test'
 import { createQaFixture } from './fixtures/tenant'
-import { completeServerRefresh } from './fixtures/navigation'
+import { observeSaveRefresh } from './fixtures/navigation'
 
 const DEVELOPMENT_ORIGIN = 'https://prmqgcrnpuvpzruyzvuv.supabase.co'
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
@@ -54,7 +54,7 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
       await page.getByRole('button', { name: 'Rename project', exact: true }).click()
       const name = page.getByRole('textbox', { name: 'Project name', exact: true })
       await name.fill(projectName)
-      await completeServerRefresh(page, `/projects/${projectId}`, () => name.press('Enter'))
+      await observeSaveRefresh(page, `/projects/${projectId}`, () => name.press('Enter'))
       await expect.poll(async () => (await fixture.readOwn('projects', projectId))?.name).toBe(projectName)
       await page.reload()
       await expect(page.getByRole('heading', { level: 1, name: projectName, exact: true })).toBeVisible()

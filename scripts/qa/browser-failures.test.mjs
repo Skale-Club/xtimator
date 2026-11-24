@@ -21,6 +21,15 @@ test('counts hook, hydration and serialization console errors and all unhandled 
   ] })
 })
 
+test('known browser fetch rejections remain fatal and expose only a fixed category', () => {
+  const tracker = createBrowserFailureTracker(origin)
+  tracker.pageError('Load failed')
+  tracker.pageError('TypeError: Failed to fetch')
+  assert.deepEqual(tracker.summary(), { fatalCount: 2, events: [
+    { source: 'pageerror', classification: 'fetch-rejection', fatal: true, count: 2 },
+  ] })
+})
+
 test('a handled provider outage and its failed API request do not trip the browser gate', () => {
   const tracker = createBrowserFailureTracker(origin)
   tracker.consoleError('The provider returned 503. Estimate generation failed; please try again.')

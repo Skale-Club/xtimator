@@ -9,7 +9,7 @@ const OWNED_COOKIE = 'xtimator_session'
 const COMPANY_COOKIE = 'active_company_id'
 const CAPTURE_BUCKETS = {
   audio: /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.(webm|mp4|ogg)$/i,
-  photos: /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.webp$/i,
+  photos: /^(?:cover-)?[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.webp$/i,
 }
 const STORAGE_PAGE_SIZE = 100
 type BrowserCookies = Parameters<BrowserContext['addCookies']>[0]
@@ -27,6 +27,7 @@ export function createQaFixture(baseURL: string, {
   platformAdmin = false,
   brandedShare = false,
   expiredShare = false,
+  taxExemptLine = false,
 } = {}) {
   const { localApp, supabaseOrigin, serviceKey } = requireQaDevelopment(baseURL)
   const campaignId = process.env.GITHUB_RUN_ID
@@ -47,6 +48,7 @@ export function createQaFixture(baseURL: string, {
   const estimateId = randomUUID()
   const sectionId = randomUUID()
   const itemId = randomUUID()
+  const exemptItemId = randomUUID()
   const knowledgeEntryId = randomUUID()
   const adminAttemptId = randomUUID()
   const shareToken = randomUUID()
@@ -66,11 +68,14 @@ export function createQaFixture(baseURL: string, {
   const summary = 'Replace and paint the porch railing.'
   const sectionTitle = 'Porch restoration'
   const lineDescription = 'Install painted cedar railing'
+  const exemptLineDescription = 'Exempt site consultation'
   const knowledgeTitle = `${prefix}installation guidelines`
   const knowledgeBody = 'Inspect cedar railings before preparing a synthetic estimate.'
   const adminAttemptSearchText = `qa-error-${runId}`
   const adminAttemptError = `Synthetic transcription timeout ${adminAttemptSearchText}`
-  const total = 1000
+  const initialLineTotal = 1000
+  const exemptLineTotal = 33.33
+  const total = taxExemptLine ? 1033.33 : initialLineTotal
   let seedWork: Promise<void> | undefined
   let cleanupWork: Promise<void> | undefined
   let cookieExpiry = 0
@@ -145,8 +150,14 @@ export function createQaFixture(baseURL: string, {
     })).error)
     check('insert the estimate line', (await db.from('estimate_items').insert({
       id: itemId, section_id: sectionId, company_id: companyId, description: lineDescription,
-      quantity: 2, unit: 'ea', unit_price: total / 2, total, taxable: false,
+      quantity: 2, unit: 'ea', unit_price: initialLineTotal / 2, total: initialLineTotal, taxable: false,
     })).error)
+    if (taxExemptLine) {
+      check('insert the exempt estimate line', (await db.from('estimate_items').insert({
+        id: exemptItemId, section_id: sectionId, company_id: companyId, description: exemptLineDescription,
+        quantity: 1, unit: 'ea', unit_price: exemptLineTotal, total: exemptLineTotal, taxable: false,
+      })).error)
+    }
     check('insert the owned session', (await db.from('xtimator_sessions').insert({
       id: sessionId, user_id: userId, token_hash: tokenHash, auth_time: timestamp,
       // The owned proxy renews sessions below seven days. Stay above that during QA.
@@ -181,6 +192,16 @@ export function createQaFixture(baseURL: string, {
     const row = await db.from(table).select('*').eq('company_id', companyId).eq('id', id).maybeSingle()
     check(`read the fixture ${table} row`, row.error)
     return row.data
+  }
+
+  async function readEstimateResponseActivity() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its estimate activity')
+    const rows = await db.from('estimate_activity').select('id,event_type,metadata,created_at')
+      .eq('company_id', companyId).eq('project_id', projectId).eq('estimate_id', estimateId)
+      .in('event_type', ['estimate_declined', 'estimate_response_cleared'])
+      .order('created_at')
+    check('read the fixture estimate response activity', rows.error)
+    return rows.data ?? []
   }
 
   async function assertMarkedTenant() {
@@ -417,6 +438,7 @@ export function createQaFixture(baseURL: string, {
     companyId, clientId, projectId, estimateId, userId, sectionId, itemId, shareToken,
     companySlug, publicSlugToken, shareExpiresAt,
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total, userEmail: email,
+    exemptItemId, exemptLineDescription, readEstimateResponseActivity,
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
     readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,
     knowledgeEntryId, knowledgeTitle, knowledgeBody, seedKnowledgeEntry, readKnowledgeEntry,

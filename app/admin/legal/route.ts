@@ -1,6 +1,6 @@
-import { requireAdmin } from '@/lib/auth/admin-context'
+import { getAdminContext } from '@/lib/auth/admin-context'
 
 export async function GET() {
-  await requireAdmin()
-  return new Response(null, { status: 307, headers: { location: '/admin/pages', 'cache-control': 'private, no-store' } })
+  const admin = await getAdminContext()
+  return new Response(null, { status: 307, headers: { location: admin ? '/admin/pages' : '/api/logout', 'cache-control': 'private, no-store' } })
 }
