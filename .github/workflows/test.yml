@@ -328,7 +328,9 @@ jobs:
   cleanup:
     name: Recover synthetic acceptance fixtures
     needs: acceptance
-    if: ${{ always() && needs.acceptance.result != 'skipped' }}
+    # The first acceptance step publishes its attempt before any fixtures exist.
+    # A queued job cancelled before that step has nothing to recover.
+    if: ${{ always() && needs.acceptance.result != 'skipped' && needs.acceptance.outputs.fixture_attempt != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # A cleanup-only rerun must retain the originating acceptance attempt.

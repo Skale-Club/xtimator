@@ -9,7 +9,7 @@ const full = [...source.matchAll(/- if: (\$\{\{[^\n]+\}\})\r?\n\s+run: npx vites
 const focused = source.match(/name: Characterize generation credit-read failures on a feature branch\r?\n\s+if: (\$\{\{[^\n]+\}\})/)?.[1]
 const foundations = source.match(/name: Verify campaign fixes on a feature branch\r?\n\s+if: (\$\{\{[^\n]+\}\})/)?.[1]
 
-function enabled(condition, github, inputs) {
+function enabled(condition, github, inputs, needs = {}) {
   assert.ok(condition, 'The workflow must retain its explicit condition')
   const expression = condition.slice(3, -2).trim()
   // Evaluate only the comparison/boolean subset used here, with no calls,
@@ -17,8 +17,26 @@ function enabled(condition, github, inputs) {
   assert.match(expression, /^[A-Za-z0-9_.\s'!&|=/-]+$/)
   // Constrained hosts can pause this thread for more than50ms even though
   // these validated Boolean expressions execute immediately.
-  return Boolean(vm.runInNewContext(expression, { github, inputs }, { timeout: 1000 }))
+  return Boolean(vm.runInNewContext(expression, { github, inputs, needs }, { timeout: 1000 }))
 }
+
+test('recovery keeps the originating attempt and ignores a cancellation before fixture initialization', () => {
+  const condition = job('cleanup').replace('always()', 'true')
+  for (const result of ['success', 'failure', 'cancelled']) {
+    for (const fixture_attempt of ['', '1', '2']) {
+      const needs = { acceptance: { result, outputs: { fixture_attempt } } }
+      assert.equal(enabled(condition, {}, {}, needs), fixture_attempt !== '')
+    }
+  }
+  assert.equal(enabled(condition, {}, {}, {
+    acceptance: { result: 'skipped', outputs: { fixture_attempt: '1' } },
+  }), false)
+  const acceptance = source.split('\n  acceptance:')[1]?.split('\n  payment-sandbox:')[0]
+  assert.match(acceptance, /steps:\s+- name: Identify this acceptance attempt\s+id: campaign\s+run: echo "attempt=\$GITHUB_RUN_ATTEMPT" >> "\$GITHUB_OUTPUT"/)
+  const cleanup = source.split('\n  cleanup:')[1]
+  assert.match(cleanup, /QA_CAMPAIGN_ATTEMPT: \$\{\{ needs\.acceptance\.outputs\.fixture_attempt \}\}/)
+  assert.doesNotMatch(cleanup, /QA_CAMPAIGN_ATTEMPT:.*github\.run_attempt/)
+})
 
 test('manual acceptance and focused diagnostics cannot bypass main/dev regression', () => {
   assert.equal(full.length, 2, 'Both full determinism passes must remain configured')
