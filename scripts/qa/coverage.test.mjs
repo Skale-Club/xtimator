@@ -115,6 +115,46 @@ test('duplicate manifest IDs or reported specs cannot produce a pass', () => {
   assert.equal(summary.gatePassed, false)
 })
 
+function splitProjectSpecs() {
+  return projects.map(project => ({ ...spec([passingProject(project)]),
+    id: `source-${project}`, file: 'core.spec.ts', line: 28, column: 5 }))
+}
+
+test('groups Playwright project-specific specs from the same source declaration', () => {
+  const summary = buildCoverage(manifest, inventory, report(splitProjectSpecs()))
+  assert.equal(summary.gatePassed, true)
+  assert.deepEqual(summary.scenarios[0].evidence.map(entry => entry.verdict), ['passed', 'passed', 'passed'])
+})
+
+test('project-specific aggregation preserves a failed browser result', () => {
+  const specs = splitProjectSpecs()
+  specs[1].ok = false
+  specs[1].tests[0].status = 'unexpected'
+  specs[1].tests[0].results[0].status = 'failed'
+  const summary = buildCoverage(manifest, inventory, report(specs, { unexpected: 1 }))
+  assert.equal(summary.gatePassed, false)
+  assert.deepEqual(summary.scenarios[0].evidence.map(entry => entry.verdict), ['passed', 'failed', 'passed'])
+})
+
+test('duplicate browser results remain rejected even with identical declaration locations', () => {
+  const specs = splitProjectSpecs()
+  specs.push(structuredClone(specs[0]))
+  const summary = buildCoverage(manifest, inventory, report(specs))
+  assert.equal(summary.gatePassed, false)
+  assert.match(summary.scenarios[0].evidence[0].reason, /Duplicate test results/)
+})
+
+test('matching QA tokens at distinct source declarations cannot be merged', () => {
+  for (const mutation of [{ file: 'another.spec.ts' }, { line: 29 }, { column: 6 },
+    { title: '[QA:SESSION-OWNED] a different scenario' }]) {
+    const specs = splitProjectSpecs()
+    Object.assign(specs[1], mutation)
+    const summary = buildCoverage(manifest, inventory, report(specs))
+    assert.equal(summary.gatePassed, false)
+    assert.match(summary.scenarios[0].reason, /more than one/)
+  }
+})
+
 test('unrelated passing tests do not satisfy a required scenario', () => {
   const summary = buildCoverage(manifest, inventory, report([spec(undefined, 'owner reaches the workspace')]))
   assert.equal(summary.scenarios[0].verdict, 'blocked')

@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { TextDescribe } from '@/components/projects/text-describe'
 import { getAttemptOutcome, type AttemptOutcome } from '@/lib/actions/attempt-outcome'
 import type { ProjectDetail } from '@/lib/queries/project'
+import { renderToString } from 'react-dom/server'
 
 const { push, errorToast } = vi.hoisted(() => ({ push: vi.fn(), errorToast: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
@@ -20,6 +21,22 @@ const project: ProjectDetail = {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+})
+
+it('keeps the server-rendered description inert until its change handler hydrates', async () => {
+  const element = <TextDescribe project={project} projectId={project.id} companyId={project.company_id} />
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(element)
+  document.body.append(container)
+  expect(container.querySelector('textarea')).toBeDisabled()
+  expect(container.querySelector('button')).toBeDisabled()
+
+  render(element, { container, hydrate: true })
+  const description = screen.getByRole('textbox', { name: 'Job Description' })
+  await waitFor(() => expect(description).toBeEnabled())
+  fireEvent.change(description, { target: { value: 'Replace two cedar fence posts' } })
+  expect(description).toHaveValue('Replace two cedar fence posts')
+  expect(screen.getByRole('button', { name: 'Save & Generate Estimate' })).toBeEnabled()
 })
 
 it('a new manual submission reads its own journal instead of the old attempt’s terminal failure', async () => {

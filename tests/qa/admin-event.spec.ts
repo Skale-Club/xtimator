@@ -10,12 +10,18 @@ test('[QA:ADMIN-EVENT-DETAIL] reads the ordered failure timeline for its own syn
   const path = `/admin/events/${tenant.adminAttemptId}`
   const main = page.getByRole('main')
   let seeded = false
+  let aggregateVerified = false
   let listed = false
+  let textSearchVerified = false
   let timelineVerified = false
   try {
     await tenant.seed()
     await tenant.seedAdminAttempt()
     seeded = true
+    expect(await tenant.readAdminAttempt()).toMatchObject({ attempt_id: tenant.adminAttemptId,
+      project_id: tenant.projectId, step_reached: 'transcribe', terminal_status: 'failed', event_count: 3,
+      error_message: tenant.adminAttemptError, error_code: 'QA_SYNTHETIC_FAILURE' })
+    aggregateVerified = true
     await page.context().addCookies(tenant.cookies())
     const listPath = `/admin/events?q=${tenant.adminAttemptId}`
     expect((await page.goto(listPath))?.status()).toBe(200)
@@ -27,6 +33,16 @@ test('[QA:ADMIN-EVENT-DETAIL] reads the ordered failure timeline for its own syn
     await expect(row.getByText('transcribe', { exact: true })).toBeVisible()
     await expect(row.getByText('failed', { exact: true })).toBeVisible()
     listed = true
+
+    const search = main.getByPlaceholder('Search by user, project, estimate, attempt ID, or error…', { exact: true })
+    await search.fill(tenant.adminAttemptSearchText)
+    await search.press('Enter')
+    await expect(page).toHaveURL(url => url.pathname === '/admin/events' && url.searchParams.get('q') === tenant.adminAttemptSearchText)
+    expect((await page.reload())?.status()).toBe(200)
+    await expect(search).toHaveValue(tenant.adminAttemptSearchText)
+    await expect(link).toHaveAttribute('href', path)
+    expect(await main.locator('tbody tr').count()).toBe(1)
+    textSearchVerified = true
 
     await link.click()
     await expect(page).toHaveURL(new URL(path, baseURL).href)
@@ -43,12 +59,13 @@ test('[QA:ADMIN-EVENT-DETAIL] reads the ordered failure timeline for its own syn
       await expect(cards.nth(index).getByText(status, { exact: true })).toBeVisible()
     }
     await expect(cards.nth(3).getByText('QA_SYNTHETIC_FAILURE', { exact: true })).toBeVisible()
-    await expect(cards.nth(3).getByText('Synthetic transcription timeout', { exact: true })).toBeVisible()
+    await expect(cards.nth(3).getByText(tenant.adminAttemptError, { exact: true })).toBeVisible()
     timelineVerified = true
   } finally {
     try {
       await info.attach('own-admin-attempt.json', {
-        body: JSON.stringify({ seededSyntheticTimeline: seeded, listed, timelineVerified }), contentType: 'application/json',
+        body: JSON.stringify({ seededSyntheticTimeline: seeded, aggregateVerified, listed, textSearchVerified, timelineVerified }),
+        contentType: 'application/json',
       })
     } finally {
       try { await page.close() } finally { await tenant.cleanup() }

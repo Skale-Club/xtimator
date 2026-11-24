@@ -199,15 +199,15 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
           blockedChallengeResource: parsed.blockedChallengeResource === true,
           frameCount: Number(parsed.frameCount),
           successFrames: Number(parsed.successFrames),
-          frames: Array.isArray(parsed.frames) ? parsed.frames.slice(0, 24).map(frame => ({
+          frames: Array.isArray(parsed.frames) ? parsed.frames.slice(0, 24).map((frame: Record<string, unknown>) => ({
             cardFields: Number(frame.cardFields), emailFields: Number(frame.emailFields), inputs: Number(frame.inputs),
-            invalidFields: Array.isArray(frame.invalidFields) ? frame.invalidFields.slice(0, 8).map(field => ({
+            invalidFields: Array.isArray(frame.invalidFields) ? frame.invalidFields.slice(0, 8).map((field: Record<string, unknown>) => ({
               field: typeof field.field === 'string' && /^[A-Za-z-]{1,40}$/.test(field.field) ? field.field : 'other',
               valueMissing: field.valueMissing === true, patternMismatch: field.patternMismatch === true,
               typeMismatch: field.typeMismatch === true, customError: field.customError === true,
             })) : [],
           })) : [],
-          blockedHosts: Array.isArray(parsed.blockedHosts) ? parsed.blockedHosts.filter(host =>
+          blockedHosts: Array.isArray(parsed.blockedHosts) ? parsed.blockedHosts.filter((host: unknown) =>
             typeof host === 'string' && /^[a-z0-9.-]{1,180}$/.test(host)).slice(0, 12) : [],
         }
       } catch { /* Fixed diagnostic schema only; no raw process output is retained. */ }

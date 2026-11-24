@@ -155,7 +155,7 @@ test('[QA:IDENTITY-DENIAL] rejects invalid authorization and disabled invite and
     expect((await page.goto(path))?.status()).toBe(200)
     await expect(page).toHaveURL(new URL(path, origin).href)
     await expect(page.getByRole('heading', { level: 1, name: title, exact: true })).toBeVisible()
-    await expect(page.getByText(message, { exact: true })).toBeVisible()
+    await expect(page.getByRole('paragraph').and(page.getByText(message, { exact: true }))).toBeVisible()
     await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached()
   }
 

@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, rmdirSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, rmdirSync } from 'node:fs'
+import { createHash, X509Certificate } from 'node:crypto'
 import { basename, dirname, join, resolve } from 'node:path'
 
 const TLS_ROOT = resolve('.bg-shell/qa/tls')
@@ -57,5 +58,8 @@ export function createQaTls() {
 }
 
 export function qaTlsEnvironment(tls) {
-  return { [DIRECTORY_ENV]: tls.directory, NODE_EXTRA_CA_CERTS: tls.certificatePath }
+  const validated = readQaTls({ [DIRECTORY_ENV]: tls.directory })
+  const certificate = new X509Certificate(readFileSync(validated.certificatePath))
+  const spki = createHash('sha256').update(certificate.publicKey.export({ type: 'spki', format: 'der' })).digest('base64')
+  return { [DIRECTORY_ENV]: tls.directory, NODE_EXTRA_CA_CERTS: validated.certificatePath, XTIMATOR_QA_TLS_SPKI: spki }
 }

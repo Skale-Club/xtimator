@@ -12,6 +12,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { waitForDedicatedEstimate } from './dedicated-generation-outcome'
+import { useClientReady } from '@/hooks/use-client-ready'
 
 interface TextDescribeProps {
   project: ProjectDetail
@@ -22,6 +23,7 @@ interface TextDescribeProps {
 export function TextDescribe({ project, projectId }: TextDescribeProps) {
   const { t } = useTranslation()
   const router = useRouter()
+  const ready = useClientReady()
   const [text, setText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -110,7 +112,7 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
             onChange={(e) => setText(e.target.value)}
             placeholder={t("Describe the job here | for example: 'Pressure wash the driveway and two-car garage, remove mold from the north-facing fascia boards, and seal all concrete surfaces. Approximately 1,800 sq ft total.'")}
             className="flex-1 min-h-[200px] [html[data-keyboard=open]_&]:min-h-[96px] w-full resize-none rounded-md border border-field-border bg-field px-4 py-3 text-sm leading-relaxed text-foreground hover:border-field-border-hover placeholder:text-field-placeholder focus-visible:outline-none focus-visible:border-[hsl(var(--primary))] focus-visible:shadow-glow-brand disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isGenerating}
+            disabled={!ready || isGenerating}
           />
         </Card>
 
@@ -118,7 +120,7 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
         <div className="shrink-0 mx-auto w-full max-w-2xl">
           <Button
             onClick={handleTextGenerate}
-            disabled={!text.trim() || isGenerating}
+            disabled={!ready || !text.trim() || isGenerating}
             variant="primary"
             size="lg"
             className="w-full h-12 text-base font-semibold"

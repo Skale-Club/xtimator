@@ -7,6 +7,7 @@ const source = readFileSync('.github/workflows/test.yml', 'utf8')
 const job = name => source.match(new RegExp(`\\n  ${name}:\\r?\\n(?:[^\\n]*\\r?\\n)*?    if: (\\$\\{\\{[^\\n]+\\}\\})`))?.[1]
 const full = [...source.matchAll(/- if: (\$\{\{[^\n]+\}\})\r?\n\s+run: npx vitest run tests\/unit tests\/eval/g)].map(match => match[1])
 const focused = source.match(/name: Characterize generation credit-read failures on a feature branch\r?\n\s+if: (\$\{\{[^\n]+\}\})/)?.[1]
+const foundations = source.match(/name: Verify campaign fixes on a feature branch\r?\n\s+if: (\$\{\{[^\n]+\}\})/)?.[1]
 
 function enabled(condition, github, inputs) {
   assert.ok(condition, 'The workflow must retain its explicit condition')
@@ -28,6 +29,7 @@ test('manual acceptance and focused diagnostics cannot bypass main/dev regressio
       { qa: true, payment_sandbox: false, unit_scope: 'generation-credits' },
       { qa: false, payment_sandbox: true, unit_scope: 'generation-credits' },
       { qa: true, payment_sandbox: true, payment_browser: true, unit_scope: 'generation-credits' },
+      { qa: false, payment_sandbox: false, unit_scope: 'qa-foundations' },
     ]) {
       assert.equal(enabled(job('unit'), github, inputs), true)
       assert.equal(enabled(job('acceptance'), github, inputs), false)
@@ -49,6 +51,23 @@ test('branch diagnostics select the requested job without changing push/PR gates
     assert.equal(enabled(job('unit'), event, {}), true)
     assert.equal(enabled(job('acceptance'), event, {}), false)
     for (const condition of full) assert.equal(enabled(condition, event, {}), true)
+  }
+})
+
+test('foundation diagnostics cannot replace full regression on protected branches or tags', () => {
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch' }
+  const inputs = { qa: false, payment_sandbox: false, unit_scope: 'qa-foundations' }
+  assert.equal(enabled(job('unit'), github, inputs), true)
+  assert.equal(enabled(foundations, github, inputs), true)
+  assert.equal(enabled(focused, github, inputs), false)
+  for (const condition of full) assert.equal(enabled(condition, github, inputs), false)
+  for (const event of [
+    { ...github, ref: 'refs/heads/main' }, { ...github, ref: 'refs/heads/dev' },
+    { ...github, ref: 'refs/tags/release-test', ref_type: 'tag' },
+    { ...github, event_name: 'push' }, { ...github, event_name: 'pull_request' },
+  ]) {
+    assert.equal(enabled(foundations, event, inputs), false)
+    for (const condition of full) assert.equal(enabled(condition, event, inputs), true)
   }
 })
 

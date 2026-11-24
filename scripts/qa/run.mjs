@@ -20,10 +20,10 @@ if (scenarioIds.some(id => !/^[A-Z][A-Z0-9-]*$/.test(id) || !knownIds.has(id))) 
 const selection = scenarioIds.length ? ['--grep', `\\[QA:(?:${scenarioIds.join('|')})\\]`] : []
 const started = Date.now()
 const tls = createQaTls()
-const env = { ...process.env, ...qaTlsEnvironment(tls) }
-delete env.NODE_TLS_REJECT_UNAUTHORIZED
 let browser
 try {
+  const env = { ...process.env, ...qaTlsEnvironment(tls) }
+  delete env.NODE_TLS_REJECT_UNAUTHORIZED
   browser = spawnSync(process.execPath, [
     'node_modules/@playwright/test/cli.js', 'test', '--config=playwright.qa.config.ts', ...projects, ...selection,
   ], { stdio: 'inherit', env })

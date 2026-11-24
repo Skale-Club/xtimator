@@ -41,6 +41,7 @@ on:
         options:
           - all
           - generation-credits
+          - qa-foundations
         default: all
       verify_build:
         description: 'Compile a production-mode artifact with development resources; never publish or deploy it'
@@ -117,16 +118,19 @@ jobs:
       # Supabase → would break the secret-free gate; research Pitfall 6).
       # tests/eval is collected because 103-02 added tests/eval/**/*.test.ts to
       # the vitest `include` (otherwise this path would silently run zero tests).
-      - if: ${{ github.event_name != 'workflow_dispatch' || inputs.unit_scope != 'generation-credits' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+      - if: ${{ github.event_name != 'workflow_dispatch' || github.ref_type != 'branch' || inputs.unit_scope != 'generation-credits' && inputs.unit_scope != 'qa-foundations' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
         run: npx vitest run tests/unit tests/eval
 
       # Determinism gate — the Wave-1 invariant made permanent. A re-emergent
       # cross-file isolation leak fails CI on this identical second pass.
-      - if: ${{ github.event_name != 'workflow_dispatch' || inputs.unit_scope != 'generation-credits' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+      - if: ${{ github.event_name != 'workflow_dispatch' || github.ref_type != 'branch' || inputs.unit_scope != 'generation-credits' && inputs.unit_scope != 'qa-foundations' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
         run: npx vitest run tests/unit tests/eval
       - name: Characterize generation credit-read failures on a feature branch
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.unit_scope == 'generation-credits' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && inputs.unit_scope == 'generation-credits' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
         run: npx vitest run tests/unit/services/generation-credit-read-failure.test.ts
+      - name: Verify campaign fixes on a feature branch
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && inputs.unit_scope == 'qa-foundations' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+        run: npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts
 
   build:
     name: Production compilation with development resources

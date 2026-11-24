@@ -68,6 +68,8 @@ export function createQaFixture(baseURL: string, {
   const lineDescription = 'Install painted cedar railing'
   const knowledgeTitle = `${prefix}installation guidelines`
   const knowledgeBody = 'Inspect cedar railings before preparing a synthetic estimate.'
+  const adminAttemptSearchText = `qa-error-${runId}`
+  const adminAttemptError = `Synthetic transcription timeout ${adminAttemptSearchText}`
   const total = 1000
   let seedWork: Promise<void> | undefined
   let cleanupWork: Promise<void> | undefined
@@ -237,8 +239,17 @@ export function createQaFixture(baseURL: string, {
       { ...common, step: 'save_recording', status: 'succeeded', created_at: new Date(now - 2_000).toISOString() },
       { ...common, step: 'transcribe', status: 'started', created_at: new Date(now - 1_000).toISOString() },
       { ...common, step: 'transcribe', status: 'failed', created_at: new Date(now).toISOString(),
-        error_code: 'QA_SYNTHETIC_FAILURE', error_message: 'Synthetic transcription timeout' },
+        error_code: 'QA_SYNTHETIC_FAILURE', error_message: adminAttemptError },
     ])).error)
+  }
+
+  async function readAdminAttempt() {
+    if (!platformAdmin || !cookieExpiry || closing) throw new Error('Seed the marked admin before reading its attempt')
+    const attempt = await db.from('pipeline_attempts')
+      .select('attempt_id, project_id, step_reached, terminal_status, event_count, error_message, error_code')
+      .eq('company_id', companyId).eq('attempt_id', adminAttemptId).maybeSingle()
+    check('read the synthetic admin attempt summary', attempt.error)
+    return attempt.data
   }
 
   async function readCompany() {
@@ -409,7 +420,7 @@ export function createQaFixture(baseURL: string, {
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
     readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,
     knowledgeEntryId, knowledgeTitle, knowledgeBody, seedKnowledgeEntry, readKnowledgeEntry,
-    readAcademyProgress, readMemberships, adminAttemptId, seedAdminAttempt,
+    readAcademyProgress, readMemberships, adminAttemptId, adminAttemptSearchText, adminAttemptError, seedAdminAttempt, readAdminAttempt,
     readClient: (id: string = clientId) => readOwn('clients', id),
     readProject: (id: string = projectId) => readOwn('projects', id),
     readEstimate: (id: string = estimateId) => readOwn('estimates', id),

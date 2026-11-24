@@ -180,10 +180,19 @@ function projectEvidence(tests, project) {
 }
 
 function evaluateScenario(scenario, projects, matches) {
-  const spec = matches.length === 1 ? matches[0] : null
+  // Playwright can serialize one source declaration separately for each project.
+  // Group only identical source locations/titles; projectEvidence still rejects
+  // duplicate results in any browser. Missing locations cannot establish identity.
+  const first = matches[0]
+  const located = entry => typeof entry.file === 'string' && entry.file.length > 0
+    && Number.isInteger(entry.line) && entry.line > 0 && Number.isInteger(entry.column) && entry.column > 0
+  const oneDeclaration = matches.length === 1 || (matches.length > 1 && matches.every(entry => located(entry)
+    && entry.file.replaceAll('\\', '/') === first.file.replaceAll('\\', '/')
+    && entry.line === first.line && entry.column === first.column && entry.title === first.title))
+  const spec = oneDeclaration ? { ...first, tests: matches.flatMap(entry => entry.tests), ok: matches.every(entry => entry.ok === true) } : null
   const evidence = projects.map(project => projectEvidence(spec?.tests ?? [], project))
   const verdicts = evidence.map(project => project.verdict)
-  if (matches.length > 1) {
+  if (matches.length > 1 && !oneDeclaration) {
     return { ...scenario, projects, evidence, verdict: 'failed', reason: 'The QA ID matches more than one test title.' }
   }
   if (!spec) return { ...scenario, projects, evidence, verdict: 'blocked', reason: 'No test has the required title token.' }

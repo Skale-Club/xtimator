@@ -84,7 +84,11 @@ test('[QA:CLIENT-CRUD] client form edits persist and survive navigation and relo
   await page.getByRole('menuitem', { name: 'Delete client', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
   await expect.poll(async () => await fixture.readClient(createdId)).toBeNull()
-  await page.goto('/clients')
+  await expect(page).toHaveURL(/\/clients$/)
+  await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible()
+  await expect(page.getByText(name, { exact: true })).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible()
   await expect(page.getByText(name, { exact: true })).toHaveCount(0)
 })
 

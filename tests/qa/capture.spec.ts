@@ -21,6 +21,12 @@ type MicrophoneDiagnostics = {
   userActivation: { isActive: boolean; hasBeenActive: boolean } | null
   errorName?: string
   failedDuring?: string
+  native?: {
+    recorderAvailable: boolean
+    stages: Array<{ stage: string; result: 'started' | 'returned' | 'failed'; errorName?: string }>
+    mimeType?: string
+    activeTrackCount?: number
+  }
 }
 
 async function providerHistory(page: Page): Promise<ProviderCall[]> {
@@ -43,6 +49,65 @@ async function installSyntheticMicrophone(page: Page) {
     }
     Object.assign(window, { __qaSyntheticMicrophone: diagnostics })
     if (!navigator.mediaDevices) return
+
+    // Observe native initialization only after the fixture has returned its
+    // stream. Keep the original implementations, values, and exceptions.
+    const native: NonNullable<MicrophoneDiagnostics['native']> = { recorderAvailable: typeof MediaRecorder === 'function', stages: [] }
+    diagnostics.native = native
+    function record(stage: string, result: 'started' | 'returned' | 'failed', error?: unknown) {
+      if (native.stages.length >= 32) return
+      const name = error instanceof Error || error instanceof DOMException ? error.name : undefined
+      native.stages.push({ stage, result, ...(name && /^[A-Za-z]+$/.test(name) ? { errorName: name } : {}) })
+    }
+    function observe<T>(stage: string, invoke: () => T): T {
+      if (diagnostics.phase !== 'returned-media-stream') return invoke()
+      record(stage, 'started')
+      try {
+        const result = invoke()
+        if (result instanceof Promise) {
+          void result.then(() => record(stage, 'returned'), error => record(stage, 'failed', error))
+        } else {
+          record(stage, 'returned')
+        }
+        return result
+      } catch (error) {
+        record(stage, 'failed', error)
+        throw error
+      }
+    }
+    function observeMethod(proto: object, key: string, stage: string) {
+      const descriptor = Object.getOwnPropertyDescriptor(proto, key)
+      if (typeof descriptor?.value !== 'function' || !descriptor.configurable) return
+      const original = descriptor.value
+      Object.defineProperty(proto, key, { ...descriptor, value: function (this: unknown, ...args: unknown[]) {
+        return observe(stage, () => Reflect.apply(original, this, args))
+      } })
+    }
+    observeMethod(AudioContext.prototype, 'resume', 'audio-context-resume')
+    observeMethod(AudioContext.prototype, 'createMediaStreamSource', 'media-stream-source')
+    observeMethod(Object.getPrototypeOf(AudioContext.prototype), 'createAnalyser', 'create-analyser')
+    if (typeof AudioNode === 'function') observeMethod(AudioNode.prototype, 'connect', 'connect-audio-node')
+    const nativeAudioContext = AudioContext
+    const observedAudioContext: typeof AudioContext = new Proxy(nativeAudioContext, {
+      construct(target, args, newTarget) {
+        return observe('audio-context-constructor', () => Reflect.construct(target, args, newTarget === observedAudioContext ? target : newTarget))
+      },
+    })
+    window.AudioContext = observedAudioContext
+
+    if (native.recorderAvailable) {
+      observeMethod(MediaRecorder.prototype, 'start', 'media-recorder-start')
+      const nativeRecorder = MediaRecorder
+      const observedRecorder: typeof MediaRecorder = new Proxy(nativeRecorder, {
+        construct(target, args, newTarget) {
+          const requested = (args[1] as MediaRecorderOptions | undefined)?.mimeType
+          if (requested && /^audio\/[a-z0-9;=._+ -]+$/i.test(requested)) native.mimeType = requested
+          return observe('media-recorder-constructor', () => Reflect.construct(target, args, newTarget === observedRecorder ? target : newTarget))
+        },
+      })
+      window.MediaRecorder = observedRecorder
+    }
+
     // Supply synthetic PCM as a native browser MediaStream. The product still
     // owns the MediaRecorder, container choice, timing, upload and dispatch.
     // WebKit can replace the MediaDevices wrapper and discard own properties.
@@ -87,6 +152,7 @@ async function installSyntheticMicrophone(page: Page) {
           diagnostics.contextState = audio.state
           setPhase('returning-media-stream')
           const stream = destination.stream
+          native.activeTrackCount = stream.getAudioTracks().filter(audioTrack => audioTrack.readyState === 'live').length
           setPhase('returned-media-stream')
           return stream
         } catch (error) {
