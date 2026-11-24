@@ -5,7 +5,7 @@
 // so cmdk's internal keyboard navigation (ArrowUp/Down/Enter) operates against the same
 // query while the user keeps typing in the visible input.
 
-import { forwardRef, useLayoutEffect, useState, useRef, useMemo } from 'react'
+import { forwardRef, useLayoutEffect, useState, useRef, useMemo, useSyncExternalStore } from 'react'
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover'
 import {
   Command,
@@ -51,9 +51,18 @@ function autoGrow(el: HTMLTextAreaElement | null) {
   el.style.height = `${el.scrollHeight}px`
 }
 
+const subscribeToHydration = () => () => {}
+const clientReady = () => true
+const serverNotReady = () => false
+
 /** <input>, or an auto-growing single-paragraph <textarea> when multiline. */
 const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { multiline?: boolean }>(
   function Field({ multiline, onChange, ...props }, ref) {
+    // A server-rendered controlled field must not accept input before React can
+    // retain its value/selection. Client-only new rows are ready immediately,
+    // preserving their existing autofocus behavior.
+    const ready = useSyncExternalStore(subscribeToHydration, clientReady, serverNotReady)
+    const disabled = props.disabled || !ready
     const innerRef = useRef<HTMLTextAreaElement | null>(null)
     useLayoutEffect(() => {
       if (multiline) autoGrow(innerRef.current)
@@ -73,7 +82,7 @@ const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { 
       return () => observer.disconnect()
     }, [multiline])
     if (!multiline) {
-      return <input ref={ref as React.Ref<HTMLInputElement>} onChange={onChange} {...props} />
+      return <input ref={ref as React.Ref<HTMLInputElement>} onChange={onChange} {...props} disabled={disabled} />
     }
     // Return on a one-paragraph field would only turn into a space (see onChange
     // below), so it closes the keyboard instead, like "Done" on a single-line field.
@@ -102,6 +111,7 @@ const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { 
           onKeyDown?.(e)
         }}
         {...rest}
+        disabled={disabled}
       />
     )
   }
