@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "qa:campaign": "node scripts/qa/run.mjs",
+    "qa:infrastructure": "node --test scripts/qa/*.test.mjs",
     "test:seo": "vitest run tests/unit/seo",
     "audit:lighthouse": "node scripts/lighthouse.mjs",
     "audit:seo:production": "node scripts/seo-smoke.mjs https://xtimator.com",

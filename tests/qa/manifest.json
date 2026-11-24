@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "projects": ["chromium", "mobile-safari", "mobile-chrome"],
+  "scenarios": [
+    {
+      "id": "SESSION-OWNED",
+      "titleToken": "[QA:SESSION-OWNED]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/", "/dashboard"],
+      "hypothesis": "The app recognizes a current owned session and rejects a private request without one.",
+      "expectedEvidence": "The synthetic owner reaches the workspace through the normal session reader. An anonymous browser is redirected to sign in."
+    },
+    {
+      "id": "TENANT-ISOLATION",
+      "titleToken": "[QA:TENANT-ISOLATION]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]"],
+      "hypothesis": "An authenticated owner cannot gain access to another company's private records by changing identifiers.",
+      "expectedEvidence": "Two synthetic tenants have persisted records. An owner cannot load the other tenant's project details or fetch its authenticated PDF."
+    },
+    {
+      "id": "CLIENT-CRUD",
+      "titleToken": "[QA:CLIENT-CRUD]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/clients", "/clients/[id]"],
+      "hypothesis": "The owner can create, read, update and delete a client through the workspace.",
+      "expectedEvidence": "Browser interactions produce the expected tenant-scoped database state, including loss of access after deletion."
+    },
+    {
+      "id": "ESTIMATE-EDIT",
+      "titleToken": "[QA:ESTIMATE-EDIT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/estimate/[token]"],
+      "hypothesis": "The owner can edit an unaccepted estimate and recover its saved document content and totals.",
+      "expectedEvidence": "An edit survives a reload and renders in the public document with its original total. Chromium also exercises the paginated and full-width editor controls."
+    },
+    {
+      "id": "PUBLIC-SHARE",
+      "titleToken": "[QA:PUBLIC-SHARE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/estimate/[token]"],
+      "hypothesis": "An anonymous visitor with a valid estimate link sees the public document, and an invalid link fails safely.",
+      "expectedEvidence": "The anonymous document shows the seeded scope, line and total. Invalid-link handling produces the expected denial or not-found state."
+    },
+    {
+      "id": "SIGNATURE-PDF",
+      "titleToken": "[QA:SIGNATURE-PDF]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/estimate/[token]"],
+      "hypothesis": "A recipient can sign the public estimate and recover the signed PDF.",
+      "expectedEvidence": "The app persists the signature and accepted state, and the PDF contains the agreed document data and signature evidence."
+    },
+    {
+      "id": "CAPTURE-PIPELINE",
+      "titleToken": "[QA:CAPTURE-PIPELINE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/new", "/projects/[id]/capture", "/projects/[id]"],
+      "hypothesis": "An audio capture can progress through the actual app, API and Inngest handlers to a persisted estimate draft.",
+      "expectedEvidence": "Synthetic media enters the app and the draft renders in the workspace. Provider transports are simulated. The test makes no live AI or physical-device claim."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "AUTH-GOOGLE",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/", "/login", "/onboarding"],
+      "reason": "Real Google Identity consent, callback, new-account onboarding and recovery need dedicated test-account evidence. The owned session fixture starts after identity verification."
+    },
+    {
+      "id": "PROVIDER-DELIVERY",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/settings/delivery", "/whatsapp"],
+      "reason": "Delivery and callback evidence is missing for email, SMS and WhatsApp in approved provider test environments. Outbound delivery is disabled in the initial campaign."
+    },
+    {
+      "id": "PAYMENT-SANDBOX",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/settings/payments", "/settings/integrations/stripe", "/settings/billing", "/estimate/[token]"],
+      "reason": "A Stripe sandbox payment, signed webhook, reconciliation and refund need end-to-end evidence. Seeded invoice presentation cannot establish payment processing."
+    },
+    {
+      "id": "AI-LIVE",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]/capture", "/projects/[id]"],
+      "reason": "Approved live-provider runs for transcription and estimate generation need quality, timeout and failure-handling evidence. Local capture coverage uses simulated providers."
+    },
+    {
+      "id": "PHYSICAL-CAPTURE",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]/capture", "/projects/[id]/photos-input"],
+      "reason": "Real iOS Safari and Android Chrome still need microphone, camera, permission and interrupted upload evidence. Browser profiles exercise emulated devices."
+    },
+    {
+      "id": "A11Y",
+      "state": "unimplemented",
+      "requiredForLaunch": true,
+      "routes": ["/", "/dashboard", "/onboarding", "/projects/[id]", "/estimate/[token]"],
+      "reason": "The campaign has no accessibility gate spanning automation, keyboard and screen-reader checks for the critical journeys."
+    },
+    {
+      "id": "ADMIN",
+      "state": "unimplemented",
+      "requiredForLaunch": true,
+      "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
+      "reason": "The QA tenant fixture has no platform privileges. Administrative roles, audit records and support operations need isolated browser evidence."
+    },
+    {
+      "id": "CHANGE-ORDER-LIFECYCLE",
+      "state": "unimplemented",
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]/change-orders/[coId]", "/change-order/[token]"],
+      "reason": "The campaign needs seller creation, customer approval and updated contract/PDF evidence in the required browser projects."
+    },
+    {
+      "id": "RELEASE-SMOKE",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/", "/estimate/[token]"],
+      "reason": "A release candidate needs a smoke result from the actual release deployment and read-only public checks. Local Supabase runs establish development behavior."
+    }
+  ]
+}

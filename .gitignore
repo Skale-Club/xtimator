@@ -98,3 +98,4 @@ tmp/
 tests/eval/live/.out/
 
 .worktrees/
+qa-results/
