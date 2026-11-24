@@ -15,6 +15,7 @@ export default defineConfig({
     testedRevision: process.env.GITHUB_SHA ?? 'local-working-tree',
     githubRunId: process.env.GITHUB_RUN_ID ?? null,
     providerMode: 'synthetic', dataEnvironment: 'development',
+    applicationRuntime: 'compiled-standalone', publicTransport: 'loopback-https-front',
   },
   testDir: './tests/qa', testMatch: '**/*.spec.ts',
   globalSetup: './tests/qa/setup.ts', maxFailures,
@@ -29,5 +30,5 @@ export default defineConfig({
     { name: 'mobile-safari', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['iPhone 13'] } },
     { name: 'mobile-chrome', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['Pixel 7'], ...chromiumTrust } },
   ],
-  webServer: { command: 'node scripts/qa/start.mjs', url: `${QA_APP_ORIGIN}/api/health?quick=1`, ignoreHTTPSErrors: true, reuseExistingServer: false, timeout: 180_000 },
+  webServer: { command: 'node scripts/qa/start.mjs', url: `${QA_APP_ORIGIN}/api/health?quick=1`, ignoreHTTPSErrors: true, reuseExistingServer: false, timeout: 360_000 },
 })

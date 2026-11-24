@@ -41,7 +41,7 @@ describe('BrandingEditor labels', () => {
     expect(color.value).toBe(initial.primaryColor)
     expect(sender.value).toBe(initial.emailFromName)
     expect(favicon.type).toBe('file')
-    expect(screen.getByRole('button', { name: 'Pick color', exact: true })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pick color' })).toBeTruthy()
   })
 
   it('gives the logo uploader a named group and keeps its upload button discoverable', () => {

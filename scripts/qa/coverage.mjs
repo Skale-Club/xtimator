@@ -11,7 +11,8 @@ export function routeFromPage(source) {
   if (directories.shift() !== 'app') return null
   const file = directories.pop()
   const workspaceHandler = file === 'route.ts' && directories.includes('(app)') && !directories.includes('api')
-  if (file !== 'page.tsx' && !workspaceHandler) return null
+  const adminHandler = file === 'route.ts' && directories[0] === 'admin'
+  if (file !== 'page.tsx' && !workspaceHandler && !adminHandler) return null
   if (directories.some(segment => segment.startsWith('_'))) return null
   const route = '/' + directories.filter(segment => !/^\([^/]+\)$/.test(segment) && !segment.startsWith('@')).join('/')
   let category = 'public'
@@ -19,7 +20,8 @@ export function routeFromPage(source) {
   else if (route === '/admin' || route.startsWith('/admin/')) category = 'admin'
   else if (directories.includes('(app)') || directories.includes('(capture)')) category = 'workspace'
   else if (directories.includes('(auth)') || /^\/(onboarding$|invite\/|oauth\/)/.test(route)) category = 'identity'
-  return { route, category, source: source.replaceAll('\\', '/'), ...(workspaceHandler ? { kind: 'workspace-handler' } : {}) }
+  return { route, category, source: source.replaceAll('\\', '/'),
+    ...(workspaceHandler ? { kind: 'workspace-handler' } : adminHandler ? { kind: 'admin-handler' } : {}) }
 }
 
 export async function inventoryRoutes(root) {

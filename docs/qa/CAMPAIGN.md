@@ -7,10 +7,13 @@ The campaign exercises Xtimator against its existing Supabase development projec
 Browser campaigns use `https://127.0.0.1:9650`. The runner requires OpenSSL,
 generates a one-day loopback certificate under ignored `.bg-shell/qa/tls`,
 and removes its key after Playwright stops. Keys never enter `qa-results`.
-Only local browser/API requests ignore certificate errors; Node and the
-Inngest callback trust the generated certificate explicitly. An ephemeral
-cookie-signing key belongs only to the Next child. Secure cookies retain
-their product behavior; provider transports remain synthetic.
+Chromium trusts only the run's certificate SPKI; WebKit and local API contexts
+retain their local certificate exception, while Node uses the generated CA.
+HTTPS terminates at the loopback front, which relays raw bytes to the compiled
+standalone app on HTTP9652. The keyless Inngest dev server calls that same
+loopback HTTP endpoint. No host keychain or global TLS verification setting
+is changed. An ephemeral cookie-signing key belongs only to the isolated app
+build/runtime. Secure cookies retain their behavior; providers remain synthetic.
 
 | Outcome | Evidence expected |
 | --- | --- |
@@ -38,13 +41,12 @@ The trusted development triggers also compile a production-mode Next.js artifact
 
 Normal fixture teardown removes each generated tenant. A separate dependent cleanup job recovers leftovers after the acceptance workers stop, even when their job fails. It uses the acceptance job's recorded run attempt, so rerunning cleanup cannot select another active attempt. Foreign markers, ownership, memberships and unknown storage objects abort recovery. Cleanup failure remains a CI failure; it does not turn a failed acceptance run green. Fixtures created before campaign markers were added are excluded.
 
-Use the campaign runner from the repository root on a machine with enough memory to run Next.js, Inngest and a browser together. It requires the repository dependencies, Playwright browsers, Python 3 with `pypdf`, and the designated development credentials. Use the approved development environment and keep credentials outside tracked files. The browser profiles exercise emulated viewports and browser engines. Real-device capture has a separate gate.
+Dispatch `Test` with `qa=true` on the feature branch or use the trusted dev/PR triggers. The standalone campaign refuses to start outside GitHub Actions. It requires dependencies, Playwright browsers, OpenSSL, Python with `pypdf`, and dedicated development credentials. Keep credentials outside tracked files. Browser profiles emulate viewports and engines; physical capture remains a separate gate.
 
 The runner requires `XTIMATOR_QA_DEV=1`, `DATA_API_MODE=supabase`, `NEXT_PUBLIC_AUTH_MODE=owned`, the development Supabase URL in `NEXT_PUBLIC_SUPABASE_URL`, and credentials in `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and `XTIMATOR_DATA_JWT_SECRET`. When `DATA_API_UPSTREAM_URL` is set, it must point to the same development origin.
 
 ```sh
-npm run qa:campaign -- --execution-only
-npm run qa:campaign
+gh workflow run test.yml --ref feat/autonomous-launch-qa -f qa=true -f qa_max_failures=0
 ```
 
 The runner preserves the previous report before starting another run. Use `--project=chromium`, `--project=mobile-safari` or `--project=mobile-chrome` to target a browser while diagnosing a failure. A partial matrix leaves required browser evidence missing and exits with a blocked verdict.
@@ -112,4 +114,6 @@ Every journey also fails on uncaught browser exceptions, known fatal React conso
 
 `npm run qa:loader` verifies fixture imports inside an actual Playwright worker without starting the app, opening a browser or using credentials. CI runs it after native infrastructure checks and before installing browsers. Cleanup implementations are shared CommonJS modules with native ESM CLI wrappers, so both runtimes retain the same ownership guards.
 
-The runner prints total elapsed seconds. The evidence report records the Playwright duration and each passing test's duration per browser. The config allocates up to180seconds for server startup and180seconds per scenario. Those are limits. The first complete103-case run took43.3minutes for browser execution (about46minutes including setup) and failed four cases. This is a measured baseline, not a clean final121-case result.
+The runner builds and serves the standalone artifact behind local HTTPS. Its narrowed worker/provider configuration requires exact development data/auth settings and, for production-mode execution, an explicit CI flag and exact loopback public/worker origins. Ordinary deployments retain normal workers and provider lookup. Before browser journeys, prerequisites check both SDK introspection and the local executor's actual registered workers. Evidence contains counts and structural status only, rejecting unrelated workers or remote callbacks.
+
+The runner records elapsed seconds and each case's duration per browser. Startup allows360seconds for compilation/bootstrap; ordinary scenarios allow180seconds, with explicit bounded overrides for multi-screen cases. The earlier development-server103-case baseline took43.3minutes (about46minutes with setup) and failed four cases; the initial native macOS27-case diagnostic took22minutes and failed nine. Neither establishes final compiled136-case acceptance.

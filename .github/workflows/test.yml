@@ -132,7 +132,7 @@ jobs:
       - name: Verify campaign fixes on a feature branch
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && inputs.unit_scope == 'qa-foundations' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
         run: |
-          npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts tests/unit/pdf/pdf-logo-resolution.test.ts tests/unit/admin/branding-editor-labels.test.tsx
+          npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts tests/unit/pdf/pdf-logo-resolution.test.ts tests/unit/admin/branding-editor-labels.test.tsx tests/unit/admin/admin-alias-handlers.test.ts tests/unit/demo/mutation-boundary-sweep.test.ts
           npm run qa:loader
 
   dependency-lock:
@@ -250,6 +250,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm install --no-audit --no-fund
+      - name: Select OpenSSL for native HTTPS checks
+        run: echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
       - name: Verify campaign infrastructure
         run: npm run qa:infrastructure
       - name: Verify browser fixture loading without browser startup
@@ -264,7 +266,6 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/xtimator-qa-python"
           "$RUNNER_TEMP/xtimator-qa-python/bin/python" -m pip install pypdf==6.0.0
           echo "QA_PYTHON=$RUNNER_TEMP/xtimator-qa-python/bin/python" >> "$GITHUB_ENV"
-          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
       - name: Exercise required initial scenarios
         run: npm run qa:campaign -- --execution-only
       - name: Publish redacted synthetic evidence

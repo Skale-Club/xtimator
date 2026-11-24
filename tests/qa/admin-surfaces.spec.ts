@@ -9,6 +9,7 @@ type Surface = {
   route: string
   path?: string
   destination?: string
+  redirectStatus?: number
   heading: string
   verify: (main: Locator) => Promise<void>
 }
@@ -20,7 +21,7 @@ async function visitSurfaces(context: BrowserContext, baseURL: string, info: Tes
   try {
     await tenant.seed()
     await context.addCookies(tenant.cookies())
-    for (const { route, path = route, destination = path, heading, verify } of surfaces(tenant)) {
+    for (const { route, path = route, destination = path, redirectStatus, heading, verify } of surfaces(tenant)) {
       await test.step(`Read ${route}`, async () => {
         const screen = await context.newPage()
         const evidence = { route, status: null as number | null, ready: false, pageErrors: 0, serverErrors: 0 }
@@ -30,8 +31,10 @@ async function visitSurfaces(context: BrowserContext, baseURL: string, info: Tes
           if (new URL(response.url()).origin === origin && response.status() >= 500) evidence.serverErrors++
         })
         try {
-          evidence.status = (await screen.goto(path, { waitUntil: 'load', timeout: 30_000 }))?.status() ?? null
+          const response = await screen.goto(path, { waitUntil: 'load', timeout: 30_000 })
+          evidence.status = response?.status() ?? null
           expect(evidence.status).toBe(200)
+          if (redirectStatus !== undefined) expect((await response?.request().redirectedFrom()?.response())?.status()).toBe(redirectStatus)
           await expect(screen).toHaveURL(new URL(destination, origin).href)
           await expect(screen.getByText(`Super Admin Mode - ${tenant.userEmail}`, { exact: true })).toBeVisible()
           const main = screen.getByRole('main')
@@ -141,12 +144,12 @@ test('[QA:ADM-OPERATIONS-SCREENS] administrative monitoring and provisioning scr
 test('[QA:ADM-LEGACY-ALIASES] administrative bookmarks redirect to the canonical screens', async ({ context, baseURL }, info) => {
   test.setTimeout(180_000)
   await visitSurfaces(context, baseURL!, info, () => [
-    { route: '/admin/legal', destination: '/admin/pages', heading: 'Pages', verify: verifyLegalPages },
-    { route: '/admin/whatsapp', destination: '/admin/inbox', heading: 'Inbox', verify: async main => {
+    { route: '/admin/legal', destination: '/admin/pages', redirectStatus: 307, heading: 'Pages', verify: verifyLegalPages },
+    { route: '/admin/whatsapp', destination: '/admin/inbox', redirectStatus: 307, heading: 'Inbox', verify: async main => {
       await expect(main.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('href', '/admin/inbox/settings')
       await expect(main.getByPlaceholder('Search...', { exact: true })).toBeVisible()
     } },
-    { route: '/admin/whatsapp-templates', destination: '/admin/inbox/settings?tab=templates', heading: 'Inbox Settings', verify: async main => {
+    { route: '/admin/whatsapp-templates', destination: '/admin/inbox/settings?tab=templates', redirectStatus: 307, heading: 'Inbox Settings', verify: async main => {
       await expect(main.getByRole('tab', { name: 'Templates', exact: true })).toHaveAttribute('aria-selected', 'true')
       await expect(main.getByRole('link', { name: 'Back to Inbox', exact: true })).toHaveAttribute('href', '/admin/inbox')
     } },

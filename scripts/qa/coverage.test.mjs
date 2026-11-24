@@ -200,6 +200,9 @@ test('route discovery keeps URL segments and separates admin and development sur
   for (const [source, route, category] of routeCases) assert.deepEqual(routeFromPage(source), { source: source.replaceAll('\\', '/'), route, category })
   assert.equal(routeFromPage('app/api/health/route.ts'), null)
   assert.equal(routeFromPage('app/(app)/api/internal/route.ts'), null)
+  assert.deepEqual(routeFromPage('app/admin/legal/route.ts'), {
+    route: '/admin/legal', category: 'admin', source: 'app/admin/legal/route.ts', kind: 'admin-handler',
+  })
   assert.deepEqual(routeFromPage('app/(app)/settings/(tabs)/defaults/route.ts'), {
     route: '/settings/defaults', category: 'workspace', kind: 'workspace-handler',
     source: 'app/(app)/settings/(tabs)/defaults/route.ts',
