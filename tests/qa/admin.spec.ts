@@ -27,6 +27,12 @@ async function withTenant(page: Page, baseURL: string, platformAdmin: boolean, r
 
 test('[QA:ADM-DENIAL] an authenticated tenant cannot read the admin UI or admin API', async ({ page, baseURL }, info) => {
   await withTenant(page, baseURL!, false, async tenant => {
+    const browserErrors: string[] = []
+    page.on('pageerror', error => browserErrors.push(
+      /Rendered (?:more|fewer) hooks/i.test(error.message) ? 'router-hooks'
+        : /hydration|hydrating/i.test(error.message) ? 'hydration'
+          : /firebase|identity|auth\//i.test(error.message) ? 'identity' : 'other',
+    ))
     const session = await page.request.get('/api/auth/session', { maxRedirects: 0 })
     expect(session.status()).toBe(200)
     expect((await session.json()).user?.id).toBe(tenant.userId)
@@ -46,16 +52,23 @@ test('[QA:ADM-DENIAL] an authenticated tenant cannot read the admin UI or admin 
     expect(logout.status()).toBe(307)
     expect(new URL(logout.headers().location, baseURL).pathname).toBe('/')
     expect(new URL(logout.headers().location, baseURL).searchParams.get('auth')).toBe('login')
-    await expect(page.getByRole('dialog', { name: /^Sign in to / })).toBeVisible()
-    await expect(page.getByRole('navigation', { name: 'Platform admin navigation' })).toHaveCount(0)
-
     const revoked = await page.request.get('/api/auth/session', { maxRedirects: 0 })
     expect(revoked.status()).toBe(200)
     expect((await revoked.json()).user).toBeNull()
-    await info.attach('admin-denial-evidence.json', {
-      body: JSON.stringify({ authenticatedBeforeDenial: true, adminApiStatus: api.status(), logoutStatus: logout.status(), loginVisible: true, sessionCleared: true }),
-      contentType: 'application/json',
-    })
+    try {
+      await expect(page.getByRole('dialog', { name: /^Sign in to / })).toBeVisible()
+      await expect(page.getByRole('navigation', { name: 'Platform admin navigation' })).toHaveCount(0)
+      expect(browserErrors).toEqual([])
+    } finally {
+      await info.attach('admin-denial-evidence.json', {
+        body: JSON.stringify({ authenticatedBeforeDenial: true, adminApiStatus: api.status(), logoutStatus: logout.status(), sessionCleared: true,
+          finalPath: new URL(page.url()).pathname, browserErrors,
+          loginDialogs: await page.getByRole('dialog', { name: /^Sign in to / }).count(),
+          phoneFields: await page.getByLabel('Phone number', { exact: true }).count(),
+          landingVisible: await page.getByTestId('landing-shell').isVisible(),
+        }), contentType: 'application/json',
+      })
+    }
   })
 })
 
@@ -82,7 +95,10 @@ test('[QA:ADM-READONLY] a marked DEV platform admin can read the admin screens w
         await expect(screen.getByText('No attempts match your filters', { exact: true })).toBeVisible()
       } },
       { route: '/admin/integrations', heading: 'Integrations', verify: async screen => {
-        await expect(screen.getByRole('link', { name: 'AI', exact: true })).toBeVisible()
+        const category = info.project.name === 'chromium'
+          ? screen.getByRole('link', { name: 'AI', exact: true })
+          : screen.getByRole('button', { name: 'Integration categories: AI', exact: true })
+        await expect(category).toBeVisible()
         await expect(screen.getByText('OpenRouter', { exact: true }).and(screen.locator('[data-slot="card-title"]'))).toBeVisible()
       } },
     ]
