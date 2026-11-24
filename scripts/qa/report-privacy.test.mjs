@@ -34,6 +34,14 @@ function privateResult() {
   }
 }
 
+function browserFailuresAttachment(report, overrides = {}) {
+  return {
+    name: 'browser-failures.json', contentType: 'application/json',
+    body: Buffer.from(JSON.stringify(report)),
+    ...overrides,
+  }
+}
+
 test('redacts raw and nested admin data while preserving failure, retry, duration, and counts', () => {
   const result = privateResult()
   const counts = redactAdminResult(result)
@@ -48,6 +56,62 @@ test('redacts raw and nested admin data while preserving failure, retry, duratio
   assert.deepEqual(JSON.parse(result.attachments[0].body), counts)
   assert.equal(JSON.stringify(result).includes(marker), false)
   assert.equal(JSON.stringify(result).includes(Buffer.from(marker).toString('base64')), false)
+})
+
+test('retains only allowlisted browser failure fields alongside admin attachment counts', () => {
+  const events = [
+    { source: 'pageerror', classification: 'fetch-rejection', fatal: true, count: 8 },
+    { source: 'console.error', classification: 'hydration', fatal: true, count: 1 },
+    { source: 'asset-response', classification: 'http-5xx', resourceType: 'stylesheet', fatal: true, count: 1 },
+    { source: 'asset-requestfailed', classification: 'cancelled', resourceType: 'script', fatal: false, count: 3 },
+  ]
+  const result = privateResult()
+  result.attachments.push(browserFailuresAttachment({
+    fatalCount: 10,
+    events: events.map(event => ({ ...event, url: marker, [marker]: { message: marker } })),
+    [marker]: marker,
+  }, { [marker]: marker }))
+
+  const counts = redactAdminResult(result)
+  assert.equal(counts.attachmentCount, 3)
+  assert.deepEqual(result.attachments.map(attachment => attachment.name), ['admin-evidence-counts', 'browser-failures.json'])
+  const diagnostic = result.attachments[1]
+  assert.deepEqual(Object.keys(diagnostic), ['name', 'contentType', 'body'])
+  assert.equal(diagnostic.body.toString().includes(marker), false)
+  assert.deepEqual(JSON.parse(diagnostic.body), { fatalCount: 10, events })
+  assert.equal(result.status, 'failed')
+  assert.equal(result.errors.length, 2)
+})
+
+test('falls back to counts for malformed, oversized or spoofed browser evidence', () => {
+  const event = { source: 'pageerror', classification: 'fetch-rejection', fatal: true, count: 1 }
+  const report = { fatalCount: 1, events: [event] }
+  const invalid = [
+    browserFailuresAttachment({ ...report, fatalCount: 2 }),
+    browserFailuresAttachment({ ...report, fatalCount: 10_001 }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, source: marker }] }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, classification: marker }] }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, source: 'asset-response', resourceType: 'script' }] }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, resourceType: marker }] }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, count: 0.5 }] }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, count: 10_001 }] }),
+    browserFailuresAttachment({ ...report, events: [{ ...event, fatal: false }] }),
+    browserFailuresAttachment(report, { path: marker }),
+    browserFailuresAttachment(report, { body: undefined, path: marker }),
+    browserFailuresAttachment(report, { contentType: 'text/plain' }),
+    browserFailuresAttachment(report, { body: Buffer.from(`[${marker}`) }),
+    browserFailuresAttachment(report, { body: Buffer.alloc(4097) }),
+  ]
+  for (const attachment of invalid) {
+    const result = privateResult()
+    result.attachments.push(attachment)
+    assert.equal(redactAdminResult(result).attachmentCount, 3)
+    assert.deepEqual(result.attachments.map(item => item.name), ['admin-evidence-counts'])
+  }
+  const ambiguous = privateResult()
+  ambiguous.attachments.push(browserFailuresAttachment(report), browserFailuresAttachment(report))
+  assert.equal(redactAdminResult(ambiguous).attachmentCount, 4)
+  assert.deepEqual(ambiguous.attachments.map(item => item.name), ['admin-evidence-counts'])
 })
 
 test('classifies every current admin spec and redacts future admin specs before failing closed', () => {
