@@ -14,7 +14,7 @@ The paid estimate continuation must stop when it cannot establish spendable cred
 | Live subscription balance is confirmed at zero | `BillingBlockedError` with `out_of_credits` before the provider boundary | The decision denies continuation with the existing code. |
 | Live subscription balance is confirmed at one credit | The request reaches the intercepted provider | The continuation allows any positive balance. |
 
-The baseline outcomes above come from source inspection. CI must confirm which assertions fail against the baseline and rerun the same tests after the fix.
+CI confirmed the baseline in [run 45390264092](https://github.com/Skale-Club/xtimator/actions/runs/45390264092), commit 756c9574: four unsafe-read cases failed and the two confirmed-balance controls passed. The test process intercepted the provider before any paid request. The same assertions must pass after the correction.
 
 ## Proposed change and retest
 

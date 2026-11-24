@@ -191,6 +191,15 @@
       "routes": ["/", "/login", "/industries", "/industries/[slug]", "/blog", "/privacy-policy", "/terms-of-service", "/delete-account", "/offline"],
       "hypothesis": "An anonymous browser can read the landing, sign-in, industry, publication, legal and offline fallback screens.",
       "expectedEvidence": "Routing and rendering smoke only. Each document returns HTTP 200 at the expected URL without browser exceptions, first-party server errors or horizontal overflow. The sign-in controls, legal content, a sample industry, and either a blog card on the index or its empty state are visible. The offline fallback is rendered while online. Screenshots and navigation evidence are retained."
+    },
+    {
+      "id": "WEBHOOK-REJECTION",
+      "titleToken": "[QA:WEBHOOK-REJECTION]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [],
+      "hypothesis": "Unsigned and forged Stripe, WhatsApp, Twilio and Telegram callbacks reject before business payload parsing, including malformed bodies.",
+      "expectedEvidence": "Each missing, forged and malformed unsigned callback returns 400/401 with a generic response. An invalid WhatsApp verification handshake returns 403 without reflecting the challenge. Payloads contain no real event or resource identifiers. This establishes rejection only; verified provider delivery and signed positive/idempotency tests remain separate gates."
     }
   ],
   "capabilities": [
