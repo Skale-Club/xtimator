@@ -7,6 +7,7 @@ let singleton: SupabaseClient | undefined
 let cached: Snapshot | undefined
 let reading: Promise<Snapshot> | undefined
 let generation = 0
+let authChannel: BroadcastChannel | undefined
 const listeners = new Set<(event: string, session: { user: User } | null) => void>()
 
 export function invalidateOwnedBrowserSession() { ++generation; cached = undefined; reading = undefined }
@@ -59,7 +60,14 @@ export function createOwnedBrowserClient(): SupabaseClient {
     signOut: async () => {
       const response = await fetch('/api/auth/session', { method: 'DELETE', credentials: 'same-origin' })
       if (!response.ok) return { error: { message: 'Sign out failed' } }
-      await refresh(); window.dispatchEvent(new Event('xtimator:auth'))
+      // The confirmed revocation is authoritative. Do not launch another read
+      // immediately before the caller replaces this document.
+      invalidateOwnedBrowserSession()
+      cached = { user: null, accessToken: null, expiresAt: Date.now() + 60_000 }
+      listeners.forEach(listener => listener('SIGNED_OUT', null))
+      // Reuse the receiving channel: BroadcastChannel excludes its sender,
+      // while other documents still re-read their own server session.
+      authChannel?.postMessage('changed')
       return { error: null }
     },
     signInWithOAuth: retired, signInWithPassword: retired, signUp: retired, updateUser: retired, resetPasswordForEmail: retired,
@@ -69,6 +77,7 @@ export function createOwnedBrowserClient(): SupabaseClient {
   // Messages carry no trusted identity or token; every update is read server-side.
   if (typeof BroadcastChannel !== 'undefined') {
     const channel = new BroadcastChannel('xtimator-auth')
+    authChannel = channel
     channel.onmessage = () => { void refresh() }
   }
   singleton = new Proxy(client, { get(target, property) {

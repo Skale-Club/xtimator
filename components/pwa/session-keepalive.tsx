@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { invalidateOwnedBrowserSession } from '@/lib/auth/owned-browser'
+import { OWNED_SIGN_OUT_STARTED, OWNED_SIGN_OUT_FAILED } from '@/lib/auth/browser-events'
 
 // Revalidate the login when the app returns to the foreground. The proxy renews
 // valid owned/legacy cookies, and the server refresh replaces stale account or
@@ -22,6 +23,7 @@ export function SessionKeepalive() {
     let nextAttemptAt = 0
     let inFlight = false
     let disposed = false
+    let signingOut = false
     let active: AbortController | undefined
     let timeout: ReturnType<typeof setTimeout> | undefined
 
@@ -33,7 +35,7 @@ export function SessionKeepalive() {
       }
 
       const now = Date.now()
-      if (disposed || inFlight || now < nextAttemptAt) return
+      if (disposed || signingOut || inFlight || now < nextAttemptAt) return
       inFlight = true
       const controller = new AbortController()
       active = controller
@@ -61,7 +63,7 @@ export function SessionKeepalive() {
       })
       void Promise.race([request, deadline])
         .then(() => {
-          if (disposed || controller.signal.aborted) return
+          if (disposed || signingOut || controller.signal.aborted) return
           nextAttemptAt = Date.now() + KEEPALIVE_MIN_INTERVAL_MS
           invalidateOwnedBrowserSession()
           window.dispatchEvent(new Event('xtimator:auth'))
@@ -81,14 +83,30 @@ export function SessionKeepalive() {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') ping()
     }
-    const onPageShow = () => ping()
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        signingOut = false
+        nextAttemptAt = 0
+      }
+      ping()
+    }
     const onFocus = () => ping()
     const onOnline = () => { nextAttemptAt = 0; ping() }
+    const onSignOutStarted = () => {
+      signingOut = true
+      active?.abort()
+    }
+    const onSignOutFailed = () => {
+      signingOut = false
+      nextAttemptAt = 0
+    }
 
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pageshow', onPageShow)
     window.addEventListener('focus', onFocus)
     window.addEventListener('online', onOnline)
+    window.addEventListener(OWNED_SIGN_OUT_STARTED, onSignOutStarted)
+    window.addEventListener(OWNED_SIGN_OUT_FAILED, onSignOutFailed)
 
     // Run once on mount to cover the cold-open case where the PWA HTML was
     // served from the service worker cache and the initial navigation never
@@ -103,6 +121,8 @@ export function SessionKeepalive() {
       window.removeEventListener('pageshow', onPageShow)
       window.removeEventListener('focus', onFocus)
       window.removeEventListener('online', onOnline)
+      window.removeEventListener(OWNED_SIGN_OUT_STARTED, onSignOutStarted)
+      window.removeEventListener(OWNED_SIGN_OUT_FAILED, onSignOutFailed)
     }
   }, [router])
 

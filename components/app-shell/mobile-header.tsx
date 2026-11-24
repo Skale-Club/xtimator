@@ -48,6 +48,7 @@ export function MobileHeader({
           narrower than 260px (container query) rather than overlap the flag. */}
       <Link
         href="/"
+        prefetch={false}
         aria-label={branding?.appName ?? 'Xtimator'}
         className="flex min-w-0 shrink items-center gap-2 transition-opacity hover:opacity-80"
       >
@@ -70,6 +71,7 @@ export function MobileHeader({
         <LanguageToggle />
         <Link
           href="/notifications"
+          prefetch={false}
           aria-label={t('Notifications')}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
