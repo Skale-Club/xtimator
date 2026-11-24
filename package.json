@@ -18,6 +18,7 @@
     "test:e2e:ui": "playwright test --ui",
     "qa:campaign": "node scripts/qa/run.mjs",
     "qa:infrastructure": "node --test scripts/qa/*.test.mjs",
+    "qa:loader": "playwright test --config=playwright.loader.config.ts",
     "test:seo": "vitest run tests/unit/seo",
     "audit:lighthouse": "node scripts/lighthouse.mjs",
     "audit:seo:production": "node scripts/seo-smoke.mjs https://xtimator.com",

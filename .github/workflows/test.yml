@@ -130,7 +130,9 @@ jobs:
         run: npx vitest run tests/unit/services/generation-credit-read-failure.test.ts
       - name: Verify campaign fixes on a feature branch
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && inputs.unit_scope == 'qa-foundations' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
-        run: npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts
+        run: |
+          npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts
+          npm run qa:loader
 
   build:
     name: Production compilation with development resources
@@ -195,6 +197,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Verify campaign infrastructure
         run: npm run qa:infrastructure
+      - name: Verify browser fixture loading without browser startup
+        run: npm run qa:loader
       - name: Retain the resolved dependency lock for review
         run: |
           mkdir -p qa-results

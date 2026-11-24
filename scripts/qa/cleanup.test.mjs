@@ -13,11 +13,21 @@ const ENV = {
 }
 const id = value => `16000000-0000-4000-8000-${String(value).padStart(12, '0')}`
 
-test('the cleanup store can be required by the Playwright fixture loader without starting its CLI', () => {
-  const result = spawnSync(process.execPath, ['-e', "const { createQaCleanupStore } = require('./scripts/qa/cleanup.mjs'); process.stdout.write(typeof createQaCleanupStore)"],
+test('the Playwright fixture can require the shared cleanup store and guards without starting the CLI', () => {
+  const result = spawnSync(process.execPath, ['-e', `
+    const assert = require('node:assert/strict')
+    const { createQaCleanupStore } = require('./scripts/qa/cleanup-store.cjs')
+    const guards = require('./scripts/qa/onboarding-cleanup.cjs')
+    assert.equal(typeof createQaCleanupStore, 'function')
+    for (const name of ['expectedOnboardingCompanyName', 'validateOnboardingAccount', 'prepareOnboardingCleanup', 'executeOnboardingCleanup']) {
+      assert.equal(typeof guards[name], 'function')
+    }
+    assert.equal(guards.ONBOARDING_FIXTURE_KIND, 'onboarding')
+    process.stdout.write('loaded')
+  `],
     { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   assert.equal(result.status, 0)
-  assert.equal(result.stdout, 'function')
+  assert.equal(result.stdout, 'loaded')
 })
 
 function createFixture(start) {

@@ -1,11 +1,11 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { BrowserContext } from '@playwright/test'
-import { createQaCleanupStore } from '../../../scripts/qa/cleanup.mjs'
+import { createQaCleanupStore } from '../../../scripts/qa/cleanup-store.cjs'
 import {
   executeOnboardingCleanup, expectedOnboardingCompanyName, ONBOARDING_FIXTURE_KIND, prepareOnboardingCleanup,
   validateOnboardingAccount,
-} from '../../../scripts/qa/onboarding-cleanup.mjs'
+} from '../../../scripts/qa/onboarding-cleanup.cjs'
 import { requireQaDevelopment } from './development'
 
 const HOUR_MS = 3_600_000
