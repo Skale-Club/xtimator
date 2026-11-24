@@ -186,8 +186,8 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
 
       await page.context().clearCookies()
       expect((await page.goto(`/estimate/${generated.shareToken}`))?.status()).toBe(200)
-      for (const line of ESTIMATE_LINES) await expect(page.getByText(line, { exact: true }).first()).toBeVisible()
-      await expect(page.getByText('$1,000.00', { exact: true }).first()).toBeVisible()
+      for (const line of ESTIMATE_LINES) await expect(page.getByText(line, { exact: true }).filter({ visible: true })).toBeVisible()
+      await expect(page.getByText('$1,000.00', { exact: true }).filter({ visible: true }).first()).toBeVisible()
       await info.attach('generated-public-estimate.png', { body: await page.screenshot(), contentType: 'image/png' })
     })
   } finally {

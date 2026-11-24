@@ -101,6 +101,60 @@
       "routes": ["/price-book"],
       "hypothesis": "An owner can create, edit, organize and delete a fixed-price service and its own Price Book category.",
       "expectedEvidence": "The new service and category persist with updated names, price and assignment and survive reload. Removing the service and empty category removes their database rows and restores the empty state."
+    },
+    {
+      "id": "REGENERATION-OUTAGE",
+      "titleToken": "[QA:REGENERATION-OUTAGE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]/capture", "/projects/[id]"],
+      "hypothesis": "A provider outage during text regeneration leaves the current estimate intact and offers recovery after Inngest exhausts its retries.",
+      "expectedEvidence": "Three scope-matched simulated provider failures produce a terminal generation journal event and visible Retry and Edit manually actions. The existing estimate stays current with its original total and lines, and the submitted description remains stored."
+    },
+    {
+      "id": "MICROPHONE-DENIED",
+      "titleToken": "[QA:MICROPHONE-DENIED]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]/capture", "/projects/[id]"],
+      "hypothesis": "A refused microphone permission gives the owner a recovery path without uploading media or changing the estimate.",
+      "expectedEvidence": "A simulated browser permission refusal shows the permission message, keeps Record enabled and allows Skip recording. No audio ticket, upload or recording is created and the prior estimate remains current."
+    },
+    {
+      "id": "STALE-SIGNATURE",
+      "titleToken": "[QA:STALE-SIGNATURE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/estimate/[token]"],
+      "hypothesis": "An anonymous signature created against a prior view cannot accept an estimate that the owner has since revised.",
+      "expectedEvidence": "The real sign endpoint rejects the original review timestamp and fingerprint with HTTP 409. No signature or acceptance is persisted, and the reload prompt displays the newly saved line."
+    },
+    {
+      "id": "AXE-WORKSPACE",
+      "titleToken": "[QA:AXE-WORKSPACE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/dashboard", "/clients", "/projects/[id]"],
+      "hypothesis": "An authenticated dashboard, client list and editor expose named primary controls and fit the viewport in the required browsers.",
+      "expectedEvidence": "Each page has a full axe report and an impact breakdown for WCAG 2.0 and 2.1 A and AA tags. There are zero serious or critical violations. Locator checks verify accessible names and horizontal overflow."
+    },
+    {
+      "id": "AXE-PUBLIC",
+      "titleToken": "[QA:AXE-PUBLIC]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/estimate/[token]"],
+      "hypothesis": "An anonymous estimate and its open signing dialog expose named actions and a viewport-fitting document.",
+      "expectedEvidence": "The document and open dialog have full axe reports with counts by impact and zero serious or critical violations under the selected WCAG rules. The signer's fields, consent action and cancel action have accessible names. These scans do not verify a keyboard alternative to drawing a signature."
+    },
+    {
+      "id": "KEYBOARD-CLIENT",
+      "titleToken": "[QA:KEYBOARD-CLIENT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/clients"],
+      "hypothesis": "A keyboard user can open Add Client, understand required-field errors and resume from the same control after closing.",
+      "expectedEvidence": "Tab and Enter reach and open Add Client. The name has a label, required state and associated validation message. Escape closes the form and restores focus to its opener. The open invalid form also has full axe output with zero serious or critical violations."
     }
   ],
   "capabilities": [
@@ -141,10 +195,10 @@
     },
     {
       "id": "A11Y",
-      "state": "unimplemented",
+      "state": "blocked",
       "requiredForLaunch": true,
-      "routes": ["/", "/dashboard", "/onboarding", "/projects/[id]", "/estimate/[token]"],
-      "reason": "The campaign has no accessibility gate spanning automation, keyboard and screen-reader checks for the critical journeys."
+      "routes": ["/", "/dashboard", "/clients", "/onboarding", "/projects/[id]", "/estimate/[token]"],
+      "reason": "The initial automated scans and client keyboard scenario need browser evidence. Broader keyboard journeys, a non-pointer way to sign and validation with real screen readers remain open. Automated rule results do not establish WCAG conformance."
     },
     {
       "id": "ADMIN",

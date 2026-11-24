@@ -149,6 +149,27 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
     return row.data
   }
 
+  async function reviseOwnEstimateLine(description: string) {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before revising its line item')
+    const result = await db.from('estimate_items').update({ description })
+      .eq('id', itemId).eq('section_id', sectionId).eq('company_id', companyId)
+      .eq('description', lineDescription).select('id').single()
+    check('apply a concurrent revision to the generated line item', result.error)
+    if (result.data?.id !== itemId) throw new Error('QA fixture did not revise its generated estimate line')
+  }
+
+  async function readGenerationEvidence() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its generation evidence')
+    const [estimates, events] = await Promise.all([
+      db.from('estimates').select('id, version, is_current, summary, total').eq('company_id', companyId).eq('project_id', projectId),
+      db.from('pipeline_events').select('attempt_id, input_type, step, status, error_message')
+        .eq('company_id', companyId).eq('project_id', projectId),
+    ])
+    check('read the fixture estimate versions', estimates.error)
+    check('read the fixture pipeline journal', events.error)
+    return { estimates: estimates.data ?? [], events: events.data ?? [] }
+  }
+
   async function readCapture() {
     if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its rows')
     const [recordings, photos] = await Promise.all([
@@ -230,7 +251,8 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
   return {
     companyId, clientId, projectId, estimateId, userId, sectionId, itemId, shareToken,
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total,
-    seed, cookies, readOwn, readCapture, readCompany, readPriceBook, cleanup,
+    seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
+    readGenerationEvidence, cleanup,
     readClient: (id = clientId) => readOwn('clients', id),
     readProject: (id = projectId) => readOwn('projects', id),
     readEstimate: (id: string = estimateId) => readOwn('estimates', id),

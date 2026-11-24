@@ -32,13 +32,20 @@ on:
         description: 'Optional comma-separated QA IDs for a focused diagnostic; omitted mandatory cases remain blocked'
         type: string
         default: ''
+      unit_scope:
+        description: 'Feature-branch diagnostic only; main and dev always run the full regression'
+        type: choice
+        options:
+          - all
+          - generation-credits
+        default: all
 
 permissions:
   contents: read
 
 jobs:
   unit:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.qa }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.qa || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
     name: Typecheck + unit/eval suite
     runs-on: ubuntu-latest
     # 15 min stopped fitting: the full suite (~8k tests) took 11.5 min on one
@@ -85,15 +92,20 @@ jobs:
       # Supabase → would break the secret-free gate; research Pitfall 6).
       # tests/eval is collected because 103-02 added tests/eval/**/*.test.ts to
       # the vitest `include` (otherwise this path would silently run zero tests).
-      - run: npx vitest run tests/unit tests/eval
+      - if: ${{ github.event_name != 'workflow_dispatch' || inputs.unit_scope != 'generation-credits' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+        run: npx vitest run tests/unit tests/eval
 
       # Determinism gate — the Wave-1 invariant made permanent. A re-emergent
       # cross-file isolation leak fails CI on this identical second pass.
-      - run: npx vitest run tests/unit tests/eval
+      - if: ${{ github.event_name != 'workflow_dispatch' || inputs.unit_scope != 'generation-credits' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+        run: npx vitest run tests/unit tests/eval
+      - name: Characterize generation credit-read failures on a feature branch
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.unit_scope == 'generation-credits' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+        run: npx vitest run tests/unit/services/generation-credit-read-failure.test.ts
 
   acceptance:
     name: Isolated acceptance campaign
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     concurrency:
@@ -119,6 +131,10 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Verify campaign infrastructure
         run: npm run qa:infrastructure
+      - name: Retain the resolved dependency lock for review
+        run: |
+          mkdir -p qa-results
+          cp package-lock.json qa-results/resolved-package-lock.json
       - run: npx playwright install --with-deps chromium webkit
       - run: python -m pip install pypdf==6.0.0
       - name: Exercise required initial scenarios
