@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { spawn } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import pg from 'pg'
 import type Stripe from 'stripe'
+import { NextRequest } from 'next/server'
 
 // Only Stripe sandbox and the development database may receive effects.
 vi.mock('@/lib/notifications/dispatch', () => ({ notify: vi.fn() }))
@@ -25,6 +26,7 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { buyCreditPack, resumeCreditPurchase } from '@/lib/billing/credit-purchase'
 import { createSubscriptionCheckout } from '@/lib/billing/subscription-checkout'
 import { processVerifiedStripeEvent } from '@/lib/billing/stripe-event-processing'
+import { POST as stripeWebhook } from '@/app/api/webhooks/stripe/route'
 import type { BillingOperation } from '@/lib/billing/operations'
 
 const sandbox = process.env.RUN_PAYMENT_SANDBOX === '1' ? describe.sequential : describe.skip
@@ -35,6 +37,7 @@ const companyId = randomUUID()
 const runMarker = randomUUID()
 const companyName = `qa-${companyId} payment sandbox ${runMarker.slice(0, 8)}`
 const metadata = { companyId, qa_run_id: runMarker }
+const receiverSecret = randomBytes(32).toString('hex')
 const eventIds: string[] = []
 let db: pg.Client
 let dbConnected = false
@@ -126,6 +129,14 @@ async function safe(fn: () => Promise<void>) {
     if (err instanceof Error && err.name === 'AssertionError') throw new Error('Sandbox assertion failed')
     throw new Error('Sandbox verification failed at the named test step')
   }
+}
+async function deliverSignedEvent(event: Stripe.Event, options: { body?: string; signature?: string } = {}) {
+  const payload = JSON.stringify(event)
+  const signature = options.signature ?? stripe.webhooks.generateTestHeaderString({ payload, secret: receiverSecret })
+  return stripeWebhook(new NextRequest('https://127.0.0.1:9650/api/webhooks/stripe', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': signature },
+    body: options.body ?? payload,
+  }))
 }
 function buy(key: string, client = stripe, paymentMethod = cardId) {
   return buyCreditPack({ stripe: client, companyId, requestId: key, request: {
@@ -259,6 +270,9 @@ async function cleanDatabase() {
 sandbox('payment launch against real Stripe sandbox and development PostgreSQL', () => {
   beforeAll(() => safe(async () => {
     const pgConfig = databaseConfig()
+    // The receiver secret exists only in this process; no provider endpoint is configured.
+    vi.stubEnv('STRIPE_WEBHOOK_SECRET', receiverSecret)
+    vi.stubEnv('STRIPE_CONNECT_WEBHOOK_SECRET', '')
     const countProviderLog = () => { evidence.suppressedProviderLogs++ }
     vi.spyOn(console, 'warn').mockImplementation(countProviderLog)
     vi.spyOn(console, 'error').mockImplementation(countProviderLog)
@@ -304,6 +318,7 @@ sandbox('payment launch against real Stripe sandbox and development PostgreSQL',
       if (evidence.cleanupFailures.length) throw new SandboxGuardError('Payment sandbox fixture cleanup could not be confirmed')
     } finally {
       vi.restoreAllMocks()
+      vi.unstubAllEnvs()
     }
   }, 60_000)
 
@@ -322,10 +337,20 @@ sandbox('payment launch against real Stripe sandbox and development PostgreSQL',
 
   it('retrieves the official paid Event and replays it without granting twice', () => safe(async () => {
     const paid = await event('payment_intent.succeeded', firstPi)
-    expect((await processVerifiedStripeEvent(paid, stripe)).status).toBe(200)
-    expect((await processVerifiedStripeEvent(paid, stripe)).status).toBe(200)
+    expect((await deliverSignedEvent(paid, { signature: '' })).status).toBe(400)
+    expect((await deliverSignedEvent(paid, { body: `${JSON.stringify(paid)} ` })).status).toBe(400)
+    const stale = stripe.webhooks.generateTestHeaderString({ payload: JSON.stringify(paid), secret: receiverSecret, timestamp: Math.floor(Date.now() / 1000) - 600 })
+    expect((await deliverSignedEvent(paid, { signature: stale })).status).toBe(400)
+    vi.stubEnv('STRIPE_WEBHOOK_SECRET', '')
+    expect((await deliverSignedEvent(paid)).status).toBe(400)
+    vi.stubEnv('STRIPE_WEBHOOK_SECRET', receiverSecret)
+    expect(Number((await db.query('SELECT count(*) FROM processed_stripe_events WHERE event_id=$1', [paid.id])).rows[0].count)).toBe(0)
     expect(await balance()).toBe(900)
-    checks.push('Official Stripe Event fulfilled/replayed through real inbox and ledger without duplicate credits'); saveEvidence()
+    expect((await deliverSignedEvent(paid)).status).toBe(200)
+    expect((await deliverSignedEvent(paid)).status).toBe(200)
+    expect(Number((await db.query('SELECT count(*) FROM processed_stripe_events WHERE event_id=$1', [paid.id])).rows[0].count)).toBe(1)
+    expect(await balance()).toBe(900)
+    checks.push('Actual webhook Request rejects missing/tampered/stale/unconfigured signatures, then official Stripe Event fulfills/replays with one inbox row and no duplicate credits'); saveEvidence()
   }), 60_000)
 
   it('recovers an actual accepted charge whose API response was deliberately lost', () => safe(async () => {
@@ -408,9 +433,9 @@ sandbox('payment launch against real Stripe sandbox and development PostgreSQL',
     const invoiceId = typeof subscription.latest_invoice === 'string' ? subscription.latest_invoice : subscription.latest_invoice?.id
     if (!invoiceId) throw new SandboxGuardError('The completed Stripe test subscription has no invoice')
     const paidEvent = await event('invoice.paid', invoiceId)
-    expect((await processVerifiedStripeEvent(paidEvent, stripe)).status).toBe(200)
+    expect((await deliverSignedEvent(paidEvent)).status).toBe(200)
     const checkoutEvent = await event('checkout.session.completed', subscriptionSession)
-    expect((await processVerifiedStripeEvent(checkoutEvent, stripe)).status).toBe(200)
+    expect((await deliverSignedEvent(checkoutEvent)).status).toBe(200)
     expect(await balance()).toBe(3900)
     const company = (await db.query('SELECT tier,stripe_subscription_id FROM companies WHERE id=$1', [companyId])).rows[0]
     expect(company.tier).toBe('pro'); expect(company.stripe_subscription_id).toBe(subscriptionId)
