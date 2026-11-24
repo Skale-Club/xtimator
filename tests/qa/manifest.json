@@ -458,6 +458,15 @@
       "routes": ["/academy/[courseId]/[lessonId]", "/admin/academy/[userId]"],
       "hypothesis": "An owned development platform admin can read a different synthetic learner's actual completion and recover it after reload.",
       "expectedEvidence": "An ordinary owned learner manually completes the text lesson through its real tracking endpoint. After closing that page and changing to the marked admin session, the detail screen shows that learner/company,33% course completion, a completion date and one lesson_complete timeline event. Reload preserves the evidence. Both fixtures are independently cleaned; captures and global writes are disabled."
+    },
+    {
+      "id": "DISABLED-SURFACES",
+      "titleToken": "[QA:DISABLED-SURFACES]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/settings/custom-domain", "/whatsapp"],
+      "hypothesis": "An authenticated tenant cannot activate the launch-disabled custom domain or recover the retired WhatsApp inbox by opening an old URL.",
+      "expectedEvidence": "The actual disabled feature flag remains false. Each exact URL resolves to404/noindex without a redirect, settings form or message composer. The normal browser exception/asset gate remains active. No provider request or configuration write is made."
     }
   ],
   "capabilities": [
@@ -515,7 +524,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/", "/projects/[id]/capture", "/estimate/[token]"],
-      "reason": "The2026-11-24 production dependency inventory reports3 critical and21 high package alerts before path triage. A reviewed Next/Sentry/sharp/MCP/Zod upgrade and proxy lock refresh are being resolved remotely. Candidate versions, audit deltas, compatibility and full regression/browser evidence must be verified; an audit count alone does not prove exploitability or remediation."
+      "reason": "The baseline production inventory reports3critical/21high package entries. The reviewed Next/Sentry/sharp/MCP/Zod upgrade and compatible transitive/telemetry refresh reduce the candidate to0critical/6high entries. Remaining Firebase gRPC and Inngest Zod chains need reachability/mitigation evidence. Full compatibility and browser regression remain pending; package metadata or audit counts alone cannot prove exploitability, absence from compiled bundles, or remediation."
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",

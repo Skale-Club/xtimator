@@ -203,6 +203,19 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - run: test -f .next/BUILD_ID
+      - name: Inventory metadata in the compiled standalone artifact
+        run: |
+          node scripts/qa/runtime-inventory.mjs
+          cp package-lock.json qa-results/build-package-lock.json
+      - name: Retain runtime package evidence without application data
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-dependencies-${{ github.run_id }}
+          path: |
+            qa-results/runtime-dependencies.json
+            qa-results/build-package-lock.json
+          retention-days: 7
+          if-no-files-found: error
 
   acceptance:
     name: Isolated acceptance campaign
