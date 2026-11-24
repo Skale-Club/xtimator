@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import type { Page } from '@playwright/test'
 import { expect, test } from './test'
 import { createQaFixture } from './fixtures/tenant'
+import { observeMicrophoneEvents } from './fixtures/media-events'
 
 const SIMULATED_PROVIDER = 'http://127.0.0.1:9651'
 const TRANSCRIPT = 'Install 20 linear feet of cedar fence, including two posts and cleanup. Labor is 400 dollars and materials are 600 dollars.'
@@ -30,6 +31,7 @@ async function providerHistory(page: Page): Promise<ProviderCall[]> {
 }
 
 async function installSyntheticMicrophone(page: Page) {
+  await observeMicrophoneEvents(page)
   await page.addInitScript(() => {
     const diagnostics: MicrophoneDiagnostics = {
       installed: false, calls: 0, phase: 'checking-media-devices', phases: ['checking-media-devices'],
@@ -103,6 +105,7 @@ async function readMicrophoneDiagnostics(page: Page) {
     const microphone = document.querySelector<HTMLButtonElement>('[data-testid="capture-mic"]')
     return {
       fixture: (window as Window & { __qaSyntheticMicrophone?: MicrophoneDiagnostics }).__qaSyntheticMicrophone ?? null,
+      events: (window as Window & { __qaMicrophoneEvents?: unknown[] }).__qaMicrophoneEvents ?? [],
       documentReadyState: document.readyState,
       microphoneLabel: microphone?.getAttribute('aria-label') ?? null,
       microphoneDisabled: microphone?.disabled ?? null,

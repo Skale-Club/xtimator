@@ -1,5 +1,6 @@
 const DEVELOPMENT_ORIGIN = 'https://prmqgcrnpuvpzruyzvuv.supabase.co'
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+export const QA_APP_ORIGIN = 'https://127.0.0.1:9650'
 
 function parseUrl(value: string | undefined, label: string) {
   try {

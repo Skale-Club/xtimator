@@ -89,19 +89,38 @@ describe('MoneyInput — plain decimal entry', () => {
     expect(onValue).toHaveBeenLastCalledWith(1250)
   })
 
-  it('round-trips an existing value on focus (edit mode)', () => {
-    render(<Harness initial={12.5} />)
+  it('preserves the native selection on focus and replaces a saved price once', () => {
+    const onValue = vi.fn()
+    render(<Harness initial={85.5} onValue={onValue} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
-    expect(input.value).toBe('12.50')
+    expect(input.value).toBe('85.50')
+    input.setSelectionRange(0, input.value.length)
     fireEvent.focus(input)
-    expect(input.value).toBe('12.5')
+    expect(input.value).toBe('85.50')
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe(5)
+    expect(onValue).not.toHaveBeenCalled()
+
+    const beforeSelection = input.value.slice(0, input.selectionStart!)
+    const afterSelection = input.value.slice(input.selectionEnd!)
+    type(input, `${beforeSelection}129.75${afterSelection}`)
+    expect(input.value).toBe('129.75')
+    expect(onValue).toHaveBeenCalledExactlyOnceWith(129.75)
+    fireEvent.blur(input)
+    expect(input.value).toBe('129.75')
+    expect(onValue).toHaveBeenLastCalledWith(129.75)
   })
 
-  it('edits a whole-number value without decimals', () => {
-    render(<Harness initial={1100} />)
+  it('keeps a localized decimal separator and an ungrouped value throughout editing', () => {
+    const onValue = vi.fn()
+    render(<Harness initial={1100} currencyCode="BRL" onValue={onValue} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
+    expect(input.value).toBe('1100,00')
     fireEvent.focus(input)
-    expect(input.value).toBe('1100')
+    expect(input.value).toBe('1100,00')
+    fireEvent.blur(input)
+    expect(input.value).toBe('1100,00')
+    expect(onValue).toHaveBeenCalledExactlyOnceWith(1100)
   })
 
   it('never takes a decimal for zero-minor-unit currencies (JPY)', () => {

@@ -416,6 +416,7 @@ const MACHINE_REASON =
  * classification.
  */
 const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
+  ...excepted('app/(app)/settings/(tabs)/defaults/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   // SEED-059 same-origin Data API proxy. It forwards the caller's own data JWT to
   // PostgREST, so demo read-only enforcement is the database's (RLS demo_readonly
   // policies, see tests/integration/demo-readonly-rls.test.ts), not this route's.

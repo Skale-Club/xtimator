@@ -1,11 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { flushSync } from 'react-dom'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import {
-  formatMoneyNumber,
   getCurrencyConfig,
   getCurrencySymbol,
   type SupportedCurrencyCode,
@@ -77,18 +75,6 @@ export function moneyDraftToValue(draft: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** The editable text for an existing value: no grouping, decimals only when needed. */
-function valueToDraft(value: number | null | undefined, minorUnit: number, decimalSeparator: string): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return ''
-  const fixed = value.toFixed(minorUnit)
-  const trimmed = minorUnit > 0 ? fixed.replace(/\.?0+$/, '') : fixed
-  return decimalSeparator === ',' ? trimmed.replace('.', ',') : trimmed
-}
-
-function localeDecimalSeparator(locale: string): string {
-  return new Intl.NumberFormat(locale).formatToParts(1.1).find((p) => p.type === 'decimal')?.value ?? '.'
-}
-
 export function MoneyInput({
   value,
   onValueChange,
@@ -102,12 +88,18 @@ export function MoneyInput({
   onBlur,
   symbolPlacement = 'start',
 }: MoneyInputProps) {
-  const [focused, setFocused] = useState(false)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState<string | null>(null)
   const currency = getCurrencyConfig(currencyCode)
   const minorUnit = currency.minorUnit
   const symbol = getCurrencySymbol(currencyCode)
-  const display = focused ? draft : formatMoneyNumber(value ?? 0, currencyCode)
+  const amount = typeof value === 'number' && Number.isFinite(value) ? value : 0
+  // Keep the same editable representation across focus. A grouping separator
+  // would also be ambiguous because entry accepts either decimal separator.
+  const display = draft ?? new Intl.NumberFormat(currency.locale, {
+    useGrouping: false,
+    minimumFractionDigits: minorUnit,
+    maximumFractionDigits: minorUnit,
+  }).format(amount)
 
   const inputProps = {
     id,
@@ -117,14 +109,9 @@ export function MoneyInput({
     value: display,
     placeholder,
     disabled,
-    onFocus: () => {
-      // Commit the editable representation before the browser selects text.
-      // A deferred value replacement can collapse that selection and append a
-      // new amount to the old one instead of replacing it.
-      flushSync(() => {
-        setFocused(true)
-        setDraft(valueToDraft(value, minorUnit, localeDecimalSeparator(currency.locale)))
-      })
+    onFocus: (event: React.FocusEvent<HTMLInputElement>) => {
+      // Rewriting a positive value on focus collapses the browser's selection.
+      setDraft(amount <= 0 ? '' : event.currentTarget.value)
     },
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
       const next = sanitizeMoneyDraft(event.target.value, minorUnit)
@@ -132,8 +119,8 @@ export function MoneyInput({
       onValueChange(Math.max(min, moneyDraftToValue(next)))
     },
     onBlur: () => {
-      setFocused(false)
-      onValueChange(Math.max(min, moneyDraftToValue(draft)))
+      setDraft(null)
+      onValueChange(Math.max(min, moneyDraftToValue(display)))
       onBlur?.()
     },
   }

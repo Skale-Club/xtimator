@@ -254,6 +254,42 @@
       "routes": ["/projects/[id]", "/estimate/[token]"],
       "hypothesis": "An accepted signed estimate stays immutable to the owner and to a direct service-role line update; additions use change orders.",
       "expectedEvidence": "Actual anonymous signing produces a snapshot digest. The owner sees Accepted and the change-order action, with no line edit controls. An update scoped to the marked account and exact company/section/item is rejected with P0022; line, signature and all totals remain unchanged."
+    },
+    {
+      "id": "SHARE-BRANDED",
+      "titleToken": "[QA:SHARE-BRANDED]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/projects/[id]",
+        "/estimate/[token]/[estimateSlug]"
+      ],
+      "hypothesis": "A generated branded link resolves by its exact short token while unknown tokens reveal no estimate.",
+      "expectedEvidence": "Real owner sharing opens the branded URL; anonymous access renders only the token document. Cosmetic prefixes do not authorize access; unknown or truncated tokens show no estimate fields."
+    },
+    {
+      "id": "SHARE-PASSWORD",
+      "titleToken": "[QA:SHARE-PASSWORD]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/projects/[id]",
+        "/estimate/[token]"
+      ],
+      "hypothesis": "An owner can password-protect the estimate and anonymous access requires the correct password.",
+      "expectedEvidence": "A real saved hash gates HTML, metadata and PDF. Wrong password creates no cookie; correct password issues a Secure HttpOnly cookie and unlocks after reload over local HTTPS."
+    },
+    {
+      "id": "SHARE-EXPIRED",
+      "titleToken": "[QA:SHARE-EXPIRED]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/estimate/[token]",
+        "/estimate/[token]/[estimateSlug]"
+      ],
+      "hypothesis": "An expired link discloses neither the estimate document nor its PDF.",
+      "expectedEvidence": "Only the synthetic estimate is seeded in the past. Both routes show expiration; token PDF returns410 and unauthenticated owner PDF401."
     }
   ],
   "capabilities": [

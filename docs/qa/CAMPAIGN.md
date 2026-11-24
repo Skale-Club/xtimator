@@ -4,6 +4,14 @@ The campaign exercises Xtimator against its existing Supabase development projec
 
 ## Scope and evidence
 
+Browser campaigns use `https://127.0.0.1:9650`. The runner requires OpenSSL,
+generates a one-day loopback certificate under ignored `.bg-shell/qa/tls`,
+and removes its key after Playwright stops. Keys never enter `qa-results`.
+Only local browser/API requests ignore certificate errors; Node and the
+Inngest callback trust the generated certificate explicitly. An ephemeral
+cookie-signing key belongs only to the Next child. Secure cookies retain
+their product behavior; provider transports remain synthetic.
+
 | Outcome | Evidence expected |
 | --- | --- |
 | Owned session | An isolated owner reaches the workspace and an unauthenticated request is redirected. The fixture starts with an already-issued owned session. |

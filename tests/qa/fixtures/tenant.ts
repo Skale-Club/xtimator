@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { BrowserContext } from '@playwright/test'
+import { generatePublicSlugToken } from '../../../lib/estimate/public-url'
 import { requireQaDevelopment } from './development'
 
 const HOUR_MS = 60 * 60 * 1000
@@ -21,7 +22,12 @@ function check(operation: string, error: { code?: string } | null) {
 }
 
 /** Per-run data only. Pair every call to seed() with cleanup() in a finally block. */
-export function createQaFixture(baseURL: string, { captureStorage = false, platformAdmin = false } = {}) {
+export function createQaFixture(baseURL: string, {
+  captureStorage = false,
+  platformAdmin = false,
+  brandedShare = false,
+  expiredShare = false,
+} = {}) {
   const { localApp, supabaseOrigin, serviceKey } = requireQaDevelopment(baseURL)
   const campaignId = process.env.GITHUB_RUN_ID
   const campaignAttempt = process.env.GITHUB_RUN_ATTEMPT
@@ -50,6 +56,9 @@ export function createQaFixture(baseURL: string, { captureStorage = false, platf
   const email = `qa-${runId}@example.invalid`
   const platformAdminNotes = `${prefix}platform admin`
   const companyName = `${prefix}Company`
+  const companySlug = brandedShare ? `qa-${runId}` : null
+  const publicSlugToken = brandedShare ? generatePublicSlugToken() : null
+  const shareExpiresAt = expiredShare ? new Date(Date.now() - HOUR_MS).toISOString() : null
   const clientName = `${prefix}Client`
   const projectName = `${prefix}Project`
   const summary = 'Replace and paint the porch railing.'
@@ -100,6 +109,7 @@ export function createQaFixture(baseURL: string, { captureStorage = false, platf
     check('insert the tenant. Check that its user foreign key references xtimator_accounts', (
       await db.from('companies').insert({
         id: companyId, user_id: userId, name: companyName, currency_code: 'USD',
+        ...(companySlug && { slug: companySlug }),
         estimate_template_style: 'classic', digital_signature_allowed: true, digital_signature_enabled: true,
         online_payments_allowed: false, online_payments_enabled: false,
         email_delivery_enabled: false, sms_delivery_enabled: false,
@@ -121,6 +131,8 @@ export function createQaFixture(baseURL: string, { captureStorage = false, platf
       id: estimateId, company_id: companyId, project_id: projectId, share_token: shareToken,
       language: 'en', currency_code: 'USD', status, summary, subtotal: total, total,
       sent_at: status === 'sent' ? timestamp : null,
+      ...(publicSlugToken && { public_slug_token: publicSlugToken }),
+      ...(shareExpiresAt && { share_expires_at: shareExpiresAt }),
     })).error)
     check('insert the estimate section', (await db.from('estimate_sections').insert({
       id: sectionId, estimate_id: estimateId, company_id: companyId, title: sectionTitle, subtotal: total,
@@ -328,6 +340,7 @@ export function createQaFixture(baseURL: string, { captureStorage = false, platf
 
   return {
     companyId, clientId, projectId, estimateId, userId, sectionId, itemId, shareToken,
+    companySlug, publicSlugToken, shareExpiresAt,
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total, userEmail: email,
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
     readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,

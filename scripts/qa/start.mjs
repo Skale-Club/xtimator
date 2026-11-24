@@ -1,7 +1,10 @@
 import { spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { QA_APP_ORIGIN } from '../../tests/qa/fixtures/development.ts'
 import { startProviders } from './providers.mjs'
+import { readQaTls } from './tls.mjs'
 
 const devHost = 'prmqgcrnpuvpzruyzvuv.supabase.co'
 if (process.env.XTIMATOR_QA_DEV !== '1' || new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://invalid').origin !== `https://${devHost}`) {
@@ -10,6 +13,8 @@ if (process.env.XTIMATOR_QA_DEV !== '1' || new URL(process.env.NEXT_PUBLIC_SUPAB
 for (const key of ['SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'XTIMATOR_DATA_JWT_SECRET']) {
   if (!process.env[key]) throw new Error(`Missing QA prerequisite: ${key}`)
 }
+const tls = readQaTls()
+const appUrl = new URL(QA_APP_ORIGIN)
 mkdirSync('qa-results', { recursive: true })
 const systemEnv = Object.fromEntries(['PATH', 'Path', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'CI'].filter(key => process.env[key]).map(key => [key, process.env[key]]))
 const env = { ...systemEnv }
@@ -27,7 +32,9 @@ Object.assign(env, {
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_SECRET_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   XTIMATOR_DATA_JWT_SECRET: process.env.XTIMATOR_DATA_JWT_SECRET,
-  NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:9650', APP_ORIGIN: 'http://127.0.0.1:9650',
+  NEXT_PUBLIC_SITE_URL: QA_APP_ORIGIN, APP_ORIGIN: QA_APP_ORIGIN,
+  APP_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+  NODE_EXTRA_CA_CERTS: tls.certificatePath,
   GOOGLE_AUTH_PROJECT_ID: 'skaleclub', FIREBASE_API_KEY: 'qa-no-external-auth', FIREBASE_AUTH_DOMAIN: 'qa.invalid',
   OPENROUTER_API_KEY: 'qa-synthetic-never-a-real-key', STORAGE_PROVIDER: 'supabase',
   ACADEMY_FIXTURES: '1',
@@ -37,10 +44,14 @@ Object.assign(env, {
 })
 const providers = await startProviders()
 const children = [
-  spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', '9650'], { env, stdio: 'inherit' }),
+  spawn(process.execPath, [
+    'node_modules/next/dist/bin/next', 'dev', '--hostname', appUrl.hostname, '--port', appUrl.port,
+    '--experimental-https', '--experimental-https-key', tls.keyPath, '--experimental-https-cert', tls.certificatePath,
+    '--experimental-https-ca', tls.certificatePath,
+  ], { env, stdio: 'inherit' }),
   spawn(process.platform === 'win32' ? process.execPath : resolve('node_modules/.bin/inngest-cli'),
-    [...(process.platform === 'win32' ? ['node_modules/inngest-cli/bin/inngest'] : []), 'dev', '--no-discovery', '-u', 'http://127.0.0.1:9650/api/inngest'],
-    { env: { ...systemEnv, INNGEST_DEV: '1', DO_NOT_TRACK: '1' }, stdio: 'inherit' }),
+    [...(process.platform === 'win32' ? ['node_modules/inngest-cli/bin/inngest'] : []), 'dev', '--no-discovery', '-u', `${QA_APP_ORIGIN}/api/inngest`],
+    { env: { ...systemEnv, INNGEST_DEV: '1', DO_NOT_TRACK: '1', SSL_CERT_FILE: tls.certificatePath }, stdio: 'inherit' }),
 ]
 let stopping = false
 function stop(code = 0) {

@@ -28,7 +28,6 @@ export const viewport: Viewport = {
   ],
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: 'cover',
   // Android Chrome: the keyboard resizes the layout viewport (dvh, fixed and
   // centred surfaces follow it). iOS ignores this; lib/visual-viewport.ts and

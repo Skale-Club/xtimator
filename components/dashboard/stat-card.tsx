@@ -53,8 +53,8 @@ export function StatCard({ icon: Icon, label, value, delta, className, index = 0
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 15, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={reduce ? false : { y: 15, scale: 0.98 }}
+      animate={{ y: 0, scale: 1 }}
       transition={{ duration: 0.45, delay: index * 0.08, ease: [0.16, 1, 0.3, 1] }}
       className="h-full min-w-0 w-full"
     >

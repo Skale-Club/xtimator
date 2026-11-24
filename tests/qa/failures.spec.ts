@@ -1,6 +1,7 @@
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { test, expect } from './test'
 import { createQaFixture } from './fixtures/tenant'
+import { observeMicrophoneEvents } from './fixtures/media-events'
 
 type Tenant = ReturnType<typeof createQaFixture>
 const SIMULATED_PROVIDER = 'http://127.0.0.1:9651'
@@ -39,6 +40,7 @@ function readCaptureDiagnostics(page: Page, expectedDescription: string | null =
     const generate = document.querySelector<HTMLButtonElement>('[data-testid="generate-estimate-btn"]')
     return {
       fixture: (window as Window & { __qaDeniedMicrophone?: DenialDiagnostics }).__qaDeniedMicrophone ?? null,
+      events: (window as Window & { __qaMicrophoneEvents?: unknown[] }).__qaMicrophoneEvents ?? [],
       documentReadyState: document.readyState,
       microphoneLabel: microphone?.getAttribute('aria-label') ?? null,
       microphoneDisabled: microphone?.disabled ?? null,
@@ -124,6 +126,7 @@ test('[QA:REGENERATION-OUTAGE] exhausted provider retries preserve the current e
 })
 
 test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture storage intact', async ({ page, baseURL }, info) => {
+  await observeMicrophoneEvents(page)
   let afterDenial: Awaited<ReturnType<typeof readCaptureDiagnostics>> = null
   await withTenant(page, baseURL!, async fixture => {
     await page.context().addCookies(fixture.cookies())
