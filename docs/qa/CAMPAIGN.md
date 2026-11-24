@@ -61,6 +61,33 @@ The evaluator reads `qa-results/playwright.json` by default. `--report <path>` s
 
 The public-launch command exits successfully only when all mandatory scenario and capability evidence is satisfied. The execution-only command exits successfully when the required initial scenarios pass and keeps the public-launch verdict blocked. Missing, skipped, unexpected, flaky, retried, empty and duplicate evidence cannot count as a pass. A test needs one clean first attempt in every required project. A test title must contain one `[QA:ID]` token matching the manifest entry.
 
+## Isolated Stripe TEST campaign
+
+The existing `Test` workflow accepts `payment_sandbox=true` on an upstream
+feature-branch manual dispatch. This runs six real Stripe TEST API/ledger
+cases against the designated development database. `payment_browser=true`
+adds a seventh case that completes the hosted subscription Checkout in
+Chromium. Both inputs default to false. The payment job cannot run on main,
+dev, tags, pushes, pull requests or forks.
+
+Preflight requires the exact development origins, a test-mode key, the
+expected Stripe account and zero enabled webhook endpoints. PostgreSQL uses
+the committed public Supabase root CA with certificate verification enabled;
+see [CA provenance](../../tests/fixtures/SUPABASE-CA.md). The browser receives
+the verified test Checkout URL through stdin and an operating-system-only
+environment. A CONNECT proxy and browser routing restrict destinations.
+Browser traces, screenshots, videos and provider responses are not recorded.
+A required security challenge fails the case without bypassing it.
+
+The seventh case requires Stripe to report the session complete and paid,
+then processes retrieved official invoice and Checkout events through the
+application and checks its actual development ledger. Cleanup verifies
+ownership before deleting the generated customer and company, cancelling
+the generated subscription and archiving its tagged catalog. Historical
+Stripe TEST objects remain as provider audit records. External notifications
+and unrelated integrations are disabled. These cases do not exercise live
+payments or delivery of signed callbacks to the deployed HTTP endpoint.
+
 ## Hypothesis, evidence and retest
 
 The expanded scenarios cover native capture with synthetic media/provider output, project/settings/price-book persistence, exhausted generation retries, microphone refusal, stale document signing, editor hydration, automated accessibility rules, client keyboard interaction, public/workspace screen rendering, rejection of forged provider callbacks and change-order approval/decline. A rendered screen does not prove all of its controls or states. A synthetic provider result does not establish live provider quality or delivery.

@@ -70,6 +70,8 @@ let browser
 let proxy
 let challengeRequested = false
 let page
+let phase = 'input'
+const failureCodes = { input: 10, module: 11, proxy: 12, browser: 13, navigation: 14, card: 15, submit: 16, redirect: 17 }
 
 async function visibleChallenge() {
   if (!page) return challengeRequested
@@ -93,8 +95,11 @@ async function fillOptional(selector, value) {
 // https://docs.stripe.com/testing#test-code, never in a Stripe API call.
 async function checkout() {
   const url = await readCheckout()
+  phase = 'module'
   const { chromium } = await import('@playwright/test')
+  phase = 'proxy'
   proxy = await startProxy(() => { challengeRequested = true })
+  phase = 'browser'
   browser = await chromium.launch({
     headless: true,
     timeout: 12_000,
@@ -113,9 +118,11 @@ async function checkout() {
   await context.routeWebSocket('**/*', socket => socket.close())
   page = await context.newPage()
   page.setDefaultTimeout(8_000)
+  phase = 'navigation'
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 })
   if (new URL(page.url()).origin !== checkoutOrigin) throw new Error('Checkout navigation failed')
 
+  phase = 'card'
   const cardNumber = page.locator('#cardNumber, input[autocomplete="cc-number"]')
   if (!await cardNumber.isVisible()) {
     const card = page.getByRole('button', { name: 'Card', exact: true })
@@ -130,7 +137,9 @@ async function checkout() {
   await fillOptional('#billingName, input[autocomplete="cc-name"]', 'Xtimator Sandbox')
   await fillOptional('#billingPostalCode, input[autocomplete="postal-code"]', '10001')
 
+  phase = 'submit'
   await page.getByRole('button', { name: /^(?:Subscribe|Start subscription)(?:\b|$)/i }).click()
+  phase = 'redirect'
   await page.waitForURL(successUrl, { waitUntil: 'commit', timeout: 30_000 })
 }
 
@@ -152,7 +161,7 @@ process.once('SIGTERM', async () => {
 try {
   await checkout()
 } catch {
-  process.exitCode = await visibleChallenge() ? 3 : 2
+  process.exitCode = await visibleChallenge() ? 3 : failureCodes[phase]
 } finally {
   await close().catch(() => { process.exitCode ||= 2 })
   clearTimeout(watchdog)

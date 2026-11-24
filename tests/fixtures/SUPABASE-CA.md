@@ -10,7 +10,7 @@ It contains no private key or credential.
 
 The payment integration uses this CA with `rejectUnauthorized: true` and the
 exact development pooler hostname and project user. A read-only connection
-and `SELECT1` succeeded on2026-11-24. No database SSL setting was changed.
+and `SELECT 1` succeeded on2026-11-24. No database SSL setting was changed.
 Follow the [Supabase TLS guidance](https://supabase.com/docs/guides/platform/ssl-enforcement)
 and [node-postgres configuration](https://node-postgres.com/features/ssl) when
 rotating the certificate. Keep certificate and hostname verification enabled.

@@ -15,8 +15,8 @@ export async function observeSignaturePointers(page: Page) {
   await page.addInitScript(() => {
     Object.assign(window, { __qaSignaturePointers: 0 })
     document.addEventListener('pointerdown', () => {
-      const observed = window as Window & { __qaSignaturePointers: number }
-      observed.__qaSignaturePointers++
+      const observed = window as Window & { __qaSignaturePointers?: number }
+      observed.__qaSignaturePointers = (observed.__qaSignaturePointers ?? 0) + 1
     }, true)
   })
 }

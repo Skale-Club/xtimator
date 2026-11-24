@@ -52,6 +52,7 @@ const evidence = {
   preflightStage: 'environment',
   preflightPassed: false, customerId: null as string | null, subscriptionSession: null as string | null,
   hostedCheckout: process.env.RUN_PAYMENT_BROWSER === '1' ? 'pending' : 'disabled',
+  hostedFailureStage: null as string | null,
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
@@ -164,9 +165,11 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
     child.stdin.end(JSON.stringify({ sessionId: session.id, checkoutUrl: session.url }))
   })
   evidence.hostedCheckout = exitCode === 0 ? 'redirected' : exitCode === 3 ? 'challenge' : 'failed'
+  const stages: Record<number, string> = { 10: 'input', 11: 'module', 12: 'proxy', 13: 'browser', 14: 'navigation', 15: 'card', 16: 'submit', 17: 'redirect' }
+  evidence.hostedFailureStage = exitCode === 0 ? null : stages[exitCode ?? -1] ?? 'process'
   saveEvidence()
   if (exitCode === 3) throw new SandboxGuardError('Stripe hosted Checkout required a security challenge')
-  if (exitCode !== 0) throw new SandboxGuardError('Stripe hosted Checkout did not reach the sandbox success destination')
+  if (exitCode !== 0) throw new SandboxGuardError(`Stripe hosted Checkout stopped at the ${evidence.hostedFailureStage} stage`)
 }
 
 async function archiveSubscriptionCatalog(id: string) {
