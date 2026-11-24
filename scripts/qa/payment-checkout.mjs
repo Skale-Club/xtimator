@@ -6,7 +6,7 @@ const checkoutOrigin = 'https://checkout.stripe.com'
 const successUrl = 'https://example.com/?xtimator_sandbox_complete=1'
 const stripeHosts = new Set(['stripe.com', 'stripe.network'])
 // Exact static asset hosts requested by the verified Stripe-hosted Checkout.
-const stripeAssetHosts = new Set(['b.stripecdn.com', 'stripe-camo.global.ssl.fastly.net', 'pay.google.com', 'applepay.cdn-apple.com'])
+const stripeAssetHosts = new Set(['b.stripecdn.com', 'stripe-camo.global.ssl.fastly.net', 'pay.google.com', 'www.gstatic.com', 'applepay.cdn-apple.com', 'smp-paymentservices.apple.com'])
 const challengePattern = /hcaptcha|recaptcha|captcha|arkoselabs|turnstile/i
 const blockedHosts = new Set()
 
@@ -172,9 +172,14 @@ async function checkout() {
 
   phase = 'card'
   const cardNumber = await cardControl('#cardNumber, input[autocomplete="cc-number"], input[name="cardnumber"], input[name="number"]')
-  await cardNumber.fill('4242424242424242')
-  await (await cardControl('#cardExpiry, input[autocomplete="cc-exp"], input[name="exp-date"], input[name="expiry"]')).fill('1234')
-  await (await cardControl('#cardCvc, input[autocomplete="cc-csc"], input[name="cvc"]')).fill('123')
+  await cardNumber.fill('')
+  await cardNumber.pressSequentially('4242424242424242')
+  const expiry = await cardControl('#cardExpiry, input[autocomplete="cc-exp"], input[name="exp-date"], input[name="expiry"]')
+  await expiry.fill('')
+  await expiry.pressSequentially('1234')
+  const cvc = await cardControl('#cardCvc, input[autocomplete="cc-csc"], input[name="cvc"]')
+  await cvc.fill('')
+  await cvc.pressSequentially('123')
   await fillOptional('#billingName, input[autocomplete="cc-name"]', 'Xtimator Sandbox')
   await fillOptional('#billingPostalCode, input[autocomplete="postal-code"]', '10001')
 
@@ -209,12 +214,18 @@ try {
       cardFields: await frame.locator('#cardNumber, input[autocomplete="cc-number"]').count().catch(() => -1),
       emailFields: await frame.locator('input[type="email"]').count().catch(() => -1),
       inputs: await frame.locator('input').count().catch(() => -1),
+      invalidFields: await frame.locator('input:invalid, input[aria-invalid="true"]').evaluateAll(elements => elements.slice(0, 8).map(element => ({
+        field: /^[A-Za-z-]{1,40}$/.test(element.name || element.id) ? element.name || element.id : 'other',
+        valueMissing: element.validity.valueMissing, patternMismatch: element.validity.patternMismatch,
+        typeMismatch: element.validity.typeMismatch, customError: element.validity.customError,
+      }))).catch(() => []),
     })
   }
   process.stdout.write(JSON.stringify({
     timeout: error?.name === 'TimeoutError',
     blockedChallengeResource: challengeRequested,
     frameCount: page?.frames().length ?? 0,
+    successFrames: page?.frames().filter(frame => frame.url() === successUrl).length ?? 0,
     strictSelector: typeof error?.message === 'string' && error.message.includes('strict mode violation'),
     frames, blockedHosts: [...blockedHosts].slice(0, 12),
   }))

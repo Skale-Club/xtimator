@@ -57,6 +57,7 @@ const evidence = {
   hostedCheckout: process.env.RUN_PAYMENT_BROWSER === '1' ? 'pending' : 'disabled',
   hostedFailureStage: null as string | null,
   hostedDiagnostics: null as object | null,
+  hostedProviderState: null as { status: string | null; paymentStatus: string; hasSubscription: boolean } | null,
   hostedTarget: null as { sessionFormat: boolean; origin: boolean; exactPath: boolean; segments: number;
     canonicalPrefix: boolean; testToken: boolean; startsSession: boolean; extraLength: number; inputWithinLimit: boolean; routePrefix: string } | null,
   failureCode: null as string | null,
@@ -197,8 +198,14 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
           timeout: parsed.timeout === true, strictSelector: parsed.strictSelector === true,
           blockedChallengeResource: parsed.blockedChallengeResource === true,
           frameCount: Number(parsed.frameCount),
+          successFrames: Number(parsed.successFrames),
           frames: Array.isArray(parsed.frames) ? parsed.frames.slice(0, 24).map(frame => ({
             cardFields: Number(frame.cardFields), emailFields: Number(frame.emailFields), inputs: Number(frame.inputs),
+            invalidFields: Array.isArray(frame.invalidFields) ? frame.invalidFields.slice(0, 8).map(field => ({
+              field: typeof field.field === 'string' && /^[A-Za-z-]{1,40}$/.test(field.field) ? field.field : 'other',
+              valueMissing: field.valueMissing === true, patternMismatch: field.patternMismatch === true,
+              typeMismatch: field.typeMismatch === true, customError: field.customError === true,
+            })) : [],
           })) : [],
           blockedHosts: Array.isArray(parsed.blockedHosts) ? parsed.blockedHosts.filter(host =>
             typeof host === 'string' && /^[a-z0-9.-]{1,180}$/.test(host)).slice(0, 12) : [],
@@ -212,6 +219,10 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
   evidence.hostedCheckout = exitCode === 0 ? 'redirected' : exitCode === 3 ? 'challenge' : 'failed'
   const stages: Record<number, string> = { 10: 'input', 11: 'module', 12: 'proxy', 13: 'browser', 14: 'navigation', 15: 'card', 16: 'submit', 17: 'redirect' }
   evidence.hostedFailureStage = exitCode === 0 ? null : stages[exitCode ?? -1] ?? 'process'
+  if (exitCode !== 0) {
+    const latest = await assertOwnedCheckout(session.id, true)
+    evidence.hostedProviderState = { status: latest.status, paymentStatus: latest.payment_status, hasSubscription: Boolean(latest.subscription) }
+  }
   saveEvidence()
   if (exitCode === 3) throw new SandboxGuardError('Stripe hosted Checkout required a security challenge')
   if (exitCode !== 0) throw new SandboxGuardError(`Stripe hosted Checkout stopped at the ${evidence.hostedFailureStage} stage`)
