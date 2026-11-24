@@ -78,7 +78,7 @@ const LEGACY_ABSOLUTE =
 const DATA_URI = 'data:image/png;base64,AAAA'
 /** A real, decodable 2x2 PNG — the stored bytes the photo path transcodes. */
 const PNG_BYTES = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP8z4AATAxkcqEDAGJnAgoZlHNCAAAAAElFTkSuQmCC',
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAAMIM/4EAAB/uBfsL2WiLAAAAAElFTkSuQmCC',
   'base64'
 )
 

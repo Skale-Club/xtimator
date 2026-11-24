@@ -8,7 +8,8 @@
  *
  * SentryContextManager is exported from @sentry/nextjs (verified).
  * SentrySpanProcessor / SentrySampler / SentryPropagator are from @sentry/opentelemetry.
- * NodeTracerProvider is from @opentelemetry/sdk-trace-node (already in tree via @sentry/nextjs).
+ * NodeTracerProvider and Sentry's processor package are direct dependencies;
+ * telemetry setup must not rely on incidental transitive package hoisting.
  *
  * Export: langfuseProcessor — lets Inngest step.run bodies call
  * `await langfuseProcessor?.forceFlush()` after graph.invoke to prevent lost spans
