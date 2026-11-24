@@ -413,6 +413,15 @@
       ],
       "hypothesis": "Every admin document request made by an active ordinary tenant is sent to the same-origin logout boundary without rendering the protected shell.",
       "expectedEvidence": "A real owned session is confirmed before each of 28 unfollowed GETs and remains active at the end. Each response explicitly targets /api/logout through HTTP 307 or a recognized HTTP 200 Next streaming redirect. This scenario covers request-level denial only."
+    },
+    {
+      "id": "FIRST-COMPANY-ONBOARDING",
+      "titleToken": "[QA:FIRST-COMPANY-ONBOARDING]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/onboarding", "/dashboard"],
+      "hypothesis": "An already verified owned account with no tenant can resume the real wizard and provision exactly one first company.",
+      "expectedEvidence": "A server-saved draft resumes after its local copy is removed. The wizard creates one company and owner membership, links the completed draft and active-company cookie, and persists one signup ledger entry and lot matching the development billing allowance. Reload and revisit preserve those same records. Identity is seeded; phone verification, logo upload, and outbound consent are omitted."
     }
   ],
   "capabilities": [

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { recoverQaCampaign } from './cleanup.mjs'
+import { expectedOnboardingCompanyName } from './onboarding-cleanup.mjs'
 
 const CAMPAIGN = '10783590211'
 const ATTEMPT = '2'
@@ -91,6 +92,52 @@ function fakeStore(fixtures, { keepMembershipAfterErase = false } = {}) {
   }
   return { store, writes, campaignReads, storageReads }
 }
+
+function mixedCampaign({ rejectOnboarding = false } = {}) {
+  const regular = createFixture(1)
+  const onboarding = createFixture(20)
+  const meta = onboarding.account.raw_user_meta_data
+  delete meta.qa_company_id
+  delete meta.qa_project_id
+  meta.qa_kind = 'onboarding'
+  meta.qa_expected_company_name = expectedOnboardingCompanyName(meta.qa_run_id)
+  onboarding.company.name = rejectOnboarding ? 'Unrecognized name' : meta.qa_expected_company_name
+  onboarding.project = null
+  onboarding.audio = null
+  onboarding.photo = null
+  const { store, writes } = fakeStore([regular, onboarding])
+  Object.assign(store, {
+    listOnboardingCompanies: (account, companyId) => store.listCompanies({ ...account, companyId }),
+    listOnboardingMemberships: (account, companyId) => store.listMemberships({ ...account, companyId }),
+    listOnboardingDrafts: async () => [],
+    listOnboardingProjects: async companyId => store.listProjects({ companyId }),
+    hasOnboardingStorage: async () => false,
+    removeOnboardingAccount: async account => store.removeAccount(account),
+  })
+  return { store, writes }
+}
+
+test('preflights onboarding and preallocated fixtures before making any campaign deletions', async () => {
+  const { store, writes } = mixedCampaign({ rejectOnboarding: true })
+  await assert.rejects(recoverQaCampaign({ env: ENV, openStore: () => store }), /onboarding cleanup refused a company/)
+  assert.deepEqual(writes, [])
+})
+
+test('aggregates cleanup and verifies absence of both campaign fixture types', async () => {
+  const { store } = mixedCampaign()
+  assert.deepEqual(await recoverQaCampaign({ env: ENV, openStore: () => store }), {
+    matchedAccounts: 2, deletedAccounts: 2, erasedCompanies: 2, deletedSessions: 2, deletedFiles: 2,
+  })
+  assert.deepEqual(await store.listAccounts(CAMPAIGN, ATTEMPT), [])
+})
+
+test('refuses an unknown fixture purpose before deleting any campaign account', async () => {
+  const fixture = createFixture(1)
+  fixture.account.raw_user_meta_data.qa_kind = 'unknown'
+  const { store, writes } = fakeStore([fixture])
+  await assert.rejects(recoverQaCampaign({ env: ENV, openStore: () => store }), /unrecognized preallocated fixture kind/)
+  assert.deepEqual(writes, [])
+})
 
 test('requires a valid campaign and the exact development safety boundary before opening the store', async () => {
   let opens = 0

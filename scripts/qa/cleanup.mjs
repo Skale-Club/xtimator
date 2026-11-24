@@ -1,4 +1,7 @@
 import { requireQaDevelopment } from '../../tests/qa/fixtures/development.ts'
+import {
+  executeOnboardingCleanup, ONBOARDING_FIXTURE_KIND, prepareOnboardingCleanup, validateOnboardingAccount,
+} from './onboarding-cleanup.mjs'
 
 const LOOPBACK = 'http://127.0.0.1:9650'
 const PAGE_SIZE = 100
@@ -13,6 +16,9 @@ function isUuid(value) {
 }
 
 function validateAccount(row, campaignId, attempt) {
+  if ('qa_kind' in (row.raw_user_meta_data ?? {})) {
+    throw new Error('QA cleanup refused an unrecognized preallocated fixture kind')
+  }
   const {
     qa_run_id: runId, qa_campaign_id: marker, qa_campaign_attempt: attemptMarker,
     qa_company_id: companyId, qa_project_id: projectId,
@@ -72,7 +78,7 @@ async function inspectStorage(store, account, company) {
 }
 
 /** Recover fixtures from one GitHub run attempt after its acceptance workers stop. */
-export async function recoverQaCampaign({ env = process.env, baseURL = LOOPBACK, openStore = createStore } = {}) {
+export async function recoverQaCampaign({ env = process.env, baseURL = LOOPBACK, openStore = createQaCleanupStore } = {}) {
   const connection = requireQaDevelopment(baseURL, env)
   const campaignId = env.GITHUB_RUN_ID
   if (typeof campaignId !== 'string' || !/^[0-9]{1,20}$/.test(campaignId)) {
@@ -85,8 +91,22 @@ export async function recoverQaCampaign({ env = process.env, baseURL = LOOPBACK,
     throw new Error('QA cleanup needs an explicit acceptance QA_CAMPAIGN_ATTEMPT')
   }
   const store = await openStore(connection)
-  const accounts = (await store.listAccounts(campaignId, attempt)).map(row => validateAccount(row, campaignId, attempt))
-  for (const key of ['id', 'runId', 'companyId', 'projectId']) {
+  const accounts = []
+  const onboardingAccounts = []
+  for (const row of await store.listAccounts(campaignId, attempt)) {
+    if (row.raw_user_meta_data?.qa_kind === ONBOARDING_FIXTURE_KIND) {
+      onboardingAccounts.push(validateOnboardingAccount(row, campaignId, attempt))
+    } else {
+      accounts.push(validateAccount(row, campaignId, attempt))
+    }
+  }
+  const allAccounts = [...accounts, ...onboardingAccounts]
+  for (const key of ['id', 'runId']) {
+    if (new Set(allAccounts.map(account => account[key])).size !== allAccounts.length) {
+      throw new Error('QA cleanup refused duplicate fixture markers')
+    }
+  }
+  for (const key of ['companyId', 'projectId']) {
     if (new Set(accounts.map(account => account[key])).size !== accounts.length) {
       throw new Error('QA cleanup refused duplicate fixture markers')
     }
@@ -102,8 +122,13 @@ export async function recoverQaCampaign({ env = process.env, baseURL = LOOPBACK,
     const files = await inspectStorage(store, account, company)
     plan.push({ account, company, sessions, files })
   }
+  const onboardingPlan = []
+  for (const account of onboardingAccounts) onboardingPlan.push(await prepareOnboardingCleanup(store, account))
+  const companyIds = [...accounts.map(account => account.companyId),
+    ...onboardingPlan.flatMap(fixture => fixture.scope.companyId ? [fixture.scope.companyId] : [])]
+  if (new Set(companyIds).size !== companyIds.length) throw new Error('QA cleanup refused duplicate fixture companies')
 
-  const summary = { matchedAccounts: accounts.length, deletedAccounts: 0, erasedCompanies: 0, deletedSessions: 0, deletedFiles: 0 }
+  const summary = { matchedAccounts: allAccounts.length, deletedAccounts: 0, erasedCompanies: 0, deletedSessions: 0, deletedFiles: 0 }
   for (const { account, company, sessions, files } of plan) {
     const currentRow = await store.readAccount(account.id)
     if (!currentRow) throw new Error('QA cleanup detected a missing fixture account')
@@ -133,7 +158,13 @@ export async function recoverQaCampaign({ env = process.env, baseURL = LOOPBACK,
     }
     summary.deletedAccounts++
   }
-  if (plan.length && (await store.listAccounts(campaignId, attempt)).length) {
+  for (const item of onboardingPlan) {
+    const result = await executeOnboardingCleanup(store, item)
+    summary.deletedAccounts += result.deletedAccounts
+    summary.erasedCompanies += result.erasedCompanies
+    summary.deletedSessions += result.deletedSessions
+  }
+  if (allAccounts.length && (await store.listAccounts(campaignId, attempt)).length) {
     throw new Error('QA cleanup detected remaining accounts for this acceptance attempt')
   }
   return summary
@@ -153,7 +184,7 @@ async function pages(load, operation) {
   }
 }
 
-async function createStore({ supabaseOrigin, serviceKey }) {
+export async function createQaCleanupStore({ supabaseOrigin, serviceKey }) {
   const { createClient } = await import('@supabase/supabase-js')
   const db = createClient(supabaseOrigin, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -176,6 +207,33 @@ async function createStore({ supabaseOrigin, serviceKey }) {
       .or(`user_id.eq.${account.id},company_id.eq.${account.companyId}`).order('company_id').order('user_id'), 'verify company memberships'),
     listProjects: account => list(() => db.from('projects').select('id,company_id')
       .or(`company_id.eq.${account.companyId},id.eq.${account.projectId}`).order('id'), 'verify project prefixes'),
+    listOnboardingCompanies: (account, companyId) => list(() => {
+      const scope = [`user_id.eq.${account.id}`, `name.eq.${account.companyName}`]
+      if (companyId) scope.push(`id.eq.${companyId}`)
+      return db.from('companies').select('id,user_id,name').or(scope.join(',')).order('id')
+    }, 'verify onboarding company ownership'),
+    listOnboardingMemberships: (account, companyId) => list(() => {
+      const query = db.from('company_members').select('company_id,user_id,role')
+      return (companyId ? query.or(`user_id.eq.${account.id},company_id.eq.${companyId}`) : query.eq('user_id', account.id))
+        .order('company_id').order('user_id')
+    }, 'verify onboarding company memberships'),
+    listOnboardingDrafts: (account, companyId) => list(() => {
+      const query = db.from('onboarding_drafts').select('id,user_id,mode,completed_company_id')
+      return (companyId ? query.or(`user_id.eq.${account.id},completed_company_id.eq.${companyId}`) : query.eq('user_id', account.id))
+        .order('id')
+    }, 'verify onboarding drafts'),
+    listOnboardingProjects: companyId => list(() => db.from('projects').select('id').eq('company_id', companyId)
+      .order('id'), 'verify onboarding company has no projects'),
+    async hasOnboardingStorage(userId, companyId) {
+      const buckets = rows(await db.storage.listBuckets(), 'list storage buckets for onboarding cleanup')
+      for (const bucket of buckets) {
+        for (const prefix of new Set(companyId ? [userId, companyId] : [userId])) {
+          const objects = rows(await db.storage.from(bucket.id).list(prefix, { limit: 1 }), 'check onboarding storage prefix')
+          if (objects.length) return true
+        }
+      }
+      return false
+    },
     listSessions: userId => list(() => db.from('xtimator_sessions').select('id,user_id')
       .eq('user_id', userId).order('id'), 'list fixture sessions'),
     listObjects: (bucket, directory) => pages(offset => db.storage.from(bucket).list(directory, {
@@ -204,6 +262,15 @@ async function createStore({ supabaseOrigin, serviceKey }) {
         .eq('raw_user_meta_data->>qa_company_id', account.companyId)
         .eq('raw_user_meta_data->>qa_project_id', account.projectId)
         .select('id'), 'remove a fixture account').length
+    },
+    async removeOnboardingAccount(account) {
+      return rows(await db.from('xtimator_accounts').delete().eq('id', account.id).eq('email', account.email)
+        .eq('raw_user_meta_data->>qa_kind', ONBOARDING_FIXTURE_KIND)
+        .eq('raw_user_meta_data->>qa_campaign_id', account.campaignId)
+        .eq('raw_user_meta_data->>qa_campaign_attempt', account.attempt)
+        .eq('raw_user_meta_data->>qa_run_id', account.runId)
+        .eq('raw_user_meta_data->>qa_expected_company_name', account.companyName)
+        .select('id'), 'remove an onboarding fixture account').length
     },
   }
 }
