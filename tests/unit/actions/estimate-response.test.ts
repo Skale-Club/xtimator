@@ -1,179 +1,80 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-/**
- * recordClientResponse (lib/actions/estimate-response.ts): the owner records
- * the client's answer in-app. Guards: auth, membership (company-scoped read),
- * is_current, signature present -> refused. Happy path writes client_response
- * + responded_at, never touches updated_at, logs activity {source:'manual'}.
- */
-
-const getActiveCompanyId = vi.fn()
-vi.mock('@/lib/queries/active-company', () => ({
-  getActiveCompanyId: (...a: unknown[]) => getActiveCompanyId(...a),
-}))
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+const activeCompany = vi.fn()
+const writable = vi.fn()
+const companyWritable = vi.fn()
+const billing = vi.fn()
+const rpc = vi.fn()
+const history = { recordAcceptedEstimatePrices: vi.fn(), forgetEstimatePrices: vi.fn() }
+let claims: object | null
+let row: Record<string, unknown> | null
+const filters: Array<[string, unknown]> = []
+vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: (...a: unknown[]) => activeCompany(...a) }))
+vi.mock('@/lib/demo/guard', () => ({ assertWritable: (...a: unknown[]) => writable(...a), assertCompanyWritable: (...a: unknown[]) => companyWritable(...a) }))
+vi.mock('@/lib/billing/access-guard', () => ({ billingEditDenied: (...a: unknown[]) => billing(...a) }))
+vi.mock('@/lib/estimate/pricing/company-history', () => ({ recordAcceptedEstimatePrices: (...a: unknown[]) => history.recordAcceptedEstimatePrices(...a), forgetEstimatePrices: (...a: unknown[]) => history.forgetEstimatePrices(...a) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
-vi.mock('@/lib/billing/access-guard', () => ({ billingEditDenied: vi.fn().mockResolvedValue(null) }))
-const assertWritable = vi.fn()
-const assertCompanyWritable = vi.fn()
-vi.mock('@/lib/demo/guard', () => ({
-  assertWritable: (...a: unknown[]) => assertWritable(...a),
-  assertCompanyWritable: (...a: unknown[]) => assertCompanyWritable(...a),
-}))
-
-let claims: { sub: string } | null = { sub: 'u_1' }
-let estimateRow: Record<string, unknown> | null
-let signatureRow: Record<string, unknown> | null
-let estimateUpdate: Record<string, unknown> | null
-const activityInsert = vi.fn()
-const projectUpdate = vi.fn()
-const estimateSelectEqs: Array<[string, unknown]> = []
-const estimateUpdateEqs: Array<[string, unknown]> = []
-let updatedRows: Array<{ id: string; updated_at: string }>
-
-function from(table: string) {
-  if (table === 'estimates') {
-    return {
-      select: () => {
-        const q: Record<string, unknown> = {}
-        q.eq = (c: string, v: unknown) => {
-          estimateSelectEqs.push([c, v])
-          return q
-        }
-        q.single = () => Promise.resolve({ data: estimateRow, error: null })
-        return q
-      },
-      update: (payload: Record<string, unknown>) => {
-        estimateUpdate = payload
-        const q: Record<string, unknown> = {}
-        q.eq = (column: string, value: unknown) => {
-          estimateUpdateEqs.push([column, value])
-          return q
-        }
-        q.select = () => Promise.resolve({ data: updatedRows, error: null })
-        return q
-      },
-    }
-  }
-  if (table === 'estimate_signatures') {
-    return {
-      select: () => ({
-        eq: () => ({ limit: () => ({ maybeSingle: () => Promise.resolve({ data: signatureRow, error: null }) }) }),
-      }),
-    }
-  }
-  if (table === 'projects') {
-    return { update: (p: unknown) => { projectUpdate(p); return { eq: () => Promise.resolve({ error: null }) } } }
-  }
-  if (table === 'estimate_activity') {
-    return { insert: (p: unknown) => { activityInsert(p); return Promise.resolve({ error: null }) } }
-  }
-  throw new Error(`Unexpected table ${table}`)
-}
-
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockImplementation(async () => ({
-    auth: { getClaims: () => Promise.resolve({ data: { claims } }) },
-    from,
-  })),
-}))
-
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({
+  auth: { getClaims: async () => ({ data: { claims } }) }, rpc,
+  from: (table: string) => {
+    expect(table).toBe('estimates')
+    const q = { select: () => q, eq: (k: string, v: unknown) => { filters.push([k,v]); return q }, single: async () => ({ data: row }) }
+    return q
+  },
+}) }))
+import { recordClientResponse } from '@/lib/actions/estimate-response'
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.resetModules()
-  claims = { sub: 'u_1' }
-  getActiveCompanyId.mockResolvedValue('co_1')
-  assertWritable.mockResolvedValue(null)
-  assertCompanyWritable.mockResolvedValue(null)
-  estimateRow = { id: 'est_1', project_id: 'p_1', company_id: 'co_1', is_current: true, sent_at: null, client_response: null }
-  signatureRow = null
-  estimateUpdate = null
-  estimateSelectEqs.length = 0
-  estimateUpdateEqs.length = 0
-  updatedRows = [{ id: 'est_1', updated_at: '2026-11-06T12:00:00Z' }]
+  filters.length = 0
+  claims = { sub: 'u1' }
+  row = { id: 'e1', project_id: 'p1', company_id: 'c1', is_current: true, updated_at: 'version' }
+  activeCompany.mockResolvedValue('c1'); writable.mockResolvedValue(null); companyWritable.mockResolvedValue(null); billing.mockResolvedValue(null)
+  rpc.mockImplementation(async (_name, args) => ({ data: { client_response: args.p_response, responded_at: args.p_response ? 'server-time' : null, updated_at: 'committed-version' }, error: null }))
 })
-
-async function run(r: 'accepted' | 'declined' | null) {
-  const { recordClientResponse } = await import('@/lib/actions/estimate-response')
-  return recordClientResponse('est_1', r)
-}
-
-describe('recordClientResponse', () => {
-  it('refuses when unauthenticated', async () => {
+describe('manual estimate response transaction', () => {
+  it('refuses unauthenticated callers', async () => {
     claims = null
-    const res = await run('accepted')
-    expect(res).toEqual({ success: false, error: 'Not authenticated' })
-    expect(estimateUpdate).toBeNull()
+    expect((await recordClientResponse('e1','accepted')).success).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
   })
-
-  it('refuses a demo/read-only tenant', async () => {
-    assertWritable.mockResolvedValue({ error: 'read-only demo' })
-    const res = await run('accepted')
-    expect(res.success).toBe(false)
-    expect(estimateUpdate).toBeNull()
+  it.each(['accepted','declined',null] as const)('records %s through the atomic RPC without browser-side evidence prechecks or partial writes', async (response) => {
+    const result = await recordClientResponse('e1',response)
+    expect(result).toEqual({ success: true, data: { client_response: response, responded_at: response ? 'server-time' : null, updated_at: 'committed-version' } })
+    expect(filters).toContainEqual(['company_id','c1'])
+    expect(rpc).toHaveBeenCalledWith('record_estimate_response_atomic',{ p_estimate_id:'e1',p_company_id:'c1',p_expected_updated_at:'version',p_response:response })
   })
-
-  it('refuses a non-member: estimate not visible in the active company', async () => {
-    estimateRow = null
-    const res = await run('accepted')
-    expect(res).toEqual({ success: false, error: 'Estimate not found' })
-    expect(estimateSelectEqs).toContainEqual(['company_id', 'co_1'])
-    expect(estimateUpdate).toBeNull()
+  it('does not skip the locked evidence check when the apparent response is unchanged', async () => {
+    row = { ...row, client_response: 'accepted' }
+    rpc.mockResolvedValue({ error: { code:'P0022' } })
+    expect(await recordClientResponse('e1','accepted')).toMatchObject({ success: false, error: expect.stringMatching(/signed online/) })
   })
-
-  it('refuses a non-current version', async () => {
-    estimateRow = { ...estimateRow!, is_current: false }
-    const res = await run('accepted')
-    expect(res.success).toBe(false)
-    expect(res.error).toMatch(/current version/)
-    expect(estimateUpdate).toBeNull()
+  it.each(['P0002','P0003','P0022','XX000'])('fails closed on transaction error %s', async (code) => {
+    rpc.mockResolvedValue({ error: { code } })
+    expect((await recordClientResponse('e1',null)).success).toBe(false)
+    expect(history.forgetEstimatePrices).not.toHaveBeenCalled()
   })
-
-  it('skips project status and activity when the estimate stops being current before the write', async () => {
-    updatedRows = []
-
-    const result = await run('accepted')
-
-    expect(estimateUpdateEqs).toContainEqual(['is_current', true])
-    expect(result.success).toBe(false)
-    expect(projectUpdate).not.toHaveBeenCalled()
-    expect(activityInsert).not.toHaveBeenCalled()
+  it('fails closed on missing transaction result', async () => {
+    rpc.mockResolvedValue({ data:null,error:null })
+    expect((await recordClientResponse('e1','accepted')).success).toBe(false)
   })
-
-  it('refuses when a signature row exists (accept, decline and clear)', async () => {
-    signatureRow = { id: 'sig_1' }
-    for (const r of ['accepted', 'declined', null] as const) {
-      const res = await run(r)
-      expect(res.success).toBe(false)
-      expect(res.error).toMatch(/signed online/)
-    }
-    expect(estimateUpdate).toBeNull()
-    expect(activityInsert).not.toHaveBeenCalled()
+  it('rejects a superseded estimate before the transaction', async () => {
+    row = { ...row, is_current:false }
+    expect((await recordClientResponse('e1','accepted')).success).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
   })
-
-  it('happy path: writes client_response/responded_at (not updated_at), project status and manual activity', async () => {
-    const res = await run('accepted')
-    expect(res.success).toBe(true)
-    expect(res.data?.updated_at).toBe('2026-11-06T12:00:00Z')
-    expect(estimateUpdate).toMatchObject({ client_response: 'accepted' })
-    expect(typeof estimateUpdate!.responded_at).toBe('string')
-    expect(estimateUpdate).not.toHaveProperty('updated_at')
-    expect(projectUpdate).toHaveBeenCalledWith({ status: 'accepted' })
-    expect(activityInsert).toHaveBeenCalledWith(
-      expect.objectContaining({ estimate_id: 'est_1', event_type: 'estimate_accepted', metadata: { source: 'manual' } })
-    )
+  it('refuses missing or inaccessible estimates', async () => {
+    row = null
+    expect((await recordClientResponse('e1','accepted')).success).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
   })
-
-  it('records declined with estimate_declined', async () => {
-    await run('declined')
-    expect(activityInsert).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'estimate_declined' }))
+  it('preserves demo and billing edit gates', async () => {
+    writable.mockResolvedValue({error:'Read only'})
+    expect((await recordClientResponse('e1','accepted')).success).toBe(false)
+    writable.mockResolvedValue(null); billing.mockResolvedValue({error:'Read only'})
+    expect((await recordClientResponse('e1','accepted')).success).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
   })
-
-  it('null clears client_response and responded_at and reverts project status', async () => {
-    estimateRow = { ...estimateRow!, client_response: 'accepted', sent_at: '2026-11-01T00:00:00Z' }
-    const res = await run(null)
-    expect(res.success).toBe(true)
-    expect(estimateUpdate).toEqual({ client_response: null, responded_at: null })
-    expect(projectUpdate).toHaveBeenCalledWith({ status: 'sent' })
-    expect(activityInsert).toHaveBeenCalledWith(expect.objectContaining({ metadata: { source: 'manual' } }))
+  it('rejects invalid responses', async () => {
+    expect((await recordClientResponse('e1','other' as never)).success).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

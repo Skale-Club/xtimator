@@ -64,7 +64,7 @@ export async function recordClientResponse(
   // (RLS enforces company membership on top of this explicit scope).
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, is_current, sent_at, client_response')
+    .select('id, project_id, company_id, is_current, sent_at, client_response, updated_at')
     .eq('id', estimateId)
     .eq('company_id', companyId)
     .single()
@@ -78,55 +78,31 @@ export async function recordClientResponse(
     is_current: boolean
     sent_at: string | null
     client_response: string | null
+    updated_at: string
   }
 
   if (!est.is_current) {
     return { success: false, error: 'Only the current version can be answered' }
   }
 
-  const { data: signature } = await supabase
-    .from('estimate_signatures')
-    .select('id')
-    .eq('estimate_id', est.id)
-    .limit(1)
-    .maybeSingle()
-
-  if (signature) {
-    return { success: false, error: 'This estimate was signed online and cannot be changed' }
-  }
-
-  if (est.client_response === response) {
-    return { success: true, data: { client_response: response, responded_at: null, updated_at: null } }
-  }
-
-  const respondedAt = response ? new Date().toISOString() : null
-  const { data: updatedRows, error: updateError } = await supabase
-    .from('estimates')
-    .update({ client_response: response, responded_at: respondedAt })
-    .eq('id', est.id)
-    .eq('company_id', companyId)
-    .eq('is_current', true)
-    .select('id, updated_at')
-
-  if (updateError || !updatedRows || updatedRows.length === 0) {
-    return { success: false, error: 'Failed to record the response' }
-  }
-  const newUpdatedAt = (updatedRows[0] as { updated_at?: string }).updated_at ?? null
-
-  // Keep the project status aligned with the answer (same as the public page);
-  // clearing returns it to what the estimate's own lifecycle implies.
-  await supabase
-    .from('projects')
-    .update({ status: response ?? (est.sent_at ? 'sent' : 'estimate_ready') })
-    .eq('id', est.project_id)
-
-  await supabase.from('estimate_activity').insert({
-    project_id: est.project_id,
-    company_id: est.company_id,
-    estimate_id: est.id,
-    event_type: response ? `estimate_${response}` : 'estimate_response_cleared',
-    metadata: { source: 'manual' },
+  // The evidence check, response, project status and activity share the same
+  // transaction/row lock as online signing. A separate precheck can race a signer.
+  const { data: result, error: updateError } = await supabase.rpc('record_estimate_response_atomic', {
+    p_estimate_id: est.id,
+    p_company_id: companyId,
+    p_expected_updated_at: est.updated_at,
+    p_response: response,
   })
+  if (updateError || !result) {
+    const code = updateError?.code
+    const error = code === 'P0022'
+      ? 'This estimate was signed online or has approved changes and cannot be changed'
+      : code === 'P0002' ? 'This estimate changed. Reload before recording a response.'
+      : code === 'P0003' ? 'Only the current version can be answered'
+      : 'Failed to record the response'
+    return { success: false, error }
+  }
+  const committed = result as { client_response: 'accepted' | 'declined' | null; responded_at: string | null; updated_at: string }
 
   // SEED-057 E3: an ACCEPTED estimate's prices become the company's own price
   // history; taking the acceptance back (declined / cleared) withdraws them.
@@ -144,6 +120,6 @@ export async function recordClientResponse(
 
   return {
     success: true,
-    data: { client_response: response, responded_at: respondedAt, updated_at: newUpdatedAt },
+    data: { client_response: committed.client_response, responded_at: committed.responded_at, updated_at: committed.updated_at },
   }
 }

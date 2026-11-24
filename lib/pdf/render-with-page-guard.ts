@@ -32,6 +32,8 @@ export interface PageGuardInput {
   computePages: (extraSafetyMarginPt: number) => PageAssignment[]
   /** Renders the document for the given pages. */
   render: (pages: PageAssignment[]) => Promise<Buffer>
+  /** Separate fixed pages, such as the signature certificate, outside the body plan. */
+  additionalPageCount?: number
   /** Called once per mismatching attempt. Must not throw (wrapped defensively anyway). */
   onDrift?: (report: PageDriftReport) => void
 }
@@ -52,11 +54,12 @@ export async function renderWithPageGuard(input: PageGuardInput): Promise<PageGu
     const pages = input.computePages(margins[i])
     const buffer = await input.render(pages)
     const realPages = countPdfPages(buffer)
-    const mismatched = realPages !== pages.length
+    const plannedPages = pages.length + (input.additionalPageCount ?? 0)
+    const mismatched = realPages !== plannedPages
     last = { buffer, pages, attempts: i + 1, mismatched }
     if (!mismatched) return last
     try {
-      input.onDrift?.({ attempt: i + 1, plannedPages: pages.length, realPages, extraSafetyMarginPt: margins[i] })
+      input.onDrift?.({ attempt: i + 1, plannedPages, realPages, extraSafetyMarginPt: margins[i] })
     } catch {
       // Reporting must never break rendering.
     }

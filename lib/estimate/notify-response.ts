@@ -75,7 +75,7 @@ async function deliverEstimateResponseNotifications(
       eventType,
       title: copy.title,
       body: copy.body,
-      linkUrl: `/projects/${estimate.project_id}/estimates/${estimate.id}`,
+      linkUrl: `/projects/${estimate.project_id}?tab=estimate&estimate=${estimate.id}`,
       resourceType: 'estimate',
       resourceId: estimate.id,
       copyContext: ctx,

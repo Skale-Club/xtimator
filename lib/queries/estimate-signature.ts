@@ -3,6 +3,7 @@ import type { SignedContentSnapshot } from '@/lib/estimate/signed-snapshot'
 import {
   buildSignatureEvidence,
   SIGNATURE_EVIDENCE_COLUMNS,
+  verifySignatureIntegrity,
   type SignatureEvidence,
   type SignatureEvidenceRow,
 } from '@/lib/estimate/signature-evidence'
@@ -49,14 +50,23 @@ export async function loadLatestSignedSnapshot(
   supabase: ReturnType<typeof requireServiceClient>,
   estimateId: string
 ): Promise<LatestSignedSnapshotRow | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('estimate_signatures')
-    .select('id, signer_name, signature_data, signed_at, signed_content, signed_total')
+    .select('id, signer_name, signature_data, signed_at, signed_content, signed_total, snapshot_sha256')
     .eq('estimate_id', estimateId)
     .order('signed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
+  if (error) throw new Error('Could not load the estimate signature', { cause: error })
+  const snapshot = data?.signed_content as SignedContentSnapshot | null | undefined
+  if (
+    (data?.snapshot_sha256 && verifySignatureIntegrity(snapshot, data.snapshot_sha256) !== 'verified') ||
+    (snapshot?.version === 3 && (!data?.snapshot_sha256 || !snapshot.identity ||
+      data.signed_total == null || Number(data.signed_total) !== snapshot.total))
+  ) {
+    throw new Error('The estimate signature does not match its signed document')
+  }
   return (data as LatestSignedSnapshotRow | null) ?? null
 }
 
@@ -69,16 +79,20 @@ export async function loadLatestSignedSnapshot(
  */
 export async function loadSignatureEvidence(
   supabase: ReturnType<typeof requireServiceClient>,
-  estimateId: string
+  estimateId: string,
+  signatureId?: string,
 ): Promise<SignatureEvidence | null> {
-  const { data } = await supabase
+  let query = supabase
     .from('estimate_signatures')
     .select(SIGNATURE_EVIDENCE_COLUMNS)
     .eq('estimate_id', estimateId)
+  if (signatureId) query = query.eq('id', signatureId)
+  const { data, error } = await query
     .order('signed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
+  if (error) throw new Error('Could not load the estimate signature evidence', { cause: error })
   if (!data) return null
   return buildSignatureEvidence(data as unknown as SignatureEvidenceRow)
 }

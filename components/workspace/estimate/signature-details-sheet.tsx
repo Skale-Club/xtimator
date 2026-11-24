@@ -115,7 +115,7 @@ export function SignatureDetailsSheet({ estimateId, open, onOpenChange, initialE
   const IntegrityIcon = integrity === 'verified' ? ShieldCheck : integrity === 'mismatch' ? ShieldAlert : ShieldQuestion
   const integrityText =
     integrity === 'verified'
-      ? t('Content unchanged since signing')
+      ? t('Stored snapshot matches its fingerprint')
       : integrity === 'mismatch'
         ? t('Stored content does not match its fingerprint')
         : t('Fingerprint not available for this signature')

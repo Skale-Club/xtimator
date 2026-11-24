@@ -29,6 +29,8 @@ import {
   type SnapshotSourceEstimate,
   type SnapshotSourceSection,
 } from '@/lib/estimate/signed-snapshot'
+import type { SignedDocumentIdentity } from '@/lib/estimate/signing-identity'
+import { getSigningConsent } from '@/lib/estimate/signing-consent'
 
 /** The company columns the snapshot freezes. */
 export interface SignableCompanyTerms {
@@ -44,14 +46,18 @@ export interface SignableCompanyTerms {
 export function buildSignableSnapshot(
   estimate: SnapshotSourceEstimate,
   sections: SnapshotSourceSection[],
-  company: SignableCompanyTerms | null | undefined
+  company: SignableCompanyTerms | null | undefined,
+  identity?: SignedDocumentIdentity,
 ): SignedContentSnapshot {
   return buildSignedContentSnapshot(estimate, sections, {
     companyTerms: {
       enabled: !!company?.estimate_terms_enabled,
       text: company?.estimate_terms_text ?? null,
     },
-    consent: { statement: SIGN_CONSENT_STATEMENT, key: SIGN_CONSENT_KEY },
+    consent: identity
+      ? getSigningConsent('estimate', identity.language)
+      : { statement: SIGN_CONSENT_STATEMENT, key: SIGN_CONSENT_KEY },
+    identity,
   })
 }
 
@@ -64,7 +70,8 @@ export function fingerprintSignedContent(snapshot: SignedContentSnapshot): strin
 export function computeContentFingerprint(
   estimate: SnapshotSourceEstimate,
   sections: SnapshotSourceSection[],
-  company: SignableCompanyTerms | null | undefined
+  company: SignableCompanyTerms | null | undefined,
+  identity?: SignedDocumentIdentity,
 ): string {
-  return fingerprintSignedContent(buildSignableSnapshot(estimate, sections, company))
+  return fingerprintSignedContent(buildSignableSnapshot(estimate, sections, company, identity))
 }

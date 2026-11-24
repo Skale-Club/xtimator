@@ -34,11 +34,13 @@ describe('Team and Staff consolidation', () => {
     expect(accept).toContain('display_name: displayName')
   })
 
-  it('keeps PDF attribution scoped to the creating team member and company', () => {
-    // Attribution moved from the route into the shared resolver in Phase 182
+  it('scopes live PDF attribution to the creating user and company', () => {
     const resolver = read('lib/pdf/render-estimate-pdf.ts')
-    expect(resolver).toContain(".select('display_name')")
-    expect(resolver).toContain(".eq('user_id', estimate.created_by_user_id)")
-    expect(resolver).toContain(".eq('company_id', estimate.company_id)")
+    const identity = read('lib/estimate/signing-identity.ts')
+    expect(resolver).toMatch(/await loadSigningPreparedBy\(\s*requireServiceClient\(\),\s*estimate\.company_id,\s*estimate\.created_by_user_id,/)
+    expect(identity).toContain(".from('company_members')")
+    expect(identity).toContain(".select('display_name')")
+    expect(identity).toContain(".eq('user_id', creatorId)")
+    expect(identity).toContain(".eq('company_id', companyId)")
   })
 })

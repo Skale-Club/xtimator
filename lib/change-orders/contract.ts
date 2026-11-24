@@ -127,12 +127,13 @@ async function loadContract(
 ): Promise<ContractSummary | null> {
   let estimateQuery = supabase.from('estimates').select(CONTRACT_ESTIMATE_COLUMNS).eq('id', estimateId)
   if (scope?.companyId) estimateQuery = estimateQuery.eq('company_id', scope.companyId)
-  const { data: estimateData } = await estimateQuery.maybeSingle()
+  const { data: estimateData, error: estimateError } = await estimateQuery.maybeSingle()
+  if (estimateError) throw new Error('Could not load the contract estimate', { cause: estimateError })
 
   const estimate = estimateData as ContractEstimateRow | null
   if (!estimate || estimate.is_current !== true || estimate.client_response !== 'accepted') return null
 
-  const [{ data: signatureData }, { data: coData }, { data: invoiceData }] = await Promise.all([
+  const [{ data: signatureData, error: signatureError }, { data: coData, error: coError }, { data: invoiceData }] = await Promise.all([
     supabase
       .from('estimate_signatures')
       .select('signed_total')
@@ -152,6 +153,8 @@ async function loadContract(
       .not('change_order_id', 'is', null)
       .in('status', ['open', 'paid']),
   ])
+  if (signatureError) throw new Error('Could not load the contract signature', { cause: signatureError })
+  if (coError) throw new Error('Could not load the contract change orders', { cause: coError })
 
   const invoiceStatusByCo = new Map<string, ChangeOrderInvoiceStatus>()
   for (const row of (invoiceData ?? []) as Array<{ change_order_id: string; status: string }>) {

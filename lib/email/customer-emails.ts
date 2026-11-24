@@ -34,6 +34,7 @@ export interface SendCustomerEmailParams {
   html: string
   text: string
   attachments?: CustomerEmailAttachment[]
+  idempotencyKey?: string
   /**
    * Phase 2b: attribution for the per-message cost row (who pays, why, billable).
    * Omitted = recorded as an 'unclassified', non-billable platform send.
@@ -69,17 +70,20 @@ export async function sendCustomerEmail(
   try {
     const { Resend } = await import('resend')
     const resend = new Resend(key)
-    const { data, error } = await resend.emails.send({
+    const payload = {
       from: customerEmailFrom(params.businessName),
       to: params.toEmail,
       subject: params.subject,
       html: params.html,
       text: params.text,
       ...(params.attachments?.length ? { attachments: params.attachments } : {}),
-    })
+    }
+    const { data, error } = params.idempotencyKey
+      ? await resend.emails.send(payload, { idempotencyKey: params.idempotencyKey })
+      : await resend.emails.send(payload)
 
     if (error) {
-      return { ok: false, error: error.message }
+      return { ok: false, error: params.idempotencyKey ? error.name : error.message }
     }
     // Phase 2b: record the per-message cost (best-effort, never throws).
     try {
@@ -95,7 +99,7 @@ export async function sendCustomerEmail(
   } catch (e) {
     console.warn(
       '[customer-emails] send failed:',
-      e instanceof Error ? e.message : String(e)
+      params.idempotencyKey ? 'receipt delivery attempt failed' : e instanceof Error ? e.message : String(e)
     )
     return { ok: false, error: 'send_failed' }
   }

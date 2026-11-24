@@ -10,13 +10,16 @@ import { headers } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import { loadSigningIdentity } from '@/lib/estimate/signing-identity'
+import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { resolveClientIp } from '@/lib/http/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
 import { isLikelyBotUserAgent } from '@/lib/security/bot-defense'
 import { loadPublicContractSummary, resolveEstimateNumber } from './contract'
-import { loadChangeOrder } from './load'
+import { loadChangeOrder, loadChangeOrderSigningContract } from './load'
+import { buildChangeOrderSnapshot, hashChangeOrderSnapshot } from './snapshot'
 import type { ChangeOrderInvoice, ContractSummary, PublicChangeOrderData } from './types'
 
 /**
@@ -59,30 +62,21 @@ async function loadPublicData(
   supabase: SupabaseClient,
   by: { id: string } | { token: string },
 ): Promise<PublicChangeOrderData | null> {
-  const changeOrder = await loadChangeOrder(supabase, by)
-  if (!changeOrder) return null
+  const document = await loadChangeOrder(supabase, by)
+  if (!document) return null
+  const { signedIdentity, signedEstimate, ...changeOrder } = document
 
-  const { data: estimateData } = await supabase
+  const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
     .select(
-      'id, project_id, share_token, public_slug_token, estimate_number, estimate_seq, version, responded_at, language',
+      'id, project_id, company_id, created_by_user_id, share_token, public_slug_token, estimate_number, estimate_seq, version, responded_at, language',
     )
     .eq('id', changeOrder.estimate_id)
     .maybeSingle()
-  if (!estimateData) return null
-  const estimate = estimateData as {
-    id: string
-    project_id: string
-    share_token: string
-    public_slug_token: string | null
-    estimate_number: string | null
-    estimate_seq: number | null
-    version: number | null
-    responded_at: string | null
-    language: string | null
-  }
+  if (estimateError) throw new Error('Could not load the parent estimate', { cause: estimateError })
+  if (!estimate) return null
 
-  const [{ data: projectData }, { data: companyData }, contract] = await Promise.all([
+  const [{ data: projectData, error: projectError }, { data: company, error: companyError }, contract, invoice] = await Promise.all([
     supabase
       .from('projects')
       .select('name, client:clients(name)')
@@ -96,44 +90,48 @@ async function loadPublicData(
       .eq('id', changeOrder.company_id)
       .maybeSingle(),
     loadPublicContractSummary(supabase, estimate.id, { allowEmpty: true }),
+    loadChangeOrderInvoice(supabase, changeOrder.id),
   ])
-  if (!companyData) return null
-  const invoice = await loadChangeOrderInvoice(supabase, changeOrder.id)
+  if (companyError) throw new Error('Could not load the change order contractor', { cause: companyError })
+  if (projectError) throw new Error('Could not load the change order project', { cause: projectError })
+  if (!company) return null
 
   const project = projectData as { name: string | null; client: { name: string | null } | { name: string | null }[] | null } | null
   const clientRel = Array.isArray(project?.client) ? project?.client[0] : project?.client
-  const company = companyData as {
-    id: string
-    name: string
-    slug: string | null
-    logo_url: string | null
-    phone: string | null
-    email: string | null
-    brand_primary_color: string | null
-    digital_signature_allowed: boolean | null
-    digital_signature_enabled: boolean | null
+  const reference = signedEstimate ?? {
+    number: resolveEstimateNumber(estimate),
+    acceptedAt: estimate.responded_at ?? null,
   }
-
-  const estimateNumber = resolveEstimateNumber(estimate)
+  const approvalEnabled = resolveDigitalSignature(company).active
+  const signable = contract !== null && changeOrder.status === 'sent' && !changeOrder.hasSignature && changeOrder.client_response === null
+  const signingContract = signable ? await loadChangeOrderSigningContract(supabase, changeOrder.id) : null
+  const identity = signedIdentity ?? (signable ? await loadSigningIdentity(supabase, estimate) : null)
+  const contentFingerprint = signingContract && identity
+    ? hashChangeOrderSnapshot(buildChangeOrderSnapshot(changeOrder, changeOrder.items, {
+        identity,
+        contract: signingContract,
+        estimate: reference,
+      }))
+    : null
 
   return {
     changeOrder,
     company: {
       id: company.id,
-      name: company.name,
+      name: identity ? identity.company.name : company.name,
       logo_url: company.logo_url ?? null,
-      phone: company.phone ?? null,
-      email: company.email ?? null,
+      phone: identity ? identity.company.phone : company.phone ?? null,
+      email: identity ? identity.company.email : company.email ?? null,
       brand_primary_color: company.brand_primary_color ?? null,
       // EFFECTIVE value (platform switch AND tenant switch); `_allowed` is never exposed.
-      digital_signature_enabled: resolveDigitalSignature(company).active,
+      digital_signature_enabled: approvalEnabled,
     },
     estimate: {
       id: estimate.id,
-      estimateNumber,
-      projectName: project?.name ?? '',
-      clientName: clientRel?.name ?? null,
-      acceptedAt: estimate.responded_at,
+      estimateNumber: reference.number,
+      projectName: identity ? identity.project.name : project?.name ?? '',
+      clientName: identity ? identity.client?.name ?? null : clientRel?.name ?? null,
+      acceptedAt: reference.acceptedAt,
       publicPath: buildEstimatePublicPath(
         { slug: company.slug ?? null, name: company.name },
         {
@@ -143,7 +141,7 @@ async function loadPublicData(
           project_name: project?.name ?? null,
         },
       ),
-      language: estimate.language ?? 'en',
+      language: identity?.language ?? (isSupportedLanguage(estimate.language) ? estimate.language : 'en'),
     },
     // Public contract card: drafts excluded. The current change order is always
     // part of the page data itself, so an unlisted one never breaks the view.
@@ -151,7 +149,7 @@ async function loadPublicData(
       contract ?? {
         estimateId: estimate.id,
         currencyCode: changeOrder.currency_code,
-        estimateNumber,
+        estimateNumber: reference.number,
         acceptedAt: estimate.responded_at,
         signedOnline: false,
         baseTotal: 0,
@@ -161,6 +159,8 @@ async function loadPublicData(
         contractTotal: 0,
       },
     contractActive: contract !== null,
+    signingContract,
+    contentFingerprint,
     invoice,
   }
 }

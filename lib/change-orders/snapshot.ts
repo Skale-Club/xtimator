@@ -9,10 +9,13 @@
 // from the stored jsonb regardless of how Postgres lays out the keys.
 import { createHash } from 'node:crypto'
 import { canonicalJsonStringify } from '@/lib/estimate/signed-snapshot'
+import { getSigningConsent } from '@/lib/estimate/signing-consent'
+import type { SignedDocumentIdentity } from '@/lib/estimate/signing-identity'
+import type { ChangeOrderSigningContract } from './types'
 
 export { canonicalJsonStringify }
 
-/** Consent statement shown to the signer (recorded verbatim in the snapshot). */
+/** Historical v1 evidence wording retained for reproducing legacy snapshots. */
 export const CHANGE_ORDER_CONSENT_STATEMENT =
   'By signing, you approve this change order and agree that the contract total changes by its amount.'
 export const CHANGE_ORDER_CONSENT_KEY = 'sign_change_order_consent_v1'
@@ -28,8 +31,19 @@ export interface ChangeOrderSnapshotItem {
   sort_order: number
 }
 
-export interface ChangeOrderSnapshot {
-  version: 1
+export interface ChangeOrderEstimateReference {
+  number: string
+  acceptedAt: string | null
+}
+
+type ChangeOrderSnapshotExtras = {
+  identity?: SignedDocumentIdentity
+  contract?: ChangeOrderSigningContract
+  estimate?: ChangeOrderEstimateReference
+}
+
+export interface ChangeOrderSnapshot extends ChangeOrderSnapshotExtras {
+  version: 1 | 2
   change_order_id: string
   estimate_id: string
   number: number
@@ -42,7 +56,7 @@ export interface ChangeOrderSnapshot {
   total: number
   currency_code: string
   items: ChangeOrderSnapshotItem[]
-  consent: { statement: string; key: string }
+  consent: { statement: string; key: string; locale?: SignedDocumentIdentity['language'] }
 }
 
 /** The fields of a change order the snapshot freezes (a ChangeOrder or a raw row satisfies it). */
@@ -74,9 +88,10 @@ export interface ChangeOrderSnapshotSourceItem {
 export function buildChangeOrderSnapshot(
   changeOrder: ChangeOrderSnapshotSource,
   items: ChangeOrderSnapshotSourceItem[],
+  extras?: ChangeOrderSnapshotExtras,
 ): ChangeOrderSnapshot {
   return {
-    version: 1,
+    version: extras ? 2 : 1,
     change_order_id: changeOrder.id,
     estimate_id: changeOrder.estimate_id,
     number: changeOrder.number,
@@ -88,6 +103,9 @@ export function buildChangeOrderSnapshot(
     tax_amount: Number(changeOrder.tax_amount) || 0,
     total: Number(changeOrder.total) || 0,
     currency_code: changeOrder.currency_code ?? 'USD',
+    ...(extras?.identity ? { identity: extras.identity } : {}),
+    ...(extras?.contract ? { contract: extras.contract } : {}),
+    ...(extras?.estimate ? { estimate: extras.estimate } : {}),
     items: [...items]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((item) => ({
@@ -100,7 +118,9 @@ export function buildChangeOrderSnapshot(
         taxable: item.taxable ?? true,
         sort_order: item.sort_order,
       })),
-    consent: { statement: CHANGE_ORDER_CONSENT_STATEMENT, key: CHANGE_ORDER_CONSENT_KEY },
+    consent: extras
+      ? getSigningConsent('change_order', extras.identity?.language)
+      : { statement: CHANGE_ORDER_CONSENT_STATEMENT, key: CHANGE_ORDER_CONSENT_KEY },
   }
 }
 

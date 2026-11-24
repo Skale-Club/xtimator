@@ -132,8 +132,12 @@ export default function ChangeOrderPDF({ data, language }: ChangeOrderPdfProps) 
 
   const number = formatChangeOrderNumber(estimate.estimateNumber, changeOrder.number)
   const countedInSummary = contract.changeOrders.some((r) => r.id === changeOrder.id && r.status === 'accepted')
-  const currentContract = Math.round((countedInSummary ? contract.contractTotal - changeOrder.total : contract.contractTotal) * 100) / 100
-  const newTotal = Math.round((currentContract + changeOrder.total) * 100) / 100
+  const liveBefore = Math.round((countedInSummary ? contract.contractTotal - changeOrder.total : contract.contractTotal) * 100) / 100
+  const hasSignature = Boolean(changeOrder.hasSignature || changeOrder.signature)
+  const documentContract = hasSignature ? changeOrder.signedContract : data.signingContract
+  // Legacy signatures have no historical totals to display.
+  const currentContract = documentContract?.before ?? (hasSignature ? null : liveBefore)
+  const newTotal = documentContract?.after ?? (hasSignature ? null : Math.round((liveBefore + changeOrder.total) * 100) / 100)
   const extraDays = changeOrder.extra_days && changeOrder.extra_days > 0 ? changeOrder.extra_days : null
   const contactParts = [
     company.phone ? formatPhoneForDisplay(company.phone) : null,
@@ -213,10 +217,12 @@ export default function ChangeOrderPDF({ data, language }: ChangeOrderPdfProps) 
 
         <View style={styles.totals} wrap={false}>
           <View style={styles.totalsBlock}>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>{L.currentContract}</Text>
-              <Text style={styles.totalsValue}>{money(currentContract)}</Text>
-            </View>
+            {currentContract !== null && (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>{L.currentContract}</Text>
+                <Text style={styles.totalsValue}>{money(currentContract)}</Text>
+              </View>
+            )}
             <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>{L.thisChangeOrder}</Text>
               <Text style={[styles.totalsValue, amountStyle(changeOrder.subtotal)]}>{money(changeOrder.subtotal)}</Text>
@@ -233,10 +239,12 @@ export default function ChangeOrderPDF({ data, language }: ChangeOrderPdfProps) 
                 <Text style={styles.totalsValue}>{`+${extraDays} ${extraDays === 1 ? L.day : L.days}`}</Text>
               </View>
             )}
-            <View style={styles.grandRow}>
-              <Text style={styles.grandText}>{L.newTotal}</Text>
-              <Text style={[styles.grandText, { color: brandText }]}>{money(newTotal)}</Text>
-            </View>
+            {newTotal !== null && (
+              <View style={styles.grandRow}>
+                <Text style={styles.grandText}>{L.newTotal}</Text>
+                <Text style={[styles.grandText, { color: brandText }]}>{money(newTotal)}</Text>
+              </View>
+            )}
           </View>
         </View>
 

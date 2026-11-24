@@ -6,6 +6,10 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { rateLimit } from '@/lib/ratelimit'
 import { isSameSignerRetry } from '@/lib/estimates/signer-retry'
+import { committedSigningResult } from '@/lib/estimates/signing-result'
+import { loadSigningIdentity } from '@/lib/estimate/signing-identity'
+import { loadChangeOrderSigningContract } from '@/lib/change-orders/load'
+import { resolveEstimateNumber } from '@/lib/change-orders/contract'
 import { notifyChangeOrderResponse } from '@/lib/change-orders/notify'
 import {
   buildChangeOrderSnapshot,
@@ -39,6 +43,7 @@ interface SignRequestBody {
   signatureData: string
   /** The change order's `updated_at` exactly as the public page rendered it. */
   contentVersion?: unknown
+  contentFingerprint?: unknown
 }
 
 type SignChangeOrderRow = ChangeOrderSnapshotSource & {
@@ -88,7 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { token, signerName, signerEmail, signatureData, contentVersion } = body
+    const { token, signerName, signerEmail, signatureData, contentVersion, contentFingerprint } = body
 
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 })
 
@@ -148,7 +153,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         changeOrder.client_response === 'accepted' &&
         (await isSameSignerRetry(supabase, 'change_order_signatures', changeOrder.id, trimmedName, signerEmailValue))
       ) {
-        return NextResponse.json({ ok: true, alreadySigned: true })
+        return NextResponse.json(await committedSigningResult(supabase, 'change_order', id, changeOrder.company_id, true))
       }
       return NextResponse.json({ error: 'already_responded' }, { status: 409 })
     }
@@ -158,6 +163,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'change_order_updated' }, { status: 409 })
     }
     const expectedUpdatedAt = contentVersion as string
+    if (typeof contentFingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(contentFingerprint)) {
+      return NextResponse.json({ error: 'change_order_updated' }, { status: 409 })
+    }
 
     const { data: itemsData, error: itemsError } = await supabase
       .from('change_order_items')
@@ -173,11 +181,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let snapshotSha256: string
     let signedContent: ReturnType<typeof buildChangeOrderSnapshot>
     try {
-      signedContent = buildChangeOrderSnapshot(changeOrder, itemsData as unknown as ChangeOrderSnapshotSourceItem[])
+      const { data: parent, error: parentError } = await supabase.from('estimates')
+        .select('id, company_id, project_id, created_by_user_id, language, estimate_number, estimate_seq, version, responded_at')
+        .eq('id', changeOrder.estimate_id).eq('company_id', changeOrder.company_id).single()
+      if (parentError || !parent) throw new Error('Could not load the accepted estimate')
+      const [identity, contract] = await Promise.all([
+        loadSigningIdentity(supabase, parent),
+        loadChangeOrderSigningContract(supabase, changeOrder.id),
+      ])
+      signedContent = buildChangeOrderSnapshot(changeOrder, itemsData as unknown as ChangeOrderSnapshotSourceItem[], {
+        identity, contract, estimate: { number: resolveEstimateNumber(parent), acceptedAt: parent.responded_at },
+      })
       snapshotSha256 = hashChangeOrderSnapshot(signedContent)
     } catch (snapshotError) {
       console.error('Change order snapshot build error:', snapshotError)
       return NextResponse.json({ error: 'Failed to build signature snapshot' }, { status: 500 })
+    }
+    if (snapshotSha256 !== contentFingerprint) {
+      return NextResponse.json({ error: 'change_order_updated' }, { status: 409 })
     }
 
     const { data: rpcData, error: rpcError } = await supabase.rpc('sign_change_order_atomic', {
@@ -201,7 +222,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
       if (code === SIGN_RPC_ALREADY_RESPONDED) {
         if (await isSameSignerRetry(supabase, 'change_order_signatures', changeOrder.id, trimmedName, signerEmailValue)) {
-          return NextResponse.json({ ok: true, alreadySigned: true })
+          return NextResponse.json(await committedSigningResult(supabase, 'change_order', id, changeOrder.company_id, true))
         }
         return NextResponse.json({ error: 'already_responded' }, { status: 409 })
       }
@@ -235,7 +256,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.warn('[change-order sign] notifyChangeOrderResponse failed:', notifyError)
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json(await committedSigningResult(supabase, 'change_order', id, changeOrder.company_id))
   } catch (error) {
     console.error('Change order sign endpoint error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

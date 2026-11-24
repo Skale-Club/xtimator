@@ -30,6 +30,15 @@ const mockNotify = vi.fn()
 const mockHeaders = vi.fn()
 const mockCookieGet = vi.fn()
 const mockHasValidUnlock = vi.fn()
+const SIGNING_IDENTITY = {
+  company: { name: 'Company', owner_name: null, phone: null, email: null, website: null, address: null, city: null, state: null, zip: null },
+  project: { name: 'Project', project_type: null }, client: null, preparedBy: null, language: 'en' as const,
+}
+vi.mock('@/lib/estimate/signing-identity', () => ({ loadSigningIdentity: async () => SIGNING_IDENTITY }))
+vi.mock('@/lib/estimates/signing-result', () => ({
+  committedSigningResult: async (_client: unknown, _kind: unknown, _id: unknown, _company: unknown, alreadySigned = false) =>
+    ({ success: true, ...(alreadySigned ? { alreadySigned: true } : {}) }),
+}))
 
 vi.mock('next/headers', () => ({
   headers: () => mockHeaders(),
@@ -61,7 +70,7 @@ const PAGE_VERSION = '2026-07-29T00:00:00.000Z'
 // estimate row, no sections, the default company terms. Lazy because the
 // fixtures it reads are declared further down.
 function pageFingerprint(sections: unknown[] = [], company: Record<string, unknown> = COMPANY_ROW): string {
-  return computeContentFingerprint(estimateRow(), sections as never, company)
+  return computeContentFingerprint(estimateRow(), sections as never, company, SIGNING_IDENTITY)
 }
 
 // Pass `contentVersion: undefined` / `contentFingerprint: undefined` to simulate

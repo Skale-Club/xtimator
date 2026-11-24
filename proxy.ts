@@ -41,7 +41,7 @@ const TELEGRAM_BLOG_WEBHOOK = '/api/blog/telegram/webhook'
 
 /** Token-authenticated client endpoints (exact shapes only, uuid ids). */
 const PUBLIC_SIGNING_ROUTE =
-  /^\/api\/(?:estimates\/[0-9a-f-]{36}\/sign|change-orders\/[0-9a-f-]{36}\/(?:sign|pdf))$/i
+  /^\/api\/(?:estimates\/[0-9a-f-]{36}\/(?:sign|pdf)|change-orders\/[0-9a-f-]{36}\/(?:sign|pdf))$/i
 
 const PUBLIC_PREFIXES = ['/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
@@ -115,7 +115,7 @@ export function isPublicRoute(pathname: string): boolean {
   }
   // The client signs from the public page with no session: these handlers
   // authenticate the request themselves with the share token in the body (sign)
-  // or the ?token= query / an owner session (change order PDF). Without this
+  // or the ?token= query / an owner session (PDF). Without this
   // exemption an anonymous POST to /api/estimates/{id}/sign got a 307 to
   // /?auth=login, so online signing never reached the route.
   if (PUBLIC_SIGNING_ROUTE.test(pathname)) {

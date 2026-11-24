@@ -21,8 +21,8 @@
  * - Same lock rule as estimates: editable until the client answers (accepted or
  *   declined) or signs. Sharing does not lock. A declined change order can be
  *   reopened by the owner (answer cleared, history kept).
- * - Signing proves the version: the client page sends the change order's
- *   updated_at as contentVersion; a mismatch is refused (409 change_order_updated).
+ * - Signing validates the change order version, its content fingerprint, and
+ *   the contract revision. Any mismatch requires the client to review again.
  * - Approved change orders count in the contract total; sent / draft / declined
  *   ones do not.
  */
@@ -49,6 +49,12 @@ export interface ChangeOrderSignature {
   signed_at: string
   /** data:image/png;base64,... */
   signature_data: string
+}
+
+export interface ChangeOrderSigningContract {
+  before: number
+  after: number
+  revision: string
 }
 
 export interface ChangeOrder {
@@ -85,6 +91,8 @@ export interface ChangeOrder {
   items: ChangeOrderItem[]
   hasSignature: boolean
   signature: ChangeOrderSignature | null
+  /** Historical totals captured at signing. Legacy signatures did not record them. */
+  signedContract?: ChangeOrderSigningContract | null
 }
 
 /** One row of the contract card / client page list. */
@@ -167,6 +175,10 @@ export interface PublicChangeOrderData {
    * offers no answer buttons. Absent (undefined) is treated as true.
    */
   contractActive?: boolean
+  /** Totals displayed to the signer for an unanswered change order. */
+  signingContract?: ChangeOrderSigningContract | null
+  /** Fingerprint of the document and contract revision currently shown for signing. */
+  contentFingerprint?: string | null
   /** This change order's own live invoice (open or paid), else null. */
   invoice: ChangeOrderInvoice | null
 }

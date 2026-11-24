@@ -15,7 +15,7 @@ import { getEstimateByShareToken, getEstimateByPublicToken } from '@/lib/queries
 type AnyRow = Record<string, unknown>
 
 const memberEq = vi.fn()
-let memberResult: { data: AnyRow | null } | Error = { data: null }
+let memberResult: { data: AnyRow | null; error?: { message: string } } | Error = { data: null }
 
 function installMock(estimateRow: AnyRow, companyRow: AnyRow) {
   memberEq.mockReset()
@@ -127,10 +127,16 @@ describe.each([
     expect((await load())!.preparedBy).toBe('Owner Olive')
   })
 
-  it('falls back to owner_name when the lookup throws (non-fatal)', async () => {
+  it('propagates a transport failure loading the preparer', async () => {
     memberResult = new Error('boom')
     installMock({ ...baseEstimate }, company)
-    expect((await load())!.preparedBy).toBe('Owner Olive')
+    await expect(load()).rejects.toThrow('boom')
+  })
+
+  it('rejects a database error instead of fingerprinting the fallback preparer', async () => {
+    memberResult = { data: null, error: { message: 'read failed' } }
+    installMock({ ...baseEstimate }, company)
+    await expect(load()).rejects.toThrow('Could not load the document preparer')
   })
 
   it('skips the lookup entirely when the estimate has no created_by_user_id', async () => {

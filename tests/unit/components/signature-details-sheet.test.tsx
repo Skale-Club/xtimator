@@ -44,7 +44,7 @@ describe('SignatureDetailsSheet', () => {
     expect(screen.getByText('Safari on iPhone')).toBeTruthy()
     expect(screen.getByText(/1,234\.50/)).toBeTruthy()
     expect(screen.getByTestId('signature-integrity').getAttribute('data-integrity')).toBe('verified')
-    expect(screen.getByText('Content unchanged since signing')).toBeTruthy()
+    expect(screen.getByText('Stored snapshot matches its fingerprint')).toBeTruthy()
     expect(screen.getByTestId('signature-sha256').textContent).toBe(HASH)
     expect(screen.getByText(/I agree to the terms/)).toBeTruthy()
   })

@@ -1158,6 +1158,12 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'assertCompanyWritable',
     ['notificationEmailDigest'],
   ),
+  ...guarded(
+    'lib/inngest/functions/signature-receipt.ts',
+    'assertCompanyWritable',
+    ['signatureReceiptJob'],
+    [{ path: 'lib/estimate/signature-receipt.ts', symbol: 'deliverSignatureReceipt' }],
+  ),
   ...excepted(
     'lib/inngest/functions/pipeline-watchdog.ts',
     'machine-signed',

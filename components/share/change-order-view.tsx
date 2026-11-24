@@ -15,14 +15,16 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { formatMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { ScopedLanguageProvider, type Language } from '@/lib/i18n/language-context'
-import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { ScopedLanguageProvider } from '@/lib/i18n/language-context'
+import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { formatCurrency } from '@/lib/utils/format'
 import { formatDate } from '@/lib/estimate/document/format'
+import type { DocumentSignature } from '@/lib/estimate/document/model'
+import { getSigningConsent } from '@/lib/estimate/signing-consent'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SignaturePad } from '@/components/share/signature-pad'
 import { ProposalBar } from '@/components/share/proposal-bar'
-import { formatChangeOrderNumber, type PublicChangeOrderData } from '@/lib/change-orders/types'
+import { formatChangeOrderNumber, type ChangeOrderSigningContract, type PublicChangeOrderData } from '@/lib/change-orders/types'
 
 interface ChangeOrderViewProps {
   data: PublicChangeOrderData
@@ -39,7 +41,7 @@ interface ChangeOrderViewProps {
 // scoped to the language the estimate was written in (same rule as
 // components/share/estimate-view.tsx).
 export function ChangeOrderView(props: ChangeOrderViewProps) {
-  const language = (props.data.estimate.language ?? 'en') as Language
+  const language = isSupportedLanguage(props.data.estimate.language) ? props.data.estimate.language : 'en'
   return (
     <ScopedLanguageProvider language={language} setLanguage={() => {}}>
       <ChangeOrderViewInner {...props} />
@@ -58,7 +60,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-type Blocked = 'answered' | 'unavailable' | null
+type Blocked = 'answered' | 'unavailable' | 'link_unavailable' | 'updated' | 'refreshing' | null
 
 function ChangeOrderViewInner({
   data,
@@ -70,16 +72,18 @@ function ChangeOrderViewInner({
   const { t } = useTranslation()
   const { changeOrder, company, estimate, contract } = data
   const currency = changeOrder.currency_code || 'USD'
-  const lang = (estimate.language ?? 'en') as EstimateLanguage
+  const consent = getSigningConsent('change_order', estimate.language)
+  const lang = consent.locale
 
   const initialResponse: 'accepted' | 'declined' | null =
     changeOrder.client_response ??
     (changeOrder.status === 'accepted' ? 'accepted' : changeOrder.status === 'declined' ? 'declined' : null)
   const [response, setResponse] = useState<'accepted' | 'declined' | null>(initialResponse)
   const [respondedAt, setRespondedAt] = useState<string | null>(changeOrder.responded_at)
-  // Kept locally after a successful sign so the approved card can show it
-  // without a reload.
-  const [localSignature, setLocalSignature] = useState<{ name: string; image: string } | null>(null)
+  const [signedApproval, setSignedApproval] = useState<{
+    signature: DocumentSignature
+    signedContract: ChangeOrderSigningContract
+  } | null>(null)
 
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [confirmingDecline, setConfirmingDecline] = useState(false)
@@ -89,14 +93,12 @@ function ChangeOrderViewInner({
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [updatedNotice, setUpdatedNotice] = useState(false)
-  // The parent estimate is no longer the current accepted one: no answer is possible.
   const [blocked, setBlocked] = useState<Blocked>(data.contractActive === false ? 'unavailable' : null)
   const noticeRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (updatedNotice) noticeRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-  }, [updatedNotice])
+    if (blocked) noticeRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  }, [blocked])
 
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   const brandText = ensureReadableOnWhite(brandColor)
@@ -112,31 +114,44 @@ function ChangeOrderViewInner({
 
   const number = formatChangeOrderNumber(estimate.estimateNumber, changeOrder.number)
   const acceptedOn = estimate.acceptedAt ? formatDate(estimate.acceptedAt, lang) : null
-  const respondedOn = respondedAt ? formatDate(respondedAt, lang) : null
+  const responseDate = signedApproval?.signature.signedAt ?? respondedAt
+  const respondedOn = responseDate ? formatDate(responseDate, lang) : null
 
-  // "Current contract" is the contract BEFORE this change order: when the loaded
-  // summary already counts it (approved when the page was loaded), take it back
-  // out. A change order approved on this very visit is not in the summary yet.
+  // For live totals, subtract an accepted change order already in the summary
+  // to get the amount before this change order.
   const countedInSummary = contract.changeOrders.some(
     (row) => row.id === changeOrder.id && row.status === 'accepted'
   )
-  const currentContract = round2(
+  const liveBefore = round2(
     countedInSummary ? contract.contractTotal - changeOrder.total : contract.contractTotal
   )
-  const newTotal = round2(currentContract + changeOrder.total)
+  const hasSignature = Boolean(signedApproval || changeOrder.hasSignature || changeOrder.signature)
+  const documentContract = signedApproval
+    ? signedApproval.signedContract
+    : hasSignature ? changeOrder.signedContract : data.signingContract
+  // Legacy signatures have no historical totals to display.
+  const currentContract = documentContract?.before ?? (hasSignature ? null : liveBefore)
+  const newTotal = documentContract?.after ?? (hasSignature ? null : round2(liveBefore + changeOrder.total))
   const extraDays = changeOrder.extra_days && changeOrder.extra_days > 0 ? changeOrder.extra_days : null
   const pdfHref = `/api/change-orders/${changeOrder.id}/pdf?token=${encodeURIComponent(token)}`
 
   function openSignature() {
+    if (!canRespond) return
+    setSignatureData(null)
     setError(null)
     setConfirmingDecline(false)
     setShowSignaturePad(true)
   }
 
+  function resetSignatureSheet() {
+    setShowSignaturePad(false)
+    setSignatureData(null)
+    setError(null)
+  }
+
   function closeSignature() {
     if (isSubmitting) return
-    setShowSignaturePad(false)
-    setError(null)
+    resetSignatureSheet()
   }
 
   async function handleDecline() {
@@ -165,6 +180,7 @@ function ChangeOrderViewInner({
   }
 
   async function handleSign() {
+    if (!canRespond || isSubmitting) return
     if (!signerName.trim()) {
       setError(t('Please enter your full name.'))
       return
@@ -185,53 +201,74 @@ function ChangeOrderViewInner({
           signerEmail: signerEmail.trim() || undefined,
           signatureData,
           contentVersion: changeOrder.updated_at,
+          contentFingerprint: data.contentFingerprint,
         }),
       })
+      const body: {
+        error?: string
+        alreadySigned?: boolean
+        signature?: DocumentSignature
+        signedContract?: ChangeOrderSigningContract | null
+      } | null = await res.json().catch(() => null)
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        if (res.status === 409 && body.error === 'change_order_updated') {
-          setUpdatedNotice(true)
-          setShowSignaturePad(false)
+        if (res.status === 409) {
+          switch (body?.error) {
+            case 'already_responded':
+              setBlocked('answered')
+              break
+            case 'contract_not_accepted':
+              setBlocked('unavailable')
+              break
+            default:
+              setBlocked('updated')
+          }
+        } else if (res.status === 404 || res.status === 410 || res.status === 403) {
+          setBlocked('link_unavailable')
+        } else {
+          setError(res.status === 429
+            ? t('Too many attempts. Please wait before trying again.')
+            : body?.error === 'Invalid signer email'
+              ? t('Please enter a valid email address')
+              : t('Something went wrong. Please try again.'))
           return
         }
-        if (res.status === 409 && body.error === 'already_responded') {
-          setBlocked('answered')
-          setShowSignaturePad(false)
-          return
-        }
-        if (res.status === 409 && body.error === 'contract_not_accepted') {
-          setBlocked('unavailable')
-          setShowSignaturePad(false)
-          return
-        }
-        throw new Error(body.error ?? t('Something went wrong'))
+        resetSignatureSheet()
+        return
       }
-      setLocalSignature({ name: signerName.trim(), image: signatureData })
+      resetSignatureSheet()
+      const signature = body?.signature
+      const signedContract = body?.signedContract
+      // A retry can come from a stale tab. Load the actual signed document.
+      if (body?.alreadySigned || !signature?.signerName || !signature.signedAt || !signature.signatureDataUrl || !signedContract) {
+        setBlocked('refreshing')
+        window.location.reload()
+        return
+      }
+      setSignedApproval({ signature, signedContract })
       setResponse('accepted')
-      setRespondedAt(new Date().toISOString())
-      setShowSignaturePad(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('Something went wrong'))
+    } catch {
+      setError(t('Something went wrong. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const signature = localSignature
-    ? { name: localSignature.name, image: localSignature.image, signedAt: respondedAt }
-    : changeOrder.signature
+  const signature = signedApproval?.signature ?? (
+    changeOrder.signature
       ? {
-          name: changeOrder.signature.signer_name,
-          image: changeOrder.signature.signature_data,
+          signerName: changeOrder.signature.signer_name,
+          signatureDataUrl: changeOrder.signature.signature_data,
           signedAt: changeOrder.signature.signed_at,
         }
       : null
+  )
 
   const card = 'rounded-lg border border-border bg-white p-4 shadow-sm sm:p-6'
   const eyebrow = 'text-xs font-semibold uppercase tracking-widest text-muted-foreground'
 
   return (
     <div
+      aria-busy={blocked === 'refreshing' || undefined}
       className={
         // Keep the last content clear of the fixed mobile action bar (+ iOS home indicator).
         showActionBar ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] sm:pb-0' : undefined
@@ -285,14 +322,16 @@ function ChangeOrderViewInner({
           </p>
         </header>
 
-        {updatedNotice && !answered && (
+        {(blocked === 'updated' || blocked === 'link_unavailable') && !answered && (
           <div
             ref={noticeRef}
             role="alert"
-            data-testid="change-order-updated-notice"
+            data-testid={blocked === 'updated' ? 'change-order-updated-notice' : 'change-order-link-unavailable-notice'}
             className="flex flex-col items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900 sm:flex-row sm:justify-between sm:text-left"
           >
-            <p>{t('This change order was just updated. Review the latest version before signing.')}</p>
+            <p>{blocked === 'updated'
+              ? t('This change order was just updated. Review the latest version before signing.')
+              : t('This link is no longer available. Please reload the page.')}</p>
             <Button size="sm" className="min-h-10" onClick={() => window.location.reload()}>
               {t('Load latest version')}
             </Button>
@@ -301,6 +340,7 @@ function ChangeOrderViewInner({
 
         {blocked === 'answered' && !answered && (
           <div
+            ref={noticeRef}
             role="alert"
             data-testid="change-order-answered-notice"
             className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900"
@@ -310,6 +350,7 @@ function ChangeOrderViewInner({
         )}
         {blocked === 'unavailable' && !answered && (
           <div
+            ref={noticeRef}
             role="alert"
             data-testid="change-order-unavailable-notice"
             className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900"
@@ -353,11 +394,11 @@ function ChangeOrderViewInner({
               <div className="mt-3 space-y-1" data-testid="approved-signature">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={signature.image}
-                  alt={t('Signed by {name}').replace('{name}', signature.name)}
+                  src={signature.signatureDataUrl}
+                  alt={t('Signed by {name}').replace('{name}', signature.signerName)}
                   className="h-14 w-auto max-w-full rounded border border-border bg-white object-contain"
                 />
-                <p className="text-sm font-medium">{signature.name}</p>
+                <p className="text-sm font-medium">{signature.signerName}</p>
               </div>
             )}
           </section>
@@ -403,10 +444,12 @@ function ChangeOrderViewInner({
 
         <section className={card} data-testid="change-order-totals">
           <dl className="space-y-2 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted-foreground">{t('Current contract')}</dt>
-              <dd className="tabular-nums">{formatCurrency(currentContract, currency)}</dd>
-            </div>
+            {currentContract !== null && (
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-muted-foreground">{t('Current contract')}</dt>
+                <dd className="tabular-nums">{formatCurrency(currentContract, currency)}</dd>
+              </div>
+            )}
             <div className="flex items-start justify-between gap-4">
               <dt className="text-muted-foreground">
                 {t('This change order')}
@@ -433,12 +476,14 @@ function ChangeOrderViewInner({
                 </dd>
               </div>
             )}
-            <div className="flex items-center justify-between gap-4 border-t-2 border-foreground/80 pt-3 text-base font-semibold">
-              <dt>{t('New total')}</dt>
-              <dd className="tabular-nums" style={{ color: brandText }}>
-                {formatCurrency(newTotal, currency)}
-              </dd>
-            </div>
+            {newTotal !== null && (
+              <div className="flex items-center justify-between gap-4 border-t-2 border-foreground/80 pt-3 text-base font-semibold">
+                <dt>{t('New total')}</dt>
+                <dd className="tabular-nums" style={{ color: brandText }}>
+                  {formatCurrency(newTotal, currency)}
+                </dd>
+              </div>
+            )}
           </dl>
         </section>
 
@@ -590,7 +635,7 @@ function ChangeOrderViewInner({
 
       {approvalEnabled && (
         <Dialog
-          open={showSignaturePad && !answered}
+          open={showSignaturePad && canRespond}
           onOpenChange={(open) => !open && closeSignature()}
         >
           {/* Portals to <body>, outside the forced-light share layout: re-declare
@@ -614,7 +659,7 @@ function ChangeOrderViewInner({
               </DialogTitle>
               <BottomSheetCloseButton label={t('Close')} disabled={isSubmitting} />
               <DialogDescription className="sr-only">
-                {t('By signing, you approve this change and the new contract total.')}
+                {consent.statement}
               </DialogDescription>
             </DialogHeader>
             <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-5 pb-5 pt-1 sm:gap-4 sm:px-6 sm:pb-6">
@@ -626,9 +671,9 @@ function ChangeOrderViewInner({
               onSignatureChange={setSignatureData}
               brandColor={brandColor}
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
             <p className="text-xs text-muted-foreground">
-              {t('By signing, you approve this change and the new contract total.')}
+              {consent.statement}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
