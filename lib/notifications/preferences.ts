@@ -63,13 +63,15 @@ export async function resolveChannels(
     whatsapp?: boolean
     sms?: boolean
   },
+  options: { throwOnReadError?: boolean } = {},
 ): Promise<ResolvedChannels> {
   // Unknown / dropped events resolve to the no-deliver `_dropped` defaults
   // (all channels false) — never crash on a missing category lookup.
   const category = EVENT_CATEGORIES[eventType] ?? '_dropped'
   const defaults = DEFAULT_PREFERENCES[category] ?? DEFAULT_PREFERENCES._dropped
 
-  const userPrefs = userId ? await getUserPreferences(userId) : null
+  const readPreferences = options.throwOnReadError ? readUserPreferences : getUserPreferences
+  const userPrefs = userId ? await readPreferences(userId) : null
   const userCat = (userPrefs?.categories?.[category] ?? {}) as {
     in_app?: boolean
     email?: boolean
@@ -106,20 +108,7 @@ export async function getUserPreferences(
   userId: string,
 ): Promise<UserPrefs | null> {
   try {
-    const svc = requireServiceClient()
-    const { data, error } = await svc
-      .from('notification_preferences')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle()
-    if (error) {
-      console.warn(
-        '[notifications.preferences] read failed:',
-        error.message,
-      )
-      return null
-    }
-    return (data as UserPrefs | null) ?? null
+    return await readUserPreferences(userId)
   } catch (e) {
     console.warn(
       '[notifications.preferences] unexpected:',
@@ -129,57 +118,43 @@ export async function getUserPreferences(
   }
 }
 
+/** Read persisted preferences for a mutation that must distinguish missing rows from failures. */
+export async function readUserPreferences(userId: string): Promise<UserPrefs | null> {
+  const { data, error } = await requireServiceClient()
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) {
+    console.warn('[notifications.preferences] read failed:', error.message)
+    throw new Error('Could not read notification preferences.')
+  }
+  return (data as UserPrefs | null) ?? null
+}
+
 export async function upsertUserPreferences(
   userId: string,
   patch: Partial<Omit<UserPrefs, 'user_id'>>,
 ): Promise<void> {
-  try {
-    const svc = requireServiceClient()
-    const existing = await getUserPreferences(userId)
-    const next = {
-      user_id: userId,
-      categories: {
-        ...(existing?.categories ?? {}),
-        ...(patch.categories ?? {}),
-      },
-      push_subscription:
-        patch.push_subscription !== undefined
-          ? patch.push_subscription
-          : (existing?.push_subscription ?? null),
-      email_digest_enabled:
-        patch.email_digest_enabled ??
-        existing?.email_digest_enabled ??
-        true,
-      // Phase 104 (NOTIF-05) — per-channel opt-in/consent. Only overwrite when
-      // the patch carries the field, else preserve the recorded value (consent
-      // timestamps are never silently cleared).
-      sms_opt_in_at:
-        patch.sms_opt_in_at !== undefined
-          ? patch.sms_opt_in_at
-          : (existing?.sms_opt_in_at ?? null),
-      sms_opt_in_consent_text:
-        patch.sms_opt_in_consent_text !== undefined
-          ? patch.sms_opt_in_consent_text
-          : (existing?.sms_opt_in_consent_text ?? null),
-      whatsapp_opt_in_at:
-        patch.whatsapp_opt_in_at !== undefined
-          ? patch.whatsapp_opt_in_at
-          : (existing?.whatsapp_opt_in_at ?? null),
-      updated_at: new Date().toISOString(),
+  const { categories, ...fields } = patch
+  const next: Record<string, unknown> = {
+    ...fields,
+    user_id: userId,
+    updated_at: new Date().toISOString(),
+  }
+  if (categories) {
+    const existing = await readUserPreferences(userId)
+    const merged = { ...existing?.categories }
+    for (const category of Object.keys(categories) as EventCategory[]) {
+      merged[category] = { ...merged[category], ...categories[category] }
     }
-    const { error } = await svc
-      .from('notification_preferences')
-      .upsert(next, { onConflict: 'user_id' })
-    if (error) {
-      console.warn(
-        '[notifications.preferences] upsert failed:',
-        error.message,
-      )
-    }
-  } catch (e) {
-    console.warn(
-      '[notifications.preferences] upsert unexpected:',
-      e instanceof Error ? e.message : String(e),
-    )
+    next.categories = merged
+  }
+  const { error } = await requireServiceClient()
+    .from('notification_preferences')
+    .upsert(next, { onConflict: 'user_id' })
+  if (error) {
+    console.warn('[notifications.preferences] upsert failed:', error.message)
+    throw new Error('Could not save notification preferences.')
   }
 }

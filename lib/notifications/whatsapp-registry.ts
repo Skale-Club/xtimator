@@ -8,16 +8,8 @@ import type { EventType } from './event-types'
  * language + a `variables` projector that turns the notify payload into the
  * ordered `{{n}}` body parameters `sendWhatsAppTemplate` expects.
  *
- * Events NOT in this map resolve to `null` → no WhatsApp send (silent no-op in
- * the dispatch branch). Paid/proactive channel: only mapped events ever fire.
- *
- * ⚠️ PROVISIONAL template names — these are the bootstrap seam. Wave 3 (104.3)
- * builds a super-admin panel that drives these event→template mappings from a
- * DB table (`whatsapp_notification_templates`). Until then this static registry
- * is the single source the dispatch reads. Each `templateName` must match a
- * template authored + APPROVED in Meta WhatsApp Manager under Xtimator's WABA.
- *
- * NO secrets — template names + language codes only.
+ * Static entries document the suggested names for Meta authoring. Runtime
+ * delivery resolves approved variants bound to the exact event in the registry.
  */
 
 export interface NotificationTemplate {
@@ -25,20 +17,6 @@ export interface NotificationTemplate {
   languageCode: string
   /** Projects the notify payload into ordered `{{n}}` body variables. */
   variables: (payload: { title: string; body: string }) => string[]
-  /**
-   * Phase 174 (TNT-03 / Pitfall 3) — the expected `{{n}}` variable count the
-   * approved Meta template requires. Sourced from a DB-approved row's
-   * `variables_schema.length` (0 when the column is unconfigured, its own
-   * default). Plan 174-04 builds a send-time guard on top of this field that
-   * refuses to send when the actual variable count doesn't match.
-   *
-   * NOTE: this is a structural NO-OP for the 5 static `REGISTRY` fallback
-   * entries below — they hardcode `2` to match `titleBodyVars`'s own fixed
-   * 2-element output, so the guard never blocks today's existing send
-   * behavior for unmigrated/static entries. Real dormancy for those 5 events
-   * comes from the opt-in consent gate (lib/notifications/preferences.ts) and
-   * Meta's own template-approval gate, not from this field.
-   */
   expectedVariableCount: number
 }
 
@@ -67,7 +45,7 @@ export const OWNER_BILLING_ALERT = 'owner_billing_alert'
 export const OWNER_UPDATE = 'owner_update'
 
 /** Event -> template name. Variables are always [title, body]. */
-const EVENT_TEMPLATE_NAMES: Partial<Record<EventType, string>> = {
+export const EVENT_TEMPLATE_NAMES = {
   // Estimate lifecycle: owner wants to know the moment a client acts. viewed and
   // expired reuse owner_estimate_update ({{1}} title, {{2}} body) because their
   // copy already fits the two-variable shape.
@@ -79,13 +57,13 @@ const EVENT_TEMPLATE_NAMES: Partial<Record<EventType, string>> = {
   'payment.received': OWNER_BILLING_ALERT,
   'quota.exhausted': OWNER_BILLING_ALERT,
   'trial.expiring_3d': OWNER_BILLING_ALERT,
-}
+} satisfies Partial<Record<EventType, string>>
 
 export function getTemplateForEvent(
   eventType: EventType,
   language: OwnerTemplateLanguage = 'en',
 ): NotificationTemplate | null {
-  const templateName = EVENT_TEMPLATE_NAMES[eventType]
+  const templateName = (EVENT_TEMPLATE_NAMES as Partial<Record<EventType, string>>)[eventType]
   if (!templateName) return null
   return {
     templateName,
@@ -116,18 +94,57 @@ export function getOwnerUpdateTemplate(
   }
 }
 
-/**
- * Wave-3 (104.3) DB-backed resolver: resolve an APPROVED row from
- * `whatsapp_notification_templates` (the super-admin panel registry) for an
- * event, falling back to the static REGISTRY above when no approved DB row
- * matches. Reads via the service client (the table is service-role-only).
- *
- * Seam note: the synchronous `getTemplateForEvent` above remains the source for
- * the existing Wave-2 dispatch path (it must stay sync + side-effect-free for the
- * frozen Wave-2 tests). The dispatch MAY adopt this async variant later once the
- * DB registry is populated + approved; until then this is the forward path that
- * lets approved DB rows drive `getTemplateForEvent` per the plan must-have.
- */
+export type NotificationTemplateVariant = {
+  template_name: string
+  language_code: string
+  meta_template_id: string | null
+  status: string
+  variables_schema: unknown
+  quick_reply_count?: number
+}
+
+export function isApprovedNotificationTemplate(row: NotificationTemplateVariant): boolean {
+  return row.status === 'approved' &&
+    Boolean(row.meta_template_id) &&
+    Array.isArray(row.variables_schema) &&
+    row.variables_schema.length === 2 &&
+    (row.quick_reply_count ?? 0) === 0
+}
+
+export function isApprovedOwnerUpdateTemplate(row: NotificationTemplateVariant): boolean {
+  return row.template_name === OWNER_UPDATE &&
+    row.status === 'approved' &&
+    Boolean(row.meta_template_id) &&
+    Array.isArray(row.variables_schema) &&
+    row.variables_schema.length === 1 &&
+    (row.quick_reply_count ?? 0) === 0
+}
+
+/** Resolve the unbound template used by business-initiated estimate session reminders. */
+export async function getApprovedOwnerUpdateTemplate(
+  payload: { title: string; body: string },
+  language: OwnerTemplateLanguage,
+): Promise<ReturnType<typeof getOwnerUpdateTemplate> | null> {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/service')
+    const svc = createServiceClient()
+    if (!svc) return null
+    const template = getOwnerUpdateTemplate(payload, language)
+    const { data, error } = await svc
+      .from('whatsapp_notification_templates')
+      .select('template_name, language_code, meta_template_id, status, variables_schema, quick_reply_count')
+      .eq('template_name', template.name)
+      .eq('language_code', template.languageCode)
+      .eq('status', 'approved')
+    if (error) throw error
+    return data?.some(isApprovedOwnerUpdateTemplate) ? template : null
+  } catch (err) {
+    console.warn('[whatsapp-registry] approved owner update template lookup failed:', err)
+    return null
+  }
+}
+
+/** Resolve an approved exact event in the owner's locale, with English as a fallback. */
 export async function getApprovedTemplateForEvent(
   eventType: EventType,
   language: OwnerTemplateLanguage = 'en',
@@ -137,35 +154,30 @@ export async function getApprovedTemplateForEvent(
     // sync path (and to avoid pulling server-only deps into static analysis).
     const { createServiceClient } = await import('@/lib/supabase/service')
     const svc = createServiceClient()
-    if (!svc) return getTemplateForEvent(eventType, language)
+    if (!svc) return null
 
-    // Prefer the approved row in the owner's language; otherwise any approved row.
-    const base = () =>
-      svc
-        .from('whatsapp_notification_templates')
-        .select('template_name, language_code, variables_schema')
-        .eq('event_type', eventType)
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(1)
     const wanted = templateLanguageCode(language)
-    const localized = await base().eq('language_code', wanted).maybeSingle()
-    const { data } = localized.data ? localized : await base().maybeSingle()
-
-    if (data?.template_name) {
+    const { data, error } = await svc
+      .from('whatsapp_notification_templates')
+      .select('template_name, language_code, meta_template_id, status, variables_schema, quick_reply_count')
+      .eq('event_type', eventType)
+      .eq('status', 'approved')
+      .in('language_code', wanted === 'en_US' ? [wanted] : [wanted, 'en_US'])
+      .order('updated_at', { ascending: false })
+    if (error) throw error
+    const approved = (data ?? []).filter(isApprovedNotificationTemplate)
+    const row = approved.find((variant) => variant.language_code === wanted)
+      ?? approved.find((variant) => variant.language_code === 'en_US')
+    if (row?.template_name) {
       return {
-        templateName: data.template_name as string,
-        languageCode: (data.language_code as string) ?? 'en_US',
+        templateName: row.template_name,
+        languageCode: row.language_code,
         variables: titleBodyVars,
-        // Defensive: variables_schema defaults to '[]'::jsonb in the DB, but
-        // guard against null/non-array values regardless — never throw here.
-        expectedVariableCount: Array.isArray(data.variables_schema)
-          ? data.variables_schema.length
-          : 0,
+        expectedVariableCount: 2,
       }
     }
   } catch (err) {
-    console.warn('[whatsapp-registry] getApprovedTemplateForEvent fell back to static map:', err)
+    console.warn('[whatsapp-registry] approved template lookup failed:', err)
   }
-  return getTemplateForEvent(eventType, language)
+  return null
 }

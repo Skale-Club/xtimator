@@ -275,7 +275,7 @@ export async function removeMember(
     return { error: 'The company owner cannot be removed.' }
   }
 
-  // 4. Delete the membership row.
+  // 4. Deleting the membership revokes its WhatsApp senders in the same DB transaction.
   const { error: deleteError } = await service
     .from('company_members')
     .delete()

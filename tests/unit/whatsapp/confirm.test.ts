@@ -26,7 +26,7 @@ vi.mock('@/lib/notifications/deliver-estimate-to-client', async (importOriginal)
 // confirm path (processConfirmationReply → actionSend/actionCancel → delivery
 // formats) keeps its coverage without an LLM. Natural-language edits are the
 // agent's job and are covered by the agent's own tests, not here.
-const HELP_REPLY = 'Reply *send* to deliver the estimate to your client, or *cancel* to discard it.'
+const HELP_REPLY = 'Reply *send* to deliver the estimate to your client, or *cancel* to close the confirmation.'
 
 vi.mock('@/lib/whatsapp/agent', () => ({
   runConfirmationAgent: vi.fn(async (
@@ -49,14 +49,15 @@ vi.mock('@/lib/whatsapp/agent', () => ({
       logOutboundMessage(supabase, { companyId, contactPhone: ownerPhone, body, msgType: 'text', status: 'sent' }).catch(() => undefined)
     }
 
+    const scope = { session: session as never, companyId, ownerPhone, messageId: 'wamid.confirm' }
     if (verb === 'send') {
-      const result = await actionSend(session as never, companyId, supabase)
+      const result = await actionSend(scope, supabase)
       await reply(describeSendResult(result))
       return
     }
     if (verb === 'cancel') {
-      await actionCancel(session as never, supabase)
-      await reply("❌ Estimate discarded. Send a new audio, text, or photo when you're ready.")
+      await actionCancel(scope, supabase)
+      await reply('WhatsApp confirmation closed. The estimate stays in the app.')
       return
     }
     await reply(HELP_REPLY)
@@ -66,6 +67,7 @@ vi.mock('@/lib/whatsapp/agent', () => ({
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { deliverEstimateToClient, getClientContacts } from '@/lib/notifications/deliver-estimate-to-client'
+import { runStandaloneConfirmation } from '@/lib/whatsapp/agent-tools'
 
 const mockSend = vi.mocked(sendWhatsAppMessage)
 const mockContacts = vi.mocked(getClientContacts)
@@ -89,36 +91,20 @@ const BASE_ESTIMATE = {
 }
 
 function makeSupabase({ clientId = 'client-1' as string | null } = {}) {
-  const deleteSpy = vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ error: null }),
-  })
-  // Chainable update builder: supports .eq().eq().is() and is directly awaitable
-  const makeUpdateChain = (): object => {
-    const chain: Record<string, unknown> = {}
-    chain['eq'] = vi.fn().mockReturnValue(chain)
-    chain['is'] = vi.fn().mockReturnValue(chain)
-    chain['then'] = (res: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(res)
-    chain['catch'] = (rej: (e: unknown) => unknown) => Promise.resolve({ error: null }).catch(rej)
-    return chain
+  const single = (data: unknown) => {
+    const query = { select: () => query, eq: () => query, single: async () => ({ data, error: null }) }
+    return query
   }
-  const updateSpy = vi.fn().mockImplementation(makeUpdateChain)
-  const single = (data: unknown) => ({
-    select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data, error: null }) }),
-    }),
-    update: updateSpy,
-    delete: deleteSpy,
-  })
-
-  const fromMock = vi.fn().mockImplementation((table: string) => {
+  const from = vi.fn((table: string) => {
     if (table === 'estimates') return single(BASE_ESTIMATE)
     if (table === 'projects') return single({ id: 'project-1', client_id: clientId, name: 'Kitchen' })
     if (table === 'companies') return single({ name: 'Acme Builders', slug: 'acme' })
-    if (table === 'whatsapp_sessions') return { delete: deleteSpy }
-    return { delete: deleteSpy, update: updateSpy }
+    throw new Error(`Unexpected table ${table}`)
   })
+  const rpc = vi.fn(async (name: string) => ({ data: name === 'whatsapp_claim_estimate_command'
+    ? { status: 'claimed', command_id: 'command-1' } : null, error: null }))
+  return { client: { from, rpc } as never, from, rpc }
 
-  return { client: { from: fromMock } as never, deleteSpy, updateSpy }
 }
 
 const ownerMessage = () =>
@@ -144,13 +130,24 @@ describe('processConfirmationReply', () => {
     it('handles "cancel" with trailing punctuation', async () => {
       const { client } = makeSupabase()
       await processConfirmationReply('cancel!', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-      expect(ownerMessage()).toMatch(/discarded/i)
+      expect(ownerMessage()).toMatch(/confirmation closed/i)
     })
   })
 
   describe('"send" — client delivery by email/SMS only', () => {
+    it('a standalone confirmation cannot deliver against a stale session', async () => {
+      const { client, from, rpc } = makeSupabase()
+      rpc.mockResolvedValueOnce({ data: { status: 'stale', command_id: 'closed' }, error: null })
+      const reply = await runStandaloneConfirmation({
+        session: BASE_SESSION, companyId: COMPANY_ID, ownerPhone: OWNER_PHONE, messageId: 'wamid.stale',
+      }, client, 'send', 'en')
+      expect(reply).toMatch(/changed or expired/i)
+      expect(from).not.toHaveBeenCalled()
+      expect(mockDeliver).not.toHaveBeenCalled()
+    })
+
     it('with email and phone: delivers through the platform, marks sent, deletes session, never WhatsApps the client', async () => {
-      const { client, deleteSpy, updateSpy } = makeSupabase()
+      const { client, rpc } = makeSupabase()
       mockContacts.mockResolvedValue({ clientId: 'client-1', clientName: 'Johnson', email: 'j@example.com', phone: '+15559876543' })
       mockDeliver.mockResolvedValue({ status: 'sent', sent: ['email', 'sms'], failed: [] })
 
@@ -168,8 +165,10 @@ describe('processConfirmationReply', () => {
 
       // One short owner confirmation naming the channels.
       expect(ownerMessage()).toMatch(/sent to Johnson by email and SMS/)
-      expect(updateSpy).toHaveBeenCalledWith({ status: 'sent' })
-      expect(deleteSpy).toHaveBeenCalled()
+      expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+        'whatsapp_claim_estimate_command', 'whatsapp_prepare_estimate_delivery', 'whatsapp_finish_estimate_command',
+      ])
+      expect(args.command?.commandId).toBe('command-1')
     })
 
     it('with only a phone: SMS only, confirmed to the owner', async () => {
@@ -184,21 +183,20 @@ describe('processConfirmationReply', () => {
     })
 
     it('with no phone and no email: nothing is sent or changed, owner is asked for a contact', async () => {
-      const { client, deleteSpy, updateSpy } = makeSupabase({ clientId: null })
+      const { client, rpc } = makeSupabase({ clientId: null })
       mockContacts.mockResolvedValue(null)
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
       expect(mockDeliver).not.toHaveBeenCalled()
-      expect(updateSpy).not.toHaveBeenCalled()
-      expect(deleteSpy).not.toHaveBeenCalled()
+      expect(rpc.mock.calls.map(([name]) => name)).toEqual(['whatsapp_claim_estimate_command', 'whatsapp_finish_estimate_command'])
       expect(mockSend).toHaveBeenCalledOnce()
       expect(ownerMessage()).toMatch(/no phone or email on file/i)
-      expect(ownerMessage()).toMatch(/set_client/)
+      expect(ownerMessage()).toMatch(/send me their name and phone/i)
     })
 
     it('when every channel is blocked: not marked sent, session kept, reason given', async () => {
-      const { client, deleteSpy, updateSpy } = makeSupabase()
+      const { client, rpc } = makeSupabase()
       mockContacts.mockResolvedValue({ clientId: 'client-1', clientName: 'Johnson', email: null, phone: '+15559876543' })
       mockDeliver.mockResolvedValue({ status: 'not_delivered', failed: [{ channel: 'sms', ok: false, reason: 'no_consent' }] })
 
@@ -206,27 +204,23 @@ describe('processConfirmationReply', () => {
 
       expect(ownerMessage()).toMatch(/Not sent to Johnson/)
       expect(ownerMessage()).toMatch(/not agreed to SMS/)
-      expect(updateSpy).not.toHaveBeenCalledWith({ status: 'sent' })
-      expect(deleteSpy).not.toHaveBeenCalled()
+      expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+        'whatsapp_claim_estimate_command', 'whatsapp_prepare_estimate_delivery', 'whatsapp_finish_estimate_command',
+      ])
     })
   })
 
   describe('"cancel" command', () => {
-    it('deletes project (cascade), deletes session, confirms to owner', async () => {
-      const { client, deleteSpy } = makeSupabase()
-
+    it('closes only the approved session and preserves estimate and project access', async () => {
+      const { client, from, rpc } = makeSupabase()
       await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-
-      expect(deleteSpy).toHaveBeenCalled()
-      expect(ownerMessage()).toMatch(/discarded/i)
+      expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+        'whatsapp_claim_estimate_command', 'whatsapp_cancel_estimate_session', 'whatsapp_finish_estimate_command',
+      ])
+      expect(from).not.toHaveBeenCalledWith('projects')
+      expect(from).not.toHaveBeenCalledWith('estimates')
+      expect(ownerMessage()).toMatch(/estimate stays in the app/i)
     })
 
-    it('does not update estimate or project status on cancel', async () => {
-      const { client, updateSpy } = makeSupabase()
-
-      await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-
-      expect(updateSpy).not.toHaveBeenCalled()
-    })
   })
 })

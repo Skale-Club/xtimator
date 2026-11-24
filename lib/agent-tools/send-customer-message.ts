@@ -258,13 +258,14 @@ export async function confirmSendByChannelRef(
   supabase: SupabaseClient,
   companyId: string,
   channelRef: string,
+  expectedPendingId?: string,
 ): Promise<ConfirmSendResult> {
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
   if (await billingEditDenied(companyId)) return { ok: false, error: 'paywalled' }
 
   const pending = await resolvePendingByChannelRef(supabase, companyId, channelRef)
-  if (!pending) {
+  if (!pending || (expectedPendingId !== undefined && pending.id !== expectedPendingId)) {
     return { ok: false, error: 'not_found' }
   }
   return finalizeConfirmedSend(supabase, pending)
@@ -290,12 +291,13 @@ export async function cancelSendByChannelRef(
   supabase: SupabaseClient,
   companyId: string,
   channelRef: string,
+  expectedPendingId?: string,
 ): Promise<{ ok: boolean }> {
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
 
   const pending = await resolvePendingByChannelRef(supabase, companyId, channelRef)
-  if (!pending) {
+  if (!pending || (expectedPendingId !== undefined && pending.id !== expectedPendingId)) {
     return { ok: false }
   }
   await markCancelled(supabase, pending.id)

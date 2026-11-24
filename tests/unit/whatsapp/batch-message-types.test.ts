@@ -54,7 +54,6 @@ function makeChainableClient() {
 
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'recordings') return { insert: (...a: unknown[]) => recordingsInsert(...a) }
-    if (table === 'whatsapp_sessions') return { insert: vi.fn().mockResolvedValue({ error: null }) }
     if (table === 'estimates') {
       return { select, delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
     }
@@ -66,7 +65,7 @@ function makeChainableClient() {
       delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
     }
   })
-  return { from } as never
+  return { from, rpc: vi.fn().mockResolvedValue({ data: true, error: null }) } as never
 }
 
 vi.mock('@/lib/supabase/service', () => ({

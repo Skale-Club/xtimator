@@ -146,6 +146,7 @@ export type AnalyzePhotosPayload = {
 }
 
 export type WhatsAppProcessPayload = {
+  senderUserId?: string | null
   companyId: string
   projectId: string
   ownerPhone: string
@@ -164,6 +165,9 @@ export type WhatsAppProcessPayload = {
  * processInboundMessages expects for the CREATE path).
  */
 export type WhatsAppIntentPayload = {
+  senderUserId?: string | null
+  /** Pending customer-message draft at route capture. Null records its absence. */
+  pendingSendId?: string | null
   companyId: string
   ownerPhone: string
   fromPhone: string

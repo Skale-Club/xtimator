@@ -27,11 +27,12 @@ export async function loadAdminConversationThread(
   await requireAdmin()
   const svc = requireServiceClient()
 
-  const { data: convData } = await svc
+  const { data: convData, error: conversationError } = await svc
     .from('whatsapp_conversations')
     .select('*')
     .eq('id', conversationId)
     .maybeSingle()
+  if (conversationError) return { ok: false, error: 'Could not load this conversation.' }
   const conversation = (convData as WaConversationRow | null) ?? null
   if (!conversation) return { ok: false, error: 'Conversation not found' }
 
@@ -42,13 +43,14 @@ export async function loadAdminConversationThread(
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  const { data: messages } = await svc
+  const { data: messages, error: messagesError } = await svc
     .from('whatsapp_messages')
     .select('*')
     .eq('conversation_id', conversationId)
     .gte('created_at', cutoff)
     .order('created_at', { ascending: true })
     .limit(1000)
+  if (messagesError) return { ok: false, error: 'Could not load messages for this conversation.' }
   const rawMessages = (messages ?? []) as WaMessageRow[]
 
   // Enrich audio/image messages with fresh 1-hour signed URLs. The DB stores

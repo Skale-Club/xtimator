@@ -113,14 +113,14 @@ describe('WhatsAppTemplatesPanel', () => {
     expect(screen.getAllByText('Submit to Meta')).toHaveLength(1)
   })
 
-  it('shows "Check status now" for any row with a meta_template_id and hides it for a draft row with none', () => {
+  it('allows status reconciliation for both submitted and local rows', () => {
     const rows = [
       makeRow({ id: 'r1', status: 'draft', meta_template_id: null }),
       makeRow({ id: 'r2', status: 'pending', meta_template_id: 'meta-1' }),
     ]
     render(<WhatsAppTemplatesPanel templates={rows} />)
 
-    expect(screen.getAllByText('Check status now')).toHaveLength(1)
+    expect(screen.getAllByText('Check status now')).toHaveLength(2)
   })
 
   it('clicking "Check status now" calls checkTemplateStatus with that row\'s id', async () => {
@@ -134,8 +134,8 @@ describe('WhatsAppTemplatesPanel', () => {
 
   it('shows rejection_reason + Edit & Resubmit for a rejected row, Edit & Resubmit for an approved row, and neither for draft/pending', () => {
     const rows = [
-      makeRow({ id: 'r1', status: 'rejected', rejection_reason: 'Body too promotional' }),
-      makeRow({ id: 'r2', status: 'approved' }),
+      makeRow({ id: 'r1', status: 'rejected', rejection_reason: 'Body too promotional', meta_template_id: 'meta-r1' }),
+      makeRow({ id: 'r2', status: 'approved', meta_template_id: 'meta-r2' }),
       makeRow({ id: 'r3', status: 'draft' }),
       makeRow({ id: 'r4', status: 'pending' }),
     ]
@@ -149,6 +149,7 @@ describe('WhatsAppTemplatesPanel', () => {
     const row = makeRow({
       id: 'row-rejected',
       status: 'rejected',
+      meta_template_id: 'meta-edit',
       rejection_reason: 'Body too promotional',
       body_text: 'Hi {{1}}, your invoice is ready.',
       variables_schema: [{ label: 'Client name', example: 'John' }],
@@ -189,7 +190,7 @@ describe('WhatsAppTemplatesPanel', () => {
         expect.objectContaining({
           template_name: 'owner_billing_alert',
           language_code: 'en_US',
-          event_category: 'billing',
+          event_type: null,
           body_text: 'stub body',
           variables_schema: [{ label: 'x', example: 'y' }],
         }),

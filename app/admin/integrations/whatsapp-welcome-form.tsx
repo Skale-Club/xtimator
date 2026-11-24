@@ -42,14 +42,15 @@ export function WhatsAppWelcomeForm({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
+    <div id="whatsapp-welcome" className="scroll-mt-8 rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
       <div>
         <h3 className="text-sm font-semibold">WhatsApp welcome</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          The template (approved in Meta, utility category, with a quick-reply button) is sent
+          The Meta-approved template must have one quick-reply button and no body variables. It is sent
           right after onboarding to owners who gave WhatsApp consent. When they reply, the bot
           sends a short welcome sequence that includes the video below. Empty = not set (the
-          template is skipped; a text placeholder replaces the video).
+          template is skipped; a short usage guide replaces the video). Import the matching
+          locale in Inbox Settings before activation.
         </p>
       </div>
       <div className="grid gap-6 max-w-2xl">
@@ -61,7 +62,7 @@ export function WhatsAppWelcomeForm({
               value={templateNames[key]}
               onChange={(e) => setTemplateNames({ ...templateNames, [key]: e.target.value })}
               disabled={isPending}
-              placeholder="e.g. welcome_start_pt"
+              placeholder="e.g. owner_welcome_start"
             />
           </div>
         ))}

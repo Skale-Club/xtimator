@@ -117,6 +117,16 @@ describe('sendOwnerWhatsApp: Meta 131047 / 131049', () => {
     expect(res).toMatchObject({ ok: false, error: 'send_failed' })
     expect(sendTemplate).not.toHaveBeenCalled()
   })
+
+  it.each([
+    [new WhatsAppSendError(400, 130429, 'rate limited'), 'retryable'],
+    [new WhatsAppSendError(400, 131009, 'invalid params'), 'permanent'],
+    [new WhatsAppSendError(502, null, 'gateway unavailable'), 'ambiguous'],
+    [new TypeError('connection reset'), 'ambiguous'],
+  ])('reports the delivery disposition for %s', async (error, deliveryFailure) => {
+    sendTemplate.mockRejectedValue(error)
+    await expect(run(null)).resolves.toMatchObject({ ok: false, error: 'send_failed', deliveryFailure })
+  })
 })
 
 describe('getOwnerLastInboundAt', () => {

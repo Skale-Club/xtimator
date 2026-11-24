@@ -2,16 +2,11 @@
 
 import { getAuthClaims } from '@/lib/queries/auth'
 import { assertWritable } from '@/lib/demo/guard'
-import { getUserPreferences, upsertUserPreferences } from '@/lib/notifications/preferences'
+import { readUserPreferences, upsertUserPreferences } from '@/lib/notifications/preferences'
+import { WHATSAPP_NOTIFICATION_CATEGORIES } from '@/lib/notifications/event-types'
 import { sendWelcomeTemplateForUser } from '@/lib/whatsapp/welcome-template'
 
-/**
- * Records the owner's explicit WhatsApp consent (notification_preferences.whatsapp_opt_in_at).
- * Meta requires consent before we send the welcome template. Called from the
- * onboarding checkbox, which is pre-unchecked: this runs only when the owner ticked it.
- * Idempotent: an existing consent timestamp is never overwritten.
- */
-export async function recordWhatsAppOptIn(): Promise<{ ok: true } | { error: string }> {
+async function setWhatsAppConsent(enabled: boolean): Promise<{ ok: true } | { error: string }> {
   const claims = await getAuthClaims()
   if (!claims?.sub) return { error: 'Not authenticated' }
 
@@ -19,13 +14,36 @@ export async function recordWhatsAppOptIn(): Promise<{ ok: true } | { error: str
   if (denied) return denied
 
   const userId = claims.sub as string
-  const existing = await getUserPreferences(userId)
-  if (existing?.whatsapp_opt_in_at) return { ok: true }
+  try {
+    const existing = await readUserPreferences(userId)
+    const timestamp = enabled ? existing?.whatsapp_opt_in_at ?? new Date().toISOString() : null
+    const unchanged = (existing?.whatsapp_opt_in_at ?? null) === timestamp &&
+      WHATSAPP_NOTIFICATION_CATEGORIES.every(
+        (category) => (existing?.categories?.[category]?.whatsapp ?? false) === enabled,
+      )
+    if (!unchanged) {
+      await upsertUserPreferences(userId, {
+        whatsapp_opt_in_at: timestamp,
+        categories: Object.fromEntries(
+          WHATSAPP_NOTIFICATION_CATEGORIES.map((category) => [category, { whatsapp: enabled }]),
+        ),
+      })
+    }
+  } catch {
+    return { error: 'Could not save your WhatsApp preferences. Please try again.' }
+  }
 
-  await upsertUserPreferences(userId, { whatsapp_opt_in_at: new Date().toISOString() })
-
-  // Consent may arrive after the company and its sender link exist: send the welcome
-  // template now (idempotent, best-effort, never throws).
-  await sendWelcomeTemplateForUser(userId)
+  // Retry an unsent welcome even when the consent was already recorded.
+  if (enabled) await sendWelcomeTemplateForUser(userId)
   return { ok: true }
+}
+
+/** Records explicit consent and opts the owner into the categories advertised in the UI. */
+export async function recordWhatsAppOptIn() {
+  return setWhatsAppConsent(true)
+}
+
+/** Revokes proactive WhatsApp consent and clears the corresponding category switches. */
+export async function recordWhatsAppOptOut() {
+  return setWhatsAppConsent(false)
 }

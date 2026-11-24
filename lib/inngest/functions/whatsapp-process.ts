@@ -22,6 +22,9 @@ import {
 } from '@/lib/inngest/events'
 import { langfuseProcessor } from '@/instrumentation'
 import { debitWhatsAppEstimate, waGenerationAttemptId } from '@/lib/whatsapp/credits'
+import { isWhatsAppJobAuthorized } from '@/lib/whatsapp/job-authority'
+import { policyReplyText } from '@/lib/whatsapp/message-policy'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 
 // Last-line-of-defense reply. Sent when the estimate graph (or anything around it)
 // throws so the owner is NEVER left with read+typing and total silence — the
@@ -30,13 +33,16 @@ const FALLBACK_ERROR_REPLY =
   "Sorry, I hit a problem generating your estimate. Please try again in a moment — if it keeps happening, describe the job in a text message."
 
 async function sendFallbackReply(ownerPhone: string, companyId?: string): Promise<void> {
+  const body = companyId
+    ? policyReplyText('try_again', await resolveOwnerLanguage(requireServiceClient(), companyId))
+    : FALLBACK_ERROR_REPLY
   const wamid = await sendWhatsAppMessage(
     ownerPhone,
     {
       type: 'text',
-      text: { body: FALLBACK_ERROR_REPLY },
+      text: { body },
     },
-    { companyId: companyId ?? null, purpose: 'bot_reply', billable: true }
+    { companyId: companyId ?? null, purpose: 'bot_reply', billable: false }
   ).catch((sendErr) => {
     console.error('[WhatsApp] fallback error reply failed:', sendErr)
     return null
@@ -45,7 +51,7 @@ async function sendFallbackReply(ownerPhone: string, companyId?: string): Promis
     logOutboundMessage(requireServiceClient(), {
       companyId,
       contactPhone: ownerPhone,
-      body: FALLBACK_ERROR_REPLY,
+      body,
       msgType: 'text',
       waMessageId: wamid,
       status: 'sent',
@@ -57,6 +63,7 @@ export const whatsAppProcessJob = inngest.createFunction(
   {
     id: 'whatsapp-process',
     idempotency: 'event.data.batchKey',
+    concurrency: { limit: 1, key: 'event.data.ownerPhone' },
     retries: 1,
     // After all retries exhaust, guarantee the owner gets a reply instead of
     // silent read+typing. This is the durable fix for whatsapp-inbound-no-reply:
@@ -68,6 +75,7 @@ export const whatsAppProcessJob = inngest.createFunction(
       if (!payload?.ownerPhone) return
       const denied = await assertCompanyWritable(payload.companyId)
       if (denied) return
+      if (!await isWhatsAppJobAuthorized(payload.companyId, payload.ownerPhone, payload.senderUserId)) return
       await sendFallbackReply(payload.ownerPhone, payload.companyId)
     },
     triggers: [{ event: EVENT_WHATSAPP_PROCESS }],
@@ -79,11 +87,14 @@ export const whatsAppProcessJob = inngest.createFunction(
     const { companyId, projectId, ownerPhone, messages } = data
     const denied = await assertCompanyWritable(companyId)
     if (denied) return { skipped: true, reason: 'demo_readonly' as const }
+    if (!await isWhatsAppJobAuthorized(companyId, ownerPhone, data.senderUserId)) {
+      return { skipped: true, reason: 'sender_revoked' as const }
+    }
     // HARD-07: capture a single server-trusted graph-entry timestamp OUTSIDE
     // step.run('orchestrate-estimate') so an Inngest retry of that step reuses the
     // same value — the replay-safety guarantee for the finalize TTL (mirrors
     // generate-estimate.ts t0).
-    const requestedAt = Date.now()
+    const requestedAt = await step.run('capture-requested-at', async () => Date.now())
 
     // Refresh typing indicator before AI generation (best-effort UX feedback).
     // This step stays outside the graph so it fires before the graph starts.
@@ -112,6 +123,7 @@ export const whatsAppProcessJob = inngest.createFunction(
         channel: 'whatsapp',
         ownerPhone,
         messages,
+        senderUserId: data.senderUserId,
         currentMessage: undefined,
         mediaResults: [],
         estimateId: undefined,
@@ -122,7 +134,8 @@ export const whatsAppProcessJob = inngest.createFunction(
       })
 
       // OBS-03: flush Langfuse spans before step.run returns (Pitfall 3 — serverless suspension).
-      await langfuseProcessor?.forceFlush()
+      // Telemetry cannot replay a completed generation or its owner reply.
+      await langfuseProcessor?.forceFlush().catch(() => undefined)
 
       return result
     })
@@ -158,7 +171,14 @@ export const whatsAppIntentRouterJob = inngest.createFunction(
   {
     id: 'whatsapp-intent',
     idempotency: 'event.data.batchKey',
+    concurrency: { limit: 1, key: 'event.data.ownerPhone' },
     retries: 1,
+    onFailure: async ({ event }) => {
+      const payload = (event as { data?: { event?: { data?: WhatsAppIntentPayload } } }).data?.event?.data
+      if (!payload?.ownerPhone || await assertCompanyWritable(payload.companyId)) return
+      if (!await isWhatsAppJobAuthorized(payload.companyId, payload.ownerPhone, payload.senderUserId)) return
+      await sendFallbackReply(payload.ownerPhone, payload.companyId)
+    },
     triggers: [{ event: EVENT_WHATSAPP_INTENT }],
   },
   async ({ event, step }) => {
@@ -168,6 +188,9 @@ export const whatsAppIntentRouterJob = inngest.createFunction(
     const { companyId, ownerPhone, fromPhone, message, session } = data
     const denied = await assertCompanyWritable(companyId)
     if (denied) return { skipped: true, reason: 'demo_readonly' as const }
+    if (!await isWhatsAppJobAuthorized(companyId, ownerPhone, data.senderUserId)) {
+      return { skipped: true, reason: 'sender_revoked' as const }
+    }
 
     // Refresh typing indicator before the (slower) classify work — best-effort.
     await step.run('refresh-typing', async () => {
@@ -183,6 +206,9 @@ export const whatsAppIntentRouterJob = inngest.createFunction(
         fromPhone,
         message,
         session,
+        senderUserId: data.senderUserId,
+        pendingSendId: data.pendingSendId,
+        batchKey: data.batchKey,
         supabase: requireServiceClient(),
       })
       return { routed: true }

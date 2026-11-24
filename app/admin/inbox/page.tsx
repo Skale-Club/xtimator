@@ -7,7 +7,6 @@ import {
   listAdminWhatsAppConversations,
 } from '@/lib/queries/admin-whatsapp'
 import { AdminWhatsAppClient } from './admin-whatsapp-client'
-import { AdminWhatsAppFilters } from './admin-whatsapp-filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,8 +48,8 @@ export default async function AdminInboxPage({
     if (filters.q) params.set('q', filters.q)
     if (filters.status) params.set('status', filters.status)
     if (filters.unreadOnly) params.set('unreadOnly', 'true')
-    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom.toISOString())
-    if (filters.dateTo) params.set('dateTo', filters.dateTo.toISOString())
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom.toISOString().slice(0, 10))
+    if (filters.dateTo) params.set('dateTo', filters.dateTo.toISOString().slice(0, 10))
     params.set('page', String(p))
     return `/admin/inbox?${params.toString()}`
   }
@@ -68,7 +67,9 @@ export default async function AdminInboxPage({
               <T>Inbox</T>
             </h1>
             <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
-              {convResult.total === 0 && !hasActiveFilters ? (
+              {convResult.error ? (
+                <T>Inbox unavailable</T>
+              ) : convResult.total === 0 && !hasActiveFilters ? (
                 <T>No conversations</T>
               ) : (
                 <T text={`${convResult.total} convos`} />
@@ -80,7 +81,7 @@ export default async function AdminInboxPage({
           </p>
         </div>
         <Link
-          href="/admin/inbox/settings"
+          href={filters.companyId ? `/admin/inbox/settings?companyId=${filters.companyId}` : '/admin/inbox/settings'}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0 bg-secondary/30 hover:bg-secondary/60 px-3 py-1.5 rounded-md"
         >
           <Settings2 size={16} /> <T>Settings</T>
@@ -92,17 +93,12 @@ export default async function AdminInboxPage({
         <AdminWhatsAppClient
           conversations={rows}
           initialConversationId={initialConversationId}
-          filtersSlot={
-            <AdminWhatsAppFilters
-              companyId={filters.companyId}
-              senderId={filters.senderId}
-              q={filters.q}
-              status={filters.status}
-              unreadOnly={filters.unreadOnly}
-              dateFrom={filters.dateFrom?.toISOString().slice(0, 10)}
-              dateTo={filters.dateTo?.toISOString().slice(0, 10)}
-            />
-          }
+          listError={convResult.error}
+          filters={{
+            ...filters,
+            dateFrom: filters.dateFrom?.toISOString().slice(0, 10),
+            dateTo: filters.dateTo?.toISOString().slice(0, 10),
+          }}
           paginationSlot={
             convResult.pageCount > 1 ? (
               <div className="flex items-center gap-2 text-sm">

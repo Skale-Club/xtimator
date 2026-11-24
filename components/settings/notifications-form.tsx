@@ -13,11 +13,8 @@
  * per-channel opt-in). This wave only renders the disabled-by-default column
  * driven by the `verifiedPhone` prop.
  *
- * WhatsApp is platform-managed and cannot be enabled by tenants (D-15).
- *
- * Save flow: PATCH /api/notifications/preferences with the full categories
- * object (now 3-channel) + email_digest_enabled. Push subscription is persisted
- * by `enableBrowserPush` directly (separate endpoint).
+ * The WhatsApp switch records or revokes explicit consent and updates all three
+ * eligible categories in the dedicated consent action.
  */
 
 import { useMemo, useState, useTransition } from 'react'
@@ -36,6 +33,7 @@ import {
   isPushSupported,
 } from '@/lib/notifications/push-client'
 import type { EventCategory, ChannelPrefs } from '@/lib/notifications/event-types'
+import { recordWhatsAppOptIn, recordWhatsAppOptOut } from '@/lib/actions/whatsapp-consent'
 
 // Only the 3 visible categories are configurable. `_dropped` is internal.
 type VisibleCategory = Extract<EventCategory, 'estimate' | 'billing' | 'system'>
@@ -76,11 +74,12 @@ export interface NotificationsFormProps {
   verifiedPhone?: string | null
   /** Whether the owner has already recorded explicit paid-SMS consent (TCPA). */
   smsOptIn?: boolean
+  whatsappOptIn?: boolean
   /** Render every Switch/Button disabled and show the read-only footer note (public demo). */
   readOnly?: boolean
 }
 
-type ChannelState = Record<VisibleCategory, ChannelPrefs>
+type ChannelState = Record<VisibleCategory, Omit<ChannelPrefs, 'whatsapp'>>
 
 function buildState(
   initial: NotificationsFormInitial,
@@ -92,7 +91,6 @@ function buildState(
     out[c.key] = {
       in_app: fromInitial.in_app ?? defaults[c.key].in_app,
       email: fromInitial.email ?? defaults[c.key].email,
-      whatsapp: fromInitial.whatsapp ?? defaults[c.key].whatsapp,
       sms: fromInitial.sms ?? defaults[c.key].sms,
     }
   }
@@ -104,11 +102,14 @@ export function NotificationsForm({
   defaults,
   verifiedPhone = null,
   smsOptIn = false,
+  whatsappOptIn = false,
   readOnly = false,
 }: NotificationsFormProps) {
   const { t } = useTranslation()
   const appLanguage = useAppLanguage()
   const [isPending, startTransition] = useTransition()
+  const [whatsappPending, startWhatsAppTransition] = useTransition()
+  const [whatsappEnabled, setWhatsAppEnabled] = useState(whatsappOptIn)
   const [pushBusy, setPushBusy] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(initial.push_enabled)
   const [emailDigest, setEmailDigest] = useState(initial.email_digest_enabled)
@@ -206,6 +207,22 @@ export function NotificationsForm({
     })
   }
 
+  function onWhatsAppConsent(enabled: boolean) {
+    startWhatsAppTransition(async () => {
+      try {
+        const result = await (enabled ? recordWhatsAppOptIn() : recordWhatsAppOptOut())
+        if ('error' in result) {
+          toast.error(t(result.error))
+          return
+        }
+        setWhatsAppEnabled(enabled)
+        toast.success(t(enabled ? 'WhatsApp updates enabled.' : 'WhatsApp updates turned off.'))
+      } catch {
+        toast.error(t('Could not save your WhatsApp preferences. Please try again.'))
+      }
+    })
+  }
+
   async function onTogglePush() {
     setPushBusy(true)
     try {
@@ -254,6 +271,18 @@ export function NotificationsForm({
                 data-testid="master-email-digest"
                 checked={emailDigest}
                 onCheckedChange={setEmailDigest}
+              />
+            </SettingsRow>
+            <SettingsRow
+              htmlFor="master-whatsapp"
+              label={t('WhatsApp updates')}
+              description={t('Receive estimate, billing and system updates from Xtimator on WhatsApp.')}
+            >
+              <Switch
+                id="master-whatsapp"
+                checked={whatsappEnabled}
+                disabled={readOnly || whatsappPending}
+                onCheckedChange={onWhatsAppConsent}
               />
             </SettingsRow>
           </SettingsRows>

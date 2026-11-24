@@ -16,6 +16,8 @@ import { cookies } from 'next/headers'
 import { getWhatsAppDisplayNumber } from '@/lib/platform-config'
 import { WHATSAPP_WELCOME_COOKIE, buildFirstEstimateLink } from '@/lib/whatsapp/welcome-card'
 import { WhatsAppWelcomeCard } from '@/components/dashboard/whatsapp-welcome-card'
+import { revalidateWhatsAppSender } from '@/lib/whatsapp/account-registry'
+import { getVerifiedPhone } from '@/lib/whatsapp/sender-link'
 import { ClientActivitySection } from '@/components/dashboard/client-activity-section'
 import { ClientActivitySkeleton } from '@/components/dashboard/client-activity-skeleton'
 
@@ -39,7 +41,7 @@ export default async function DashboardPage() {
       <DashboardWelcome firstName={firstName} />
 
       <Suspense fallback={null}>
-        <WhatsAppWelcome />
+        <WhatsAppWelcome companyId={company.id} userId={claims.sub as string} />
       </Suspense>
 
       <Suspense fallback={<StatCardsSkeleton />}>
@@ -63,11 +65,16 @@ export default async function DashboardPage() {
 
 // Shown once after onboarding (cookie set by createOrUpdateCompany). The platform
 // display number is read server-side; with no number configured nothing renders.
-async function WhatsAppWelcome() {
+async function WhatsAppWelcome({ companyId, userId }: { companyId: string; userId: string }) {
   const jar = await cookies()
   if (!jar.get(WHATSAPP_WELCOME_COOKIE)) return null
-  const href = buildFirstEstimateLink(await getWhatsAppDisplayNumber())
-  return href ? <WhatsAppWelcomeCard href={href} /> : null
+  const [displayNumber, phoneE164] = await Promise.all([
+    getWhatsAppDisplayNumber(),
+    getVerifiedPhone(userId),
+  ])
+  const href = buildFirstEstimateLink(displayNumber)
+  if (!href || !phoneE164 || !await revalidateWhatsAppSender({ companyId, userId, phoneE164 })) return null
+  return <WhatsAppWelcomeCard href={href} />
 }
 
 async function DashboardStats({ companyId, currencyCode }: { companyId: string; currencyCode: string }) {

@@ -8,6 +8,10 @@ import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  loadCurrentSession, sameSession, SessionCommandError,
+  SESSION_COMMAND_ERROR_MESSAGES, type CommandScope,
+} from '@/lib/whatsapp/session-commands'
+import {
   actionSend,
   actionCancel,
   actionUpdateField,
@@ -18,10 +22,9 @@ import {
   actionAddItem,
   actionRemoveItem,
   formatEstimateContext,
-  ESTIMATE_ANSWERED_MESSAGE,
+  CHANGE_ESTIMATE_TOTAL_MESSAGE,
   type EditableFields,
   type ItemMutationResult,
-  type Session,
 } from '@/lib/whatsapp/confirm-actions'
 import { describeSendResult } from '@/lib/whatsapp/send-result-message'
 import {
@@ -29,61 +32,83 @@ import {
   buildNumberedBreakdownLines,
 } from '@/lib/whatsapp/estimate-numbering'
 import { formatMoney } from '@/lib/money/currency'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+
+async function reportCommand(action: () => Promise<string>): Promise<string> {
+  try {
+    return await action()
+  } catch (err) {
+    if (err instanceof SessionCommandError) return SESSION_COMMAND_ERROR_MESSAGES[err.reason]
+    console.error('[WhatsApp] estimate command failed', err)
+    return 'I could not verify that action. Check the estimate in the app before trying again.'
+  }
+}
+
+export async function runStandaloneConfirmation(
+  scope: CommandScope,
+  supabase: SupabaseClient,
+  confirmation: 'send' | 'cancel',
+  language: EstimateLanguage,
+): Promise<string> {
+  return reportCommand(async () => {
+    if (confirmation === 'send') {
+      return describeSendResult(await actionSend(scope, supabase, language), language)
+    }
+    await actionCancel(scope, supabase)
+    return {
+      en: 'WhatsApp confirmation closed. You can still find the estimate in the app.',
+      pt: 'Confirmação encerrada no WhatsApp. Seu orçamento continua disponível no app.',
+      es: 'Confirmación cerrada en WhatsApp. El presupuesto sigue disponible en la app.',
+    }[language]
+  })
+}
 
 export function makeConfirmationTools(
-  session: Session,
-  companyId: string,
-  supabase: SupabaseClient
+  scope: CommandScope,
+  supabase: SupabaseClient,
 ) {
-  // A header edit on an estimate the client already answered is refused by
-  // actionUpdateField; tell the owner why instead of failing the whole turn.
+  const { session, companyId, ownerPhone } = scope
+  let queued: Promise<unknown> = Promise.resolve()
+
+  // LangGraph can issue multiple tool calls together. Order this agent's edits
+  // locally, with durable database claims handling other workers and retries.
+  function run(action: () => Promise<string>): Promise<string> {
+    const result = queued.then(() => reportCommand(action))
+    queued = result
+    return result
+  }
+
   async function updateField(patch: EditableFields, done: string): Promise<string> {
-    try {
-      const updated = await actionUpdateField(session, supabase, patch)
+    return run(async () => {
+      const updated = await actionUpdateField(scope, supabase, patch)
       return `${done}\n\n${formatEstimateContext(updated)}`
-    } catch (err) {
-      if (err instanceof Error && err.message === ESTIMATE_ANSWERED_MESSAGE) return ESTIMATE_ANSWERED_MESSAGE
-      throw err
-    }
+    })
   }
 
   const sendEstimate = tool(
-    async () => {
-      const result = await actionSend(session, companyId, supabase)
-      return describeSendResult(result)
-    },
+    async () => 'Review the current estimate after any requested changes, then reply SEND in a separate message to deliver it.',
     {
       name: 'send_estimate',
-      description:
-        'Deliver the estimate to the client by email and/or SMS (never WhatsApp) and mark it as sent. Use when the owner wants to send, deliver, submit, or go ahead with the estimate.',
+      description: 'Explain how the owner can deliver the estimate with a standalone SEND reply.',
       schema: z.object({}),
     }
   )
 
   const cancelEstimate = tool(
-    async () => {
-      await actionCancel(session, supabase)
-      return 'Estimate discarded and draft deleted.'
-    },
+    async () => 'Reply CANCEL by itself to close this WhatsApp confirmation. The estimate stays in the app.',
     {
       name: 'cancel_estimate',
-      description:
-        'Discard the current estimate draft. Use when the owner wants to cancel, scrap, or start over.',
+      description: 'Explain how to close the WhatsApp confirmation and keep the estimate in the app.',
       schema: z.object({}),
     }
   )
 
   const updateTotal = tool(
-    async ({ value }: { value: number }) => {
-      return updateField({ total: value }, 'Total updated.')
-    },
+    async () => CHANGE_ESTIMATE_TOTAL_MESSAGE,
     {
       name: 'update_total',
-      description:
-        'Update the estimate total amount. Use when the owner gives a new price, total, or amount.',
-      schema: z.object({
-        value: z.number().positive().describe('New total amount in dollars'),
-      }),
+      description: 'Explain how to change a requested overall total by editing line items. Does not change prices.',
+      schema: z.object({ value: z.number().positive().describe('Requested total amount') }),
     }
   )
 
@@ -127,11 +152,11 @@ export function makeConfirmationTools(
   )
 
   const setClient = tool(
-    async ({ name, phone }: { name: string; phone: string }) => {
-      const result = await actionSetClient(session, companyId, supabase, name, phone)
+    async ({ name, phone }: { name: string; phone: string }) => run(async () => {
+      const result = await actionSetClient(scope, supabase, name, phone)
       const verb = result.isNew ? 'created' : 'updated'
       return `Client ${verb}: ${result.name} (${result.phone})`
-    },
+    }),
     {
       name: 'set_client',
       description:
@@ -146,10 +171,10 @@ export function makeConfirmationTools(
   )
 
   const regenerateEstimate = tool(
-    async () => {
-      const result = await actionRegenerate(session, companyId, supabase)
-      return `Estimate regenerated.\n\n${formatEstimateContext(result.context)}`
-    },
+    async () => run(async () => {
+      const result = await actionRegenerate(scope, supabase)
+      return `Estimate regenerated. The previous version remains in the app.\n\n${formatEstimateContext(result.context)}`
+    }),
     {
       name: 'regenerate_estimate',
       description:
@@ -183,17 +208,16 @@ export function makeConfirmationTools(
       price?: number
       quantity?: number
       name?: string
-    }) => {
+    }) => run(async () => {
       const result = await actionUpdateItem(
-        session,
-        companyId,
+        scope,
         supabase,
         sectionNumber,
         itemNumber,
         { price, quantity, name }
       )
       return formatMutation(result)
-    },
+    }),
     {
       name: 'update_item',
       description:
@@ -219,10 +243,9 @@ export function makeConfirmationTools(
       name: string
       price: number
       quantity?: number
-    }) => {
+    }) => run(async () => {
       const result = await actionAddItem(
-        session,
-        companyId,
+        scope,
         supabase,
         sectionNumber,
         name,
@@ -230,7 +253,7 @@ export function makeConfirmationTools(
         quantity ?? 1
       )
       return formatMutation(result)
-    },
+    }),
     {
       name: 'add_item',
       description:
@@ -245,10 +268,10 @@ export function makeConfirmationTools(
   )
 
   const removeItem = tool(
-    async ({ sectionNumber, itemNumber }: { sectionNumber: number; itemNumber: number }) => {
-      const result = await actionRemoveItem(session, companyId, supabase, sectionNumber, itemNumber)
+    async ({ sectionNumber, itemNumber }: { sectionNumber: number; itemNumber: number }) => run(async () => {
+      const result = await actionRemoveItem(scope, supabase, sectionNumber, itemNumber)
       return formatMutation(result)
-    },
+    }),
     {
       name: 'remove_item',
       description:
@@ -261,10 +284,12 @@ export function makeConfirmationTools(
   )
 
   const getEstimateDetails = tool(
-    async () => {
+    async () => run(async () => {
+      const current = await loadCurrentSession(supabase, companyId, ownerPhone)
+      if (!sameSession(current, session)) throw new SessionCommandError('stale')
       if (!session.draft_estimate_id) return 'No estimate loaded.'
       const [ctx, numbered] = await Promise.all([
-        actionGetEstimateContext(supabase, session.draft_estimate_id),
+        actionGetEstimateContext(supabase, session.draft_estimate_id, companyId),
         getNumberedEstimate(supabase, session.draft_estimate_id),
       ])
       const base = formatEstimateContext(ctx)
@@ -273,7 +298,7 @@ export function makeConfirmationTools(
       // The numbered breakdown grounds section/item references (N.M) for the
       // edit tools; keep it alongside the human-readable context.
       return `${base}\n\nNumbered breakdown (use these numbers for edits):\n${lines}`
-    },
+    }),
     {
       name: 'get_estimate_details',
       description:

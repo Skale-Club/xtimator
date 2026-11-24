@@ -87,7 +87,7 @@ vi.mock('@/lib/whatsapp/ask-details', async (importOriginal) => {
 // Chainable Supabase service mock. `estimateRow` controls the shape returned by
 // the evaluateVagueness re-read (drives the vague vs confirm branch).
 let estimateRow: unknown = null
-const sessionInsert = vi.fn().mockResolvedValue({ error: null })
+const sessionInsert = vi.fn().mockResolvedValue({ data: true, error: null })
 
 function makeChainableClient() {
   // Generic chainable builder: every terminal (`single`, `insert`, `update`,
@@ -101,9 +101,6 @@ function makeChainableClient() {
   const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 
   const from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'whatsapp_sessions') {
-      return { insert: (...a: unknown[]) => sessionInsert(...a) }
-    }
     if (table === 'estimates') {
       return { select, delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
     }
@@ -119,7 +116,8 @@ function makeChainableClient() {
     }
   })
 
-  const rpc = vi.fn(async (name: string) => {
+  const rpc = vi.fn(async (name: string, payload?: unknown) => {
+    if (name === 'whatsapp_open_estimate_session') return sessionInsert(payload)
     if (name !== 'discard_vague_estimate') throw new Error(`Unexpected RPC ${name}`)
     return { error: null }
   })
@@ -224,8 +222,8 @@ describe('QA-01: WhatsApp never-throw / always-reply (frozen behavioral regressi
     expect(revertVagueEstimate).toHaveBeenCalledTimes(1)
     // KEY INVARIANT (QA-01): exactly one awaiting_details session insert.
     expect(sessionInsert).toHaveBeenCalledTimes(1)
-    const sessionArg = sessionInsert.mock.calls[0][0] as { state: string }
-    expect(sessionArg.state).toBe('awaiting_details')
+    const sessionArg = sessionInsert.mock.calls[0][0] as { p_state: string }
+    expect(sessionArg.p_state).toBe('awaiting_details')
     // KEY INVARIANT (QA-01): exactly one WhatsApp reply, carrying the ask-details copy.
     expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1)
     const [, payload] = sendWhatsAppMessage.mock.calls[0] as [string, { text: { body: string } }]

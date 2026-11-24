@@ -8,13 +8,12 @@
  *   - the user gave WhatsApp consent (notification_preferences.whatsapp_opt_in_at)
  *   - the user has an ACTIVE authorized sender in the company (verified phone linked)
  *   - a template name is configured for the company language (admin config)
- *   - that template is approved (when tracked in whatsapp_notification_templates;
- *     a template not tracked there is trusted as configured)
+ *   - the exact locale is approved in the registry with one quick reply and no
+ *     body variables
  *
- * Idempotent: whatsapp_authorized_senders.welcome_template_sent_at is claimed
- * atomically, so only one template is ever sent per sender even though both
- * onboarding completion and the consent action call this. If the send fails the
- * claim is released so the other trigger (or a retry) can try again.
+ * An atomic lease and durable review marker coordinate onboarding and consent
+ * triggers. A known rejection can retry. An uncertain provider outcome is
+ * reconciled by an admin before any replay.
  *
  * A platform cost: purpose 'welcome', never billed. Best-effort, never throws.
  * Tables are RLS deny-all: service-role client only.
@@ -22,11 +21,15 @@
 import 'server-only'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getUserPreferences } from '@/lib/notifications/preferences'
-import { getWhatsAppWelcomeConfig } from '@/lib/platform-config'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/client'
+import { getWhatsAppPlatformConfig, getWhatsAppWelcomeConfig } from '@/lib/platform-config'
+import { isExplicitWhatsAppSendRejection, sendWhatsAppTemplate } from '@/lib/whatsapp/client'
+import { isWhatsAppOutboundBlocked } from '@/lib/whatsapp/outbound-guard'
 import { resolveWelcomeLanguage } from '@/lib/whatsapp/send-welcome'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { templateLanguageCode } from '@/lib/notifications/whatsapp-registry'
+import { revalidateWhatsAppSender } from '@/lib/whatsapp/account-registry'
 
+export const WELCOME_QUICK_REPLY_PAYLOAD = 'xtimator_welcome_start'
 export type WelcomeTemplateResult =
   | 'sent'
   | 'no_consent'
@@ -35,13 +38,27 @@ export type WelcomeTemplateResult =
   | 'no_template_configured'
   | 'template_not_approved'
   | 'send_failed'
+  | 'needs_review'
   | 'error'
 
-/** Meta language code used when the template is not tracked in the registry table. */
-const DEFAULT_META_LANGUAGE: Record<EstimateLanguage, string> = {
-  pt: 'pt_BR',
-  en: 'en_US',
-  es: 'es',
+export type WelcomeTemplateVariant = {
+  language_code: string
+  status: string
+  variables_schema: unknown
+  quick_reply_count?: number
+  meta_template_id: string | null
+}
+
+export function isApprovedWelcomeTemplate(
+  row: WelcomeTemplateVariant,
+  language: EstimateLanguage,
+): boolean {
+  return Boolean(row.meta_template_id) &&
+    row.language_code === templateLanguageCode(language) &&
+    row.status === 'approved' &&
+    Array.isArray(row.variables_schema) &&
+    row.variables_schema.length === 0 &&
+    row.quick_reply_count === 1
 }
 
 export async function sendWelcomeTemplate(
@@ -55,16 +72,17 @@ export async function sendWelcomeTemplate(
     const prefs = await getUserPreferences(userId)
     if (!prefs?.whatsapp_opt_in_at) return 'no_consent'
 
-    const { data: sender } = await svc
+    const { data: sender, error: senderError } = await svc
       .from('whatsapp_authorized_senders')
-      .select('id, phone_e164, welcome_template_sent_at')
+      .select('id, phone_e164, welcome_template_sent_at, welcome_template_needs_review')
       .eq('user_id', userId)
       .eq('company_id', companyId)
       .eq('status', 'active')
-      .limit(1)
       .maybeSingle()
+    if (senderError) return 'error'
     if (!sender) return 'no_sender'
     if (sender.welcome_template_sent_at) return 'already_sent'
+    if (sender.welcome_template_needs_review) return 'needs_review'
 
     const language = await resolveWelcomeLanguage(svc, companyId)
     const config = await getWhatsAppWelcomeConfig()
@@ -74,47 +92,77 @@ export async function sendWelcomeTemplate(
       return 'no_template_configured'
     }
 
-    // Approval gate: when the template is tracked in the registry, one row must be approved.
-    let languageCode = DEFAULT_META_LANGUAGE[language]
-    const { data: rows } = await svc
+    const { data: rows, error: registryError } = await svc
       .from('whatsapp_notification_templates')
-      .select('language_code, status')
+      .select('language_code, status, variables_schema, quick_reply_count, meta_template_id')
       .eq('template_name', templateName)
-    const tracked = (rows ?? []) as Array<{ language_code: string; status: string }>
-    if (tracked.length > 0) {
-      const approved = tracked.find((r) => r.status === 'approved')
-      if (!approved) {
-        console.info('[WhatsApp] welcome template skipped: not approved', { templateName })
-        return 'template_not_approved'
-      }
-      languageCode = approved.language_code
+    if (registryError) return 'error'
+    const approved = (rows ?? []).find((row) => isApprovedWelcomeTemplate(row, language))
+    if (!approved) {
+      console.info('[WhatsApp] welcome template skipped: missing approved locale variant', { templateName, language })
+      return 'template_not_approved'
     }
 
-    // Atomic claim: only the caller that flips NULL -> now() sends.
+    const phoneE164 = sender.phone_e164 as string
+    if (isWhatsAppOutboundBlocked()) return 'send_failed'
+    const platform = await getWhatsAppPlatformConfig()
+    if (!platform.accessToken || !platform.phoneNumberId) return 'error'
+    if (!await revalidateWhatsAppSender({ companyId, userId, phoneE164 })) return 'no_sender'
+    if (!(await getUserPreferences(userId))?.whatsapp_opt_in_at) return 'no_consent'
+
+    const now = new Date()
+    const claimUntil = new Date(now.getTime() + 5 * 60_000).toISOString()
     const { data: claimed, error: claimErr } = await svc
       .from('whatsapp_authorized_senders')
-      .update({ welcome_template_sent_at: new Date().toISOString() })
+      .update({
+        welcome_template_claim_until: claimUntil,
+        welcome_template_needs_review: true,
+      })
       .eq('id', sender.id)
+      .eq('status', 'active')
+      .eq('phone_e164', phoneE164)
+      .eq('user_id', userId)
+      .eq('welcome_template_needs_review', false)
       .is('welcome_template_sent_at', null)
+      .or(`welcome_template_claim_until.is.null,welcome_template_claim_until.lt.${now.toISOString()}`)
       .select('id')
-    if (claimErr || !Array.isArray(claimed) || claimed.length === 0) return 'already_sent'
+    if (claimErr) return 'error'
+    if (!claimed?.length) return 'already_sent'
 
+    let sentAt: string | null = null
     try {
-      await sendWhatsAppTemplate(
-        sender.phone_e164 as string,
-        { name: templateName, languageCode },
+      const wamid = await sendWhatsAppTemplate(
+        phoneE164,
+        {
+          name: templateName,
+          languageCode: approved.language_code,
+          quickReplyPayloads: [WELCOME_QUICK_REPLY_PAYLOAD],
+        },
         { companyId, purpose: 'welcome', billable: false }
       )
-      return 'sent'
+      if (!wamid) return 'needs_review'
+      sentAt = new Date().toISOString()
     } catch (err) {
-      console.warn('[WhatsApp] welcome template send failed', err instanceof Error ? err.message : err)
-      // Release the claim so a retry (consent or another completion call) can send.
-      await svc
-        .from('whatsapp_authorized_senders')
-        .update({ welcome_template_sent_at: null })
-        .eq('id', sender.id)
-      return 'send_failed'
+      console.warn('[WhatsApp] welcome template send failed', { companyId, error: err instanceof Error ? err.name : 'unknown' })
+      if (!isExplicitWhatsAppSendRejection(err)) return 'needs_review'
     }
+
+    try {
+      const { data: settled, error } = await svc
+        .from('whatsapp_authorized_senders')
+        .update({
+          welcome_template_claim_until: null,
+          welcome_template_needs_review: false,
+          ...(sentAt ? { welcome_template_sent_at: sentAt } : {}),
+        })
+        .eq('id', sender.id)
+        .eq('welcome_template_claim_until', claimUntil)
+        .select('id')
+      if (error || !settled?.length) return 'needs_review'
+    } catch {
+      return 'needs_review'
+    }
+    return sentAt ? 'sent' : 'send_failed'
   } catch (err) {
     console.warn('[WhatsApp] sendWelcomeTemplate failed', err instanceof Error ? err.message : err)
     return 'error'

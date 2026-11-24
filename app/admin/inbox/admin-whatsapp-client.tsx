@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, MessageSquare, ChevronLeft } from 'lucide-react'
+import { Loader2, MessageSquare, ChevronLeft, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { loadAdminConversationThread } from '@/lib/actions/admin-whatsapp'
 import { getInitials, getAvatarColor } from '@/lib/utils/avatar'
 import type { ConversationThread } from '@/lib/whatsapp/inbox-types'
+import { AdminWhatsAppFilters, type AdminWhatsAppFiltersProps } from './admin-whatsapp-filters'
 
 type Row = {
   id: string
@@ -28,20 +29,36 @@ type Row = {
 export function AdminWhatsAppClient({
   conversations,
   initialConversationId,
-  filtersSlot,
+  filters,
+  listError,
   paginationSlot,
 }: {
   conversations: Row[]
   initialConversationId: string | null
-  filtersSlot: React.ReactNode
+  filters: Omit<AdminWhatsAppFiltersProps, 'onRefresh'>
+  listError?: string
   paginationSlot: React.ReactNode
 }) {
   const router = useRouter()
   const sp = useSearchParams()
   const selectedId = sp.get('conversation') ?? initialConversationId
 
-  const [thread, setThread] = useState<ConversationThread | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [threadResult, setThreadResult] = useState<{
+    selectionKey: string; requestKey: string; thread: ConversationThread | null; error: boolean
+  } | null>(null)
+  const [refreshCount, setRefreshCount] = useState(0)
+  const selectedRow = conversations.find((r) => r.id === selectedId)
+  const expectedCompanyId = selectedRow?.company_id ?? filters.companyId
+  const selectionKey = `${selectedId ?? ''}:${expectedCompanyId ?? ''}`
+  const requestKey = `${selectionKey}:${refreshCount}`
+  const thread = selectedId && threadResult?.selectionKey === selectionKey ? threadResult.thread : null
+  const loading = Boolean(selectedId && threadResult?.requestKey !== requestKey)
+  const threadError = threadResult?.requestKey === requestKey && threadResult.error
+
+  function refreshInbox() {
+    router.refresh()
+    setRefreshCount((count) => count + 1)
+  }
 
   function selectConversation(row: Row) {
     const params = new URLSearchParams(sp.toString())
@@ -56,31 +73,22 @@ export function AdminWhatsAppClient({
   }
 
   useEffect(() => {
-    if (!selectedId) {
-      setThread(null)
-      return
-    }
+    if (!selectedId) return
     let cancelled = false
-    setThread(null)
-    setLoading(true)
-    const row = conversations.find((r) => r.id === selectedId)
-    loadAdminConversationThread(selectedId, row?.company_id).then((res) => {
-      if (cancelled) return
-      if (res.ok) {
-        setThread(res.thread)
-      } else {
-        toast.error(res.error)
-        clearSelection()
-      }
-      setLoading(false)
-    })
+    loadAdminConversationThread(selectedId, expectedCompanyId)
+      .then((res) => {
+        if (cancelled) return
+        setThreadResult({ selectionKey, requestKey, thread: res.ok ? res.thread : null, error: !res.ok })
+        if (!res.ok) toast.error(res.error)
+      })
+      .catch(() => {
+        if (!cancelled) setThreadResult({ selectionKey, requestKey, thread: null, error: true })
+      })
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId])
+  }, [selectedId, expectedCompanyId, selectionKey, requestKey])
 
-  const selectedRow = conversations.find((r) => r.id === selectedId)
   const companyLabel = thread?.conversation.company_id ? selectedRow?.company_name : null
 
   return (
@@ -91,9 +99,13 @@ export function AdminWhatsAppClient({
           <div
             className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-[320px] md:shrink-0 min-h-0 flex-col border-r border-border overflow-hidden`}
           >
-            <div className="border-b px-4 py-3">{filtersSlot}</div>
+            <div className="border-b px-4 py-3"><AdminWhatsAppFilters {...filters} onRefresh={refreshInbox} /></div>
             <div className="flex-1 overflow-y-auto">
-              {conversations.length === 0 ? (
+              {listError ? (
+                <p role="alert" className="px-4 py-8 text-center text-sm text-destructive">
+                  <T text={listError} />
+                </p>
+              ) : conversations.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                   <T>No conversations found.</T>
                 </p>
@@ -191,6 +203,14 @@ export function AdminWhatsAppClient({
                         {companyLabel ? ` · ${companyLabel}` : ''}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      className="ml-auto flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground md:hidden"
+                      aria-label="Refresh conversation"
+                      onClick={refreshInbox}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:16px_16px] bg-[var(--glass-bg-light)]">
@@ -198,6 +218,10 @@ export function AdminWhatsAppClient({
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
                     </div>
+                  ) : threadError ? (
+                    <p role="alert" className="py-8 text-center text-sm text-destructive">
+                      <T>Could not load this conversation. Refresh to try again.</T>
+                    </p>
                   ) : (thread?.messages.length ?? 0) === 0 ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">
                       <T>No messages in the last 30 days.</T>

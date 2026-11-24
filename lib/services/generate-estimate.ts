@@ -85,6 +85,12 @@ export type GenerateEstimateResult = {
 }
 
 export interface GenerateEstimateOptions {
+  /** Promote a regenerated WhatsApp version only while its command still owns the current draft. */
+  whatsappRegeneration?: {
+    commandId: string
+    attemptId: string
+    previousEstimateId: string
+  }
   /**
    * Credits plan 2026-11-20: the auto-refine retry of a vague first pass. Its
    * cost is absorbed (only one generation per run is charged), so it is never
@@ -607,10 +613,14 @@ export async function generateEstimateForProject(
     .from('estimates')
     .select('id')
     .eq('project_id', projectId)
+    .eq('company_id', companyId)
     .eq('is_current', true)
     .maybeSingle()
 
   if (previousError) throw new Error('Failed to read current estimate', { cause: previousError })
+  if (options.whatsappRegeneration && previousCurrent?.id !== options.whatsappRegeneration.previousEstimateId) {
+    throw new Error('The WhatsApp estimate changed during regeneration')
+  }
 
   // Version management. The previous current version is NOT demoted here: the
   // new row is inserted as non-current and only promoted once its sections and
@@ -745,6 +755,9 @@ export async function generateEstimateForProject(
     total: safeGrandTotal,
     sections: calculatedSections,
   })
+  if (options.whatsappRegeneration && passIsVague) {
+    throw new Error('Regeneration did not produce a usable replacement estimate')
+  }
 
   // Consolidate the up-to-4 sequential project writes (status/total, re-select
   // name, name patch, project_type) into ONE combined UPDATE. status + total are
@@ -797,6 +810,7 @@ export async function generateEstimateForProject(
     aiMeta,
     calculatedSections,
     previousCurrentId: (previousCurrent?.id as string | undefined) ?? null,
+    whatsappRegeneration: options.whatsappRegeneration,
     projectUpdate,
     onCommitted: (version) => { nextVersion = version },
     onActivated: ({ clientId }) => {

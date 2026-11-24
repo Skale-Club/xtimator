@@ -24,9 +24,11 @@ import {
   actionRemoveItem,
   actionUpdateField,
   ESTIMATE_ANSWERED_MESSAGE,
+  CHANGE_ESTIMATE_TOTAL_MESSAGE,
   type Session,
 } from '@/lib/whatsapp/confirm-actions'
 import { makeConfirmationTools } from '@/lib/whatsapp/agent-tools'
+import { estimateReplyAuthorization } from '@/lib/whatsapp/session-commands'
 
 const round2 = (x: number) => Math.round(x * 100) / 100
 
@@ -37,6 +39,7 @@ const SESSION: Session = {
   draft_estimate_id: 'est-1',
 }
 const COMPANY_ID = 'company-1'
+const SCOPE = { session: SESSION, companyId: COMPANY_ID, ownerPhone: '+15551112222', messageId: 'wamid.test' }
 
 type MockItem = {
   id: string
@@ -85,6 +88,7 @@ function makeInMemorySupabase() {
     company: { id: COMPANY_ID, tax_config: null as unknown },
     estimate: {
       id: 'est-1',
+      updated_at: '2026-11-23T00:00:00.000Z',
       company_id: COMPANY_ID,
       project_id: 'proj-1',
       currency_code: 'USD',
@@ -110,155 +114,50 @@ function makeInMemorySupabase() {
     projectTotal: 190,
     signatures: [] as Array<{ id: string }>,
   }
-  let idSeq = 0
-
-  const thenable = (value: unknown) => ({
-    then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
-      Promise.resolve(value).then(onF, onR),
-  })
-
-  const estimateFatRow = () => ({
+  const estimateRow = () => ({
     ...db.estimate,
-    sections: db.sections.map((s) => ({
-      id: s.id,
-      title: s.title,
-      subtotal: s.subtotal,
-      sort_order: s.sort_order,
-      items: db.items
-        .filter((i) => i.section_id === s.id)
-        .map((i) => ({
-          id: i.id,
-          description: i.description,
-          quantity: i.quantity,
-          unit: i.unit,
-          unit_price: i.unit_price,
-          total: i.total,
-          sort_order: i.sort_order,
-        })),
+    sections: db.sections.map((section) => ({
+      ...section,
+      items: db.items.filter((item) => item.section_id === section.id).map((item) => ({ ...item })),
     })),
   })
-
-  const sectionsForRecompute = () =>
-    db.sections.map((s) => ({
-      id: s.id,
-      title: s.title,
-      items: db.items
-        .filter((i) => i.section_id === s.id)
-        .map((i) => ({
-          id: i.id,
-          quantity: i.quantity,
-          unit_price: i.unit_price,
-          discount: i.discount,
-          taxable: i.taxable,
-          tax_category: i.tax_category,
-          cost: i.cost,
-          markup_pct: i.markup_pct,
-        })),
-    }))
-
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    if (name === 'whatsapp_claim_estimate_command') {
+      const row = db.estimate as { client_response?: string }
+      if (row.client_response || db.signatures.length) return { data: { status: 'answered' }, error: null }
+      return { data: { status: 'claimed', command_id: 'command-1' }, error: null }
+    }
+    if (name === 'whatsapp_commit_estimate_item_edit') {
+      const item = args.p_item as MockItem
+      const existing = db.items.find((row) => row.id === item.id)
+      if (args.p_operation === 'add') db.items.push({ ...item, section_id: args.p_section_id as string })
+      if (args.p_operation === 'update' && existing) Object.assign(existing, item)
+      if (args.p_operation === 'remove') db.items = db.items.filter((row) => row.id !== item.id)
+      for (const itemTotal of args.p_items as Array<Pick<MockItem, 'id' | 'total' | 'unit_price'>>) {
+        Object.assign(db.items.find((row) => row.id === itemTotal.id)!, itemTotal)
+      }
+      for (const sectionTotal of args.p_sections as Array<{ id: string; subtotal: number }>) {
+        Object.assign(db.sections.find((row) => row.id === sectionTotal.id)!, sectionTotal)
+      }
+      Object.assign(db.estimate, args.p_totals)
+      db.projectTotal = db.estimate.total
+    }
+    return { data: null, error: null }
+  })
   function from(table: string) {
-    const state: { mode: string; payload: Record<string, unknown> | null; filters: Record<string, unknown> } = {
-      mode: 'select',
-      payload: null,
-      filters: {},
-    }
-
-    const resolve = (): { data: unknown; error: unknown } => {
-      if (table === 'estimate_items') {
-        if (state.mode === 'update') {
-          const it = db.items.find((i) => i.id === state.filters.id)
-          if (it) Object.assign(it, state.payload)
-          return { data: null, error: null }
-        }
-        if (state.mode === 'delete') {
-          const idx = db.items.findIndex((i) => i.id === state.filters.id)
-          if (idx >= 0) db.items.splice(idx, 1)
-          return { data: null, error: null }
-        }
-        const rows = db.items
-          .filter((i) => i.section_id === state.filters.section_id)
-          .map((i) => ({ sort_order: i.sort_order }))
-        return { data: rows, error: null }
-      }
-      if (table === 'estimate_sections') {
-        if (state.mode === 'update') {
-          const s = db.sections.find((sec) => sec.id === state.filters.id)
-          if (s) Object.assign(s, state.payload)
-          return { data: null, error: null }
-        }
-        return { data: sectionsForRecompute(), error: null }
-      }
-      if (table === 'estimates') {
-        if (state.mode === 'update') {
-          Object.assign(db.estimate, state.payload)
-          return { data: null, error: null }
-        }
-        return { data: estimateFatRow(), error: null }
-      }
-      if (table === 'companies') {
-        return { data: { tax_config: db.company.tax_config }, error: null }
-      }
-      if (table === 'estimate_signatures') {
-        return { data: db.signatures, error: null }
-      }
-      if (table === 'projects') {
-        if (state.mode === 'update') db.projectTotal = Number((state.payload as { total: number }).total)
-        return { data: null, error: null }
-      }
-      return { data: null, error: null }
-    }
-
-    const builder: Record<string, unknown> = {
-      select() {
-        state.mode = 'select'
-        return builder
-      },
-      update(p: Record<string, unknown>) {
-        state.mode = 'update'
-        state.payload = p
-        return builder
-      },
-      delete() {
-        state.mode = 'delete'
-        return builder
-      },
-      insert(row: Record<string, unknown>) {
-        if (table === 'estimate_items') {
-          const id = `new-${++idSeq}`
-          db.items.push({
-            id,
-            section_id: row.section_id as string,
-            company_id: row.company_id as string,
-            description: row.description as string,
-            quantity: Number(row.quantity),
-            unit: (row.unit as string | null) ?? null,
-            unit_price: Number(row.unit_price),
-            total: Number(row.total ?? round2(Number(row.quantity) * Number(row.unit_price))),
-            sort_order: Number(row.sort_order ?? 0),
-            discount: 0,
-            taxable: true,
-            tax_category: null,
-            cost: null,
-            markup_pct: null,
-          })
-        }
-        return thenable({ data: null, error: null })
-      },
-      eq(col: string, val: unknown) {
-        state.filters[col] = val
-        return builder
-      },
-      single() {
-        return Promise.resolve(resolve())
-      },
-      then(onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) {
-        return Promise.resolve(resolve()).then(onF, onR)
-      },
+    const builder = {
+      select: () => builder,
+      eq: () => builder,
+      gt: () => builder,
+      order: () => builder,
+      limit: () => builder,
+      single: async () => ({ data: table === 'estimates' ? estimateRow() : db.company, error: null }),
+      maybeSingle: async () => ({ data: table === 'whatsapp_sessions' ? SESSION : null, error: null }),
     }
     return builder
   }
 
-  return { client: { from } as never, db }
+  return { client: { from, rpc } as never, db, rpc }
 }
 
 beforeEach(() => {
@@ -266,9 +165,21 @@ beforeEach(() => {
 })
 
 describe('actionUpdateItem — recompute after price change', () => {
+  it('keeps tax exemptions, global discount, deposit and project balance consistent after an edit', async () => {
+    const { client, db, rpc } = makeInMemorySupabase()
+    Object.assign(db.estimate, { tax_rate: 0.1, discount_type: 'percentage', discount_value: 10,
+      deposit_type: 'percent', deposit_value: 25 })
+    db.items.find((item) => item.id === 'i3')!.taxable = false
+    expect((await actionUpdateItem(SCOPE, client, 1, 1, { price: 200 })).ok).toBe(true)
+    expect(db.estimate).toMatchObject({ subtotal: 290, tax_amount: 21.6, total: 282.6, balance_due: 211.95 })
+    expect(db.projectTotal).toBe(282.6)
+    expect(rpc).toHaveBeenCalledWith('whatsapp_commit_estimate_item_edit', expect.objectContaining({
+      p_totals: { subtotal: 290, discount_amount: 29, tax_amount: 21.6, total: 282.6, balance_due: 211.95 },
+    }))
+  })
   it('changes item 1.1 price and reflows item/section/estimate totals', async () => {
     const { client, db } = makeInMemorySupabase()
-    const result = await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 1, { price: 200 })
+    const result = await actionUpdateItem(SCOPE, client, 1, 1, { price: 200 })
 
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -286,7 +197,7 @@ describe('actionUpdateItem — recompute after price change', () => {
 
   it('changes quantity and name together', async () => {
     const { client, db } = makeInMemorySupabase()
-    const result = await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 2, {
+    const result = await actionUpdateItem(SCOPE, client, 1, 2, {
       quantity: 5,
       name: 'Haul debris',
     })
@@ -301,30 +212,30 @@ describe('actionUpdateItem — recompute after price change', () => {
 
   it('rejects an out-of-range section (N)', async () => {
     const { client } = makeInMemorySupabase()
-    const result = await actionUpdateItem(SESSION, COMPANY_ID, client, 9, 1, { price: 10 })
+    const result = await actionUpdateItem(SCOPE, client, 9, 1, { price: 10 })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toMatch(/section 9/i)
   })
 
   it('rejects an out-of-range item (N.M)', async () => {
     const { client } = makeInMemorySupabase()
-    const result = await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 9, { price: 10 })
+    const result = await actionUpdateItem(SCOPE, client, 1, 9, { price: 10 })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toMatch(/item 1\.9/i)
   })
 
   it('rejects when no fields are provided', async () => {
     const { client } = makeInMemorySupabase()
-    const result = await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 1, {})
+    const result = await actionUpdateItem(SCOPE, client, 1, 1, {})
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toMatch(/nothing to change/i)
+    if (!result.ok) expect(result.message).toMatch(/specify a new price/i)
   })
 })
 
 describe('actionAddItem — append + recompute', () => {
   it('appends a new item to section 2 and reflows totals', async () => {
     const { client, db } = makeInMemorySupabase()
-    const result = await actionAddItem(SESSION, COMPANY_ID, client, 2, 'Haul away debris', 150)
+    const result = await actionAddItem(SCOPE, client, 2, 'Haul away debris', 150)
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.message).toMatch(/added .*section 2/i)
@@ -343,7 +254,7 @@ describe('actionAddItem — append + recompute', () => {
 
   it('rejects adding to a non-existent section', async () => {
     const { client } = makeInMemorySupabase()
-    const result = await actionAddItem(SESSION, COMPANY_ID, client, 7, 'X', 10)
+    const result = await actionAddItem(SCOPE, client, 7, 'X', 10)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toMatch(/section 7/i)
   })
@@ -352,7 +263,7 @@ describe('actionAddItem — append + recompute', () => {
 describe('actionRemoveItem — delete + recompute', () => {
   it('removes item 1.2 and reflows totals', async () => {
     const { client, db } = makeInMemorySupabase()
-    const result = await actionRemoveItem(SESSION, COMPANY_ID, client, 1, 2)
+    const result = await actionRemoveItem(SCOPE, client, 1, 2)
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.message).toMatch(/removed item 1\.2/i)
@@ -364,7 +275,7 @@ describe('actionRemoveItem — delete + recompute', () => {
 
   it('rejects removing an out-of-range item', async () => {
     const { client } = makeInMemorySupabase()
-    const result = await actionRemoveItem(SESSION, COMPANY_ID, client, 1, 9)
+    const result = await actionRemoveItem(SCOPE, client, 1, 9)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toMatch(/item 1\.9/i)
   })
@@ -389,9 +300,9 @@ describe('an answered or signed estimate cannot be edited from WhatsApp', () => 
       const before = state(db)
 
       const results = [
-        await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 1, { price: 999 }),
-        await actionAddItem(SESSION, COMPANY_ID, client, 1, 'Extra work', 50),
-        await actionRemoveItem(SESSION, COMPANY_ID, client, 1, 2),
+        await actionUpdateItem(SCOPE, client, 1, 1, { price: 999 }),
+        await actionAddItem(SCOPE, client, 1, 'Extra work', 50),
+        await actionRemoveItem(SCOPE, client, 1, 2),
       ]
 
       for (const res of results) expect(res).toEqual({ ok: false, message: ESTIMATE_ANSWERED_MESSAGE })
@@ -399,22 +310,22 @@ describe('an answered or signed estimate cannot be edited from WhatsApp', () => 
     }
   )
 
-  it('a header edit (total, timeline, terms, summary) is refused too', async () => {
+  it('a header edit is refused too', async () => {
     const { client, db } = locked('accepted')
-    await expect(actionUpdateField(SESSION, client, { total: 1 })).rejects.toThrow(ESTIMATE_ANSWERED_MESSAGE)
+    await expect(actionUpdateField(SCOPE, client, { timeline: 'tomorrow' })).rejects.toMatchObject({ reason: 'answered' })
     expect(db.estimate.total).toBe(190)
   })
 
   it('the field tools answer plainly instead of failing the turn', async () => {
     const { client } = locked('accepted')
-    const tools = makeConfirmationTools(SESSION, COMPANY_ID, client)
-    const updateTotal = tools.find((t) => t.name === 'update_total')!
-    await expect(updateTotal.invoke({ value: 500 })).resolves.toBe(ESTIMATE_ANSWERED_MESSAGE)
+    const tools = makeConfirmationTools(SCOPE, client)
+    const updateTimeline = tools.find((t) => t.name === 'update_timeline')!
+    await expect(updateTimeline.invoke({ value: 'tomorrow' })).resolves.toBe(ESTIMATE_ANSWERED_MESSAGE)
   })
 
   it('an unanswered estimate is still editable', async () => {
     const { client, db } = makeInMemorySupabase()
-    const res = await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 1, { price: 150 })
+    const res = await actionUpdateItem(SCOPE, client, 1, 1, { price: 150 })
     expect(res.ok).toBe(true)
     expect(db.items.find((i) => i.id === 'i1')!.unit_price).toBe(150)
   })
@@ -423,7 +334,7 @@ describe('an answered or signed estimate cannot be edited from WhatsApp', () => 
 describe('agent tool wiring — makeConfirmationTools', () => {
   it('exposes the three edit tools + get_estimate_details, none leaking companyId in schema', () => {
     const { client } = makeInMemorySupabase()
-    const tools = makeConfirmationTools(SESSION, COMPANY_ID, client)
+    const tools = makeConfirmationTools(SCOPE, client)
     const byName = Object.fromEntries(tools.map((t) => [(t as { name: string }).name, t])) as Record<
       string,
       { schema?: { shape?: Record<string, unknown> } }
@@ -439,7 +350,7 @@ describe('agent tool wiring — makeConfirmationTools', () => {
 
   it('update_item tool returns the summary + refreshed numbered breakdown', async () => {
     const { client } = makeInMemorySupabase()
-    const tools = makeConfirmationTools(SESSION, COMPANY_ID, client)
+    const tools = makeConfirmationTools(SCOPE, client)
     const byName = Object.fromEntries(tools.map((t) => [(t as { name: string }).name, t])) as Record<
       string,
       { invoke: (a: unknown) => Promise<string> }
@@ -454,7 +365,7 @@ describe('agent tool wiring — makeConfirmationTools', () => {
 
   it('get_estimate_details tool includes the numbered breakdown', async () => {
     const { client } = makeInMemorySupabase()
-    const tools = makeConfirmationTools(SESSION, COMPANY_ID, client)
+    const tools = makeConfirmationTools(SCOPE, client)
     const byName = Object.fromEntries(tools.map((t) => [(t as { name: string }).name, t])) as Record<
       string,
       { invoke: (a: unknown) => Promise<string> }
@@ -468,7 +379,7 @@ describe('agent tool wiring — makeConfirmationTools', () => {
 
   it('add_item and remove_item tools return a human confirmation', async () => {
     const { client } = makeInMemorySupabase()
-    const tools = makeConfirmationTools(SESSION, COMPANY_ID, client)
+    const tools = makeConfirmationTools(SCOPE, client)
     const byName = Object.fromEntries(tools.map((t) => [(t as { name: string }).name, t])) as Record<
       string,
       { invoke: (a: unknown) => Promise<string> }
@@ -479,4 +390,28 @@ describe('agent tool wiring — makeConfirmationTools', () => {
     const removed = await byName.remove_item.invoke({ sectionNumber: 1, itemNumber: 2 })
     expect(removed).toMatch(/removed item 1\.2/i)
   })
+  it('asks for a numbered item and refuses sending a compound total request without making any writes', async () => {
+    const { client, db, rpc } = makeInMemorySupabase()
+    expect(estimateReplyAuthorization('Change the total to $500 and send it')).toBeNull()
+    const tools = makeConfirmationTools(SCOPE, client)
+    const update = tools.find((tool) => tool.name === 'update_total')!
+    const send = tools.find((tool) => tool.name === 'send_estimate')!
+    const outcomes = await Promise.all([send.invoke({}), update.invoke({ value: 500 })])
+    expect(outcomes).toEqual([expect.stringMatching(/separate message/i), CHANGE_ESTIMATE_TOTAL_MESSAGE])
+    expect(db.estimate.total).toBe(190)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('passes line totals and the document revision in one atomic commit', async () => {
+    const { client, db, rpc } = makeInMemorySupabase()
+    const result = await actionUpdateItem(SCOPE, client, 1, 2, { price: 40 })
+    expect(result.ok).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('whatsapp_commit_estimate_item_edit', expect.objectContaining({
+      p_expected_updated_at: db.estimate.updated_at,
+      p_operation: 'update',
+      p_totals: expect.objectContaining({ total: 230, subtotal: 230, balance_due: 230 }),
+      p_items: expect.arrayContaining([expect.objectContaining({ id: 'i2', total: 80 })]),
+    }))
+  })
+
 })

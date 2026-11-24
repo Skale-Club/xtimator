@@ -66,6 +66,12 @@ export function isTemplateRequiredError(err: unknown): boolean {
   return err instanceof WhatsAppReengagementRequiredError || err instanceof WhatsAppMarketingLimitError
 }
 
+/** A structured client-side Meta rejection proves the POST was not accepted. */
+export function isExplicitWhatsAppSendRejection(error: unknown): boolean {
+  return error instanceof WhatsAppSendError && error.code !== null &&
+    error.status >= 400 && error.status < 500 && error.status !== 408
+}
+
 const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
 /**
@@ -164,6 +170,7 @@ export async function sendWhatsAppTemplate(
     languageCode: string
     bodyVariables?: string[]
     headerVariables?: string[]
+    quickReplyPayloads?: string[]
   },
   meta?: MessagingMeta
 ): Promise<string | null> {
@@ -183,6 +190,14 @@ export async function sendWhatsAppTemplate(
       parameters: bodyVariables.map((text) => ({ type: 'text', text })),
     })
   }
+  opts.quickReplyPayloads?.forEach((payload, index) => {
+    components.push({
+      type: 'button',
+      sub_type: 'quick_reply',
+      index: String(index),
+      parameters: [{ type: 'payload', payload }],
+    })
+  })
 
   return sendWhatsAppMessage(
     to,

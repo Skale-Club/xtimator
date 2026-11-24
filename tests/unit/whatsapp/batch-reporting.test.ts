@@ -78,7 +78,7 @@ vi.mock('@/lib/whatsapp/ask-details', async (importOriginal) => {
 
 // `estimateRow` controls the finalize estimate re-read (non-vague drives confirm).
 let estimateRow: unknown = null
-const sessionInsert = vi.fn().mockResolvedValue({ error: null })
+const sessionInsert = vi.fn().mockResolvedValue({ data: true, error: null })
 
 function makeChainableClient() {
   const single = vi.fn().mockImplementation(async () => ({ data: estimateRow, error: null }))
@@ -89,9 +89,6 @@ function makeChainableClient() {
   const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 
   const from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'whatsapp_sessions') {
-      return { insert: (...a: unknown[]) => sessionInsert(...a) }
-    }
     if (table === 'estimates') {
       return { select, delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
     }
@@ -106,7 +103,7 @@ function makeChainableClient() {
     }
   })
 
-  return { from } as never
+  return { from, rpc: (_name: string, payload: unknown) => sessionInsert(payload) } as never
 }
 
 vi.mock('@/lib/supabase/service', () => ({

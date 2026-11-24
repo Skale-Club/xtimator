@@ -313,6 +313,18 @@ describe('draftCustomerMessage', () => {
 // ---------------------------------------------------------------------------
 
 describe('confirmSendByChannelRef / confirmSendByToken — finalizeConfirmedSend', () => {
+  it('does not claim or dispatch a draft that replaced the ID expected by the router', async () => {
+    mockResolvePendingByChannelRef.mockResolvedValue(makePending({ id: 'pending-replacement' }))
+    const { client } = makeSupabase()
+
+    const result = await confirmSendByChannelRef(client, 'company-1', '+15559998888', 'pending-original')
+
+    expect(result).toEqual({ ok: false, error: 'not_found' })
+    expect(mockMarkConfirmed).not.toHaveBeenCalled()
+    expect(mockAssertSendAllowed).not.toHaveBeenCalled()
+    expect(mockSendCustomerMessage).not.toHaveBeenCalled()
+  })
+
   it('confirmSendByChannelRef: no pending row resolved -> not_found; assertSendAllowed NOT called', async () => {
     mockResolvePendingByChannelRef.mockResolvedValue(null)
     const { client } = makeSupabase()
@@ -459,6 +471,16 @@ describe('confirmSendByChannelRef / confirmSendByToken — finalizeConfirmedSend
 // ---------------------------------------------------------------------------
 
 describe('cancelSendByChannelRef', () => {
+  it('does not cancel a draft that replaced the expected ID', async () => {
+    mockResolvePendingByChannelRef.mockResolvedValue(makePending({ id: 'pending-replacement' }))
+    const { client } = makeSupabase()
+
+    const result = await cancelSendByChannelRef(client, 'company-1', '+15559998888', 'pending-original')
+
+    expect(result).toEqual({ ok: false })
+    expect(mockMarkCancelled).not.toHaveBeenCalled()
+  })
+
   it('no pending row -> { ok: false }', async () => {
     mockResolvePendingByChannelRef.mockResolvedValue(null)
     const { client } = makeSupabase()

@@ -717,7 +717,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'The GET declaration only completes provider endpoint ownership verification and has no tenant effect.',
     ['GET'],
   ),
-  ...guarded('app/api/webhooks/whatsapp/route.ts', 'assertCompanyWritable', ['POST']),
+  ...excepted('app/api/webhooks/whatsapp/route.ts', 'machine-signed',
+    'Meta HMAC signature checked before durable transport acceptance',
+    'The route stores authenticated platform transport only; tenant effects are guarded in inbound staging and durable batch workers.', ['POST']),
   ...excepted('app/api/whoami/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...excepted('app/demo/entry/route.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, ['GET']),
 
@@ -776,6 +778,8 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
       'saveWhatsAppAccount',
       'saveWhatsAppSender',
       'setWhatsAppSenderStatus',
+      'resolveWhatsAppWelcomeStep',
+      'resolveWhatsAppWelcomeTemplate',
     ],
   ),
   ...excepted(
@@ -784,7 +788,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     ADMIN_AUTHORITY,
     ADMIN_REASON,
     [
-      'applyTemplateStatusUpdate',
+      'importApprovedTemplate',
       'checkTemplateStatus',
       'createTemplate',
       'listTemplates',
@@ -897,7 +901,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('lib/actions/invite-accept.ts', 'assertWritable', ['acceptInvite']),
   ...guarded('lib/actions/invoice.ts', 'assertWritable', ['generateInvoice', 'invoiceChangeOrder']),
   ...guarded('lib/actions/invoice-void.ts', 'assertWritable', ['voidInvoice']),
-  ...guarded('lib/actions/whatsapp-consent.ts', 'assertWritable', ['recordWhatsAppOptIn']),
+  ...guarded('lib/actions/whatsapp-consent.ts', 'assertWritable', ['recordWhatsAppOptIn', 'recordWhatsAppOptOut']),
   ...excepted('lib/actions/invoice.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'getInvoicesForEstimate',
     'getInvoicingPreview',
@@ -1168,6 +1172,10 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'whatsAppIntentRouterJob',
     'whatsAppProcessJob',
   ]),
+  ...guarded('lib/inngest/functions/whatsapp-ingress.ts', 'assertCompanyWritable', ['whatsAppIngressBatchJob']),
+  ...excepted('lib/inngest/functions/whatsapp-ingress.ts', 'machine-signed', MACHINE_AUTHORITY,
+    'These signed jobs recover authenticated platform transport; product dispatch revalidates tenant demo and sender authority before effects.',
+    ['whatsAppWebhookJob', 'whatsAppIngressRecoveryJob']),
   ...guarded('lib/inngest/functions/marketing-conversion.ts', 'assertCompanyWritable', [
     'marketingConversionJob',
   ]),
@@ -1308,16 +1316,16 @@ describe('Phase 180 mutation-boundary census', () => {
       'insert',
     )
     expectCallBefore(
-      'app/api/webhooks/whatsapp/route.ts',
-      'processOneMessage',
+      'lib/whatsapp/stage-inbound.ts',
+      'stageInboundMessage',
       'assertCompanyWritable',
       'rateLimit',
     )
     expectCallBefore(
-      'app/api/webhooks/whatsapp/route.ts',
-      'processOneMessage',
+      'lib/whatsapp/stage-inbound.ts',
+      'stageInboundMessage',
       'assertCompanyWritable',
-      'insert',
+      'upsert',
     )
     expectCallBefore(
       'app/api/cron/cleanup-whatsapp-sessions/route.ts',

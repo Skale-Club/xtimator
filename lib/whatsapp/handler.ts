@@ -24,6 +24,7 @@
  * generation + confirmation reply.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { createHash } from 'node:crypto'
 import {
   sendWhatsAppMessage, // still used by processInboundMessages (entitlement rejection)
   markMessageAsRead,
@@ -49,6 +50,80 @@ import {
   type PolicyReplyKey,
 } from '@/lib/whatsapp/message-policy'
 import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
+
+type DurableSession = { id: string; state: string; draft_project_id: string | null; draft_estimate_id: string | null }
+export type DurableInboundRoute =
+  | { kind: 'intent'; session: DurableSession | null; pendingSendId: string | null }
+  | { kind: 'details'; session: DurableSession }
+  | { kind: 'create' }
+export interface DurableBatchContext { batchKey?: string; senderUserId?: string | null; route?: DurableInboundRoute }
+
+/** Freeze this decision in the ingress batch before any downstream dispatch. */
+export async function planDurableInboundRoute(
+  messages: WhatsAppMessage[], companyId: string, ownerPhone: string, supabase: SupabaseClient,
+): Promise<DurableInboundRoute> {
+  const now = Date.now()
+  let cutoff = now
+  for (const { timestamp } of messages) {
+    if (typeof timestamp !== 'string' || !/^\d+$/.test(timestamp)) continue
+    const seconds = Number(timestamp)
+    if (seconds > 0 && Number.isSafeInteger(seconds)) cutoff = Math.min(cutoff, seconds * 1000)
+  }
+  // An inbound reply can only bind to drafts that existed when it was sent.
+  // Use the earliest signed timestamp for every message in this frozen route.
+  const createdBefore = new Date(cutoff).toISOString()
+  const pending = await resolvePendingByChannelRef(supabase, companyId, ownerPhone, {
+    throwOnError: true, createdBefore,
+  })
+  const { data: session, error } = await supabase.from('whatsapp_sessions')
+    .select('id, state, draft_project_id, draft_estimate_id')
+    .eq('company_id', companyId).eq('phone_number', ownerPhone)
+    .lte('created_at', createdBefore).gt('expires_at', new Date(now).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1).maybeSingle()
+  if (error) throw new Error('WhatsApp current session lookup failed')
+  if (pending) return { kind: 'intent', session: null, pendingSendId: pending.id }
+  if (session?.state === 'awaiting_confirm') {
+    if (!session.draft_project_id || !session.draft_estimate_id) {
+      return { kind: 'intent', session: null, pendingSendId: null }
+    }
+    // Regeneration can advance a session's estimate without recreating the session.
+    const { data: estimate, error: estimateError } = await supabase.from('estimates')
+      .select('id').eq('company_id', companyId).eq('project_id', session.draft_project_id)
+      .eq('id', session.draft_estimate_id).lte('created_at', createdBefore).lte('updated_at', createdBefore)
+      .maybeSingle()
+    if (estimateError) throw new Error('WhatsApp confirmation estimate lookup failed', { cause: estimateError })
+    return { kind: 'intent', session: estimate ? session : null, pendingSendId: null }
+  }
+  if (session?.state === 'awaiting_details') return { kind: 'details', session }
+  return messages.length === 1 ? { kind: 'intent', session: null, pendingSendId: null } : { kind: 'create' }
+}
+
+/** Queue workers already collected a durable batch: never use an ephemeral buffer. */
+export async function processDurableInboundBatch(
+  messages: WhatsAppMessage[], companyId: string, fromPhone: string,
+  supabase: SupabaseClient, context: DurableBatchContext = {},
+): Promise<void> {
+  if (!messages.length) return
+  const ownerPhone = `+${fromPhone}`
+  if (await replyIfAccountBlocked(companyId, ownerPhone, supabase)) return
+  for (const message of messages) await markMessageAsRead(message.id).catch(() => undefined)
+  await sendTypingIndicator(messages[messages.length - 1].id).catch(() => undefined)
+  const route = context.route ?? await planDurableInboundRoute(messages, companyId, ownerPhone, supabase)
+  if (route.kind === 'intent') {
+    for (const message of messages) await dispatchIntentRouter(message, route.session,
+      companyId, ownerPhone, fromPhone, context.senderUserId, route.pendingSendId)
+  } else if (route.kind === 'details') {
+    await dispatchToExistingProject(messages, route.session, companyId, ownerPhone, supabase, context)
+  } else {
+    await processInboundMessages(messages, companyId, fromPhone, supabase, context)
+  }
+}
+
+function batchProjectId(companyId: string, batchKey: string): string {
+  const hex = createHash('sha256').update(`whatsapp-project:${companyId}:${batchKey}`).digest('hex')
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-5${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`
+}
 
 // -------------------------------------------------------------------------
 // Per-type policy screen for the batch and awaiting-details paths — the twin of the
@@ -414,6 +489,8 @@ async function dispatchIntentRouter(
   companyId: string,
   ownerPhone: string,
   fromPhone: string,
+  senderUserId?: string | null,
+  pendingSendId?: string | null,
 ): Promise<void> {
   const batchKey = `wa-intent-${message.id}`
   const { inngest } = await import('@/lib/inngest/client')
@@ -428,6 +505,8 @@ async function dispatchIntentRouter(
       message,
       session,
       batchKey,
+      ...(senderUserId !== undefined ? { senderUserId } : {}),
+      ...(pendingSendId !== undefined ? { pendingSendId } : {}),
     },
   })
 }
@@ -450,13 +529,14 @@ async function dispatchToExistingProject(
   companyId: string,
   ownerPhone: string,
   supabase: SupabaseClient,
+  context: DurableBatchContext = {},
 ): Promise<void> {
   if (!messages.length || !session.draft_project_id) return
   const allMessages = messages
   const kept = await screenBatchByPolicy(allMessages, supabase, companyId, ownerPhone)
   if (!kept.length) return
   const lastMessageId = allMessages[allMessages.length - 1].id
-  const batchKey = `wa-batch-${lastMessageId}`
+  const batchKey = context.batchKey ?? `wa-batch-${lastMessageId}`
   const { inngest } = await import('@/lib/inngest/client')
   const { EVENT_WHATSAPP_PROCESS } = await import('@/lib/inngest/events')
   await inngest.send({
@@ -468,6 +548,7 @@ async function dispatchToExistingProject(
       ownerPhone,
       messages: kept,
       batchKey,
+      ...(context.senderUserId !== undefined ? { senderUserId: context.senderUserId } : {}),
     },
   })
 }
@@ -492,7 +573,8 @@ export async function processInboundMessages(
   messages: WhatsAppMessage[],
   companyId: string,
   fromPhone: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  context: DurableBatchContext = {},
 ): Promise<void> {
   if (messages.length === 0) return
   const ownerPhone = `+${fromPhone}`
@@ -504,11 +586,12 @@ export async function processInboundMessages(
 
   // QUOTA-05: Check WhatsApp entitlement BEFORE any project draft / dispatch.
   // Free tier rejection happens here so we never create orphan drafts.
-  const { data: companyRow } = await supabase
+  const { data: companyRow, error: companyError } = await supabase
     .from('companies')
     .select('tier')
     .eq('id', companyId)
     .single()
+  if (companyError || !companyRow) throw new Error('WhatsApp company entitlement lookup failed')
   const tier = (companyRow as { tier: string } | null)?.tier ?? 'free'
   const entitlements = await getEntitlementsForTier(tier)
 
@@ -566,15 +649,18 @@ export async function processInboundMessages(
   }
 
   const lastMessageId = messages[messages.length - 1].id
+  const batchKey = context.batchKey ?? `wa-batch-${lastMessageId}`
+  const stableProjectId = batchProjectId(companyId, batchKey)
 
   // Create a single draft project for the entire batch (cheap, <1s).
   // Keep here (not in Inngest function) so the dispatch payload references
   // a real projectId — easier debugging and the project_id is needed by
   // the per-message step.run blocks for correlation.
   const placeholderName = `${PLACEHOLDER_PREFIX}WhatsApp`
-  const { data: project, error: projectError } = await supabase
+  let { data: project, error: projectError } = await supabase
     .from('projects')
     .insert({
+      id: stableProjectId,
       company_id: companyId,
       client_id: null,
       name: placeholderName,
@@ -587,9 +673,16 @@ export async function processInboundMessages(
     .select('id')
     .single()
 
+  if (projectError?.code === '23505') {
+    const existing = await supabase.from('projects').select('id').eq('id', stableProjectId)
+      .eq('company_id', companyId).single()
+    project = existing.data
+    projectError = existing.error
+  }
+
   if (projectError || !project) {
     console.error('[WhatsApp] Failed to create project:', projectError)
-    return
+    throw new Error('WhatsApp draft project persistence failed')
   }
   const projectId = (project as { id: string }).id
   console.info('[WhatsApp] draft project created for inbound batch', {
@@ -606,7 +699,6 @@ export async function processInboundMessages(
   // duplicate webhook redeliveries collapse to ONE Inngest run.
   const { inngest } = await import('@/lib/inngest/client')
   const { EVENT_WHATSAPP_PROCESS } = await import('@/lib/inngest/events')
-  const batchKey = `wa-batch-${lastMessageId}`
 
   await inngest.send({
     name: EVENT_WHATSAPP_PROCESS,
@@ -617,6 +709,7 @@ export async function processInboundMessages(
       ownerPhone,
       messages,
       batchKey,
+      ...(context.senderUserId !== undefined ? { senderUserId: context.senderUserId } : {}),
     },
   })
   console.info('[WhatsApp] inbound batch dispatched to Inngest', {

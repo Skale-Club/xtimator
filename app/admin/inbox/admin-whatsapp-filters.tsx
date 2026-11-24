@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label'
 import { RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-interface AdminWhatsAppFiltersProps {
+export interface AdminWhatsAppFiltersProps {
   companyId: string | undefined
   senderId: string | undefined
   q: string | undefined
@@ -28,6 +28,7 @@ interface AdminWhatsAppFiltersProps {
   unreadOnly: boolean
   dateFrom: string | undefined
   dateTo: string | undefined
+  onRefresh: () => void
 }
 
 export function AdminWhatsAppFilters({
@@ -38,6 +39,7 @@ export function AdminWhatsAppFilters({
   unreadOnly,
   dateFrom,
   dateTo,
+  onRefresh,
 }: AdminWhatsAppFiltersProps) {
   const router = useRouter()
   const sp = useSearchParams()
@@ -52,11 +54,8 @@ export function AdminWhatsAppFilters({
     }
     // Reset to page 1 on filter change
     params.delete('page')
+    params.delete('conversation')
     router.replace(`/admin/inbox?${params.toString()}`)
-  }
-
-  function handleRefresh() {
-    router.refresh()
   }
 
   const activeFilterCount = [
@@ -120,6 +119,8 @@ export function AdminWhatsAppFilters({
                   params.delete('dateTo')
                   params.delete('companyId')
                   params.delete('senderId')
+                  params.delete('page')
+                  params.delete('conversation')
                   router.replace(`/admin/inbox?${params.toString()}`)
                 }}
               >
@@ -162,8 +163,9 @@ export function AdminWhatsAppFilters({
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">{t('From')}</Label>
+                <Label htmlFor="wa-date-from" className="text-xs text-muted-foreground">{t('From (UTC)')}</Label>
                 <Input
+                  id="wa-date-from"
                   type="date"
                   className="h-8 text-sm"
                   defaultValue={dateFrom ?? ''}
@@ -171,8 +173,9 @@ export function AdminWhatsAppFilters({
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">{t('To')}</Label>
+                <Label htmlFor="wa-date-to" className="text-xs text-muted-foreground">{t('To (UTC)')}</Label>
                 <Input
+                  id="wa-date-to"
                   type="date"
                   className="h-8 text-sm"
                   defaultValue={dateTo ?? ''}
@@ -189,8 +192,9 @@ export function AdminWhatsAppFilters({
         variant="ghost"
         size="icon"
         className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
-        onClick={handleRefresh}
+        onClick={onRefresh}
         title={t('Refresh')}
+        aria-label={t('Refresh inbox and conversation')}
       >
         <RefreshCw size={15} />
       </Button>

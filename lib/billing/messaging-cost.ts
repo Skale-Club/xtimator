@@ -142,9 +142,17 @@ const FREE_PRICING_TYPES: ReadonlySet<string> = new Set(['free_customer_service'
  *  - 'sent' carrying a pricing block: only remembers the category.
  * whatsapp_messages.status (the inbox tick) follows monotonically.
  */
-export async function applyWhatsAppStatus(entry: WhatsAppStatusEntry): Promise<void> {
+export async function applyWhatsAppStatus(entry: WhatsAppStatusEntry, options: { strict?: boolean } = {}): Promise<void> {
   const svc = createServiceClient()
-  if (!svc || !entry?.id) return
+  if (!svc) {
+    if (options.strict) throw new Error('WhatsApp status persistence unavailable')
+    return
+  }
+  if (!entry?.id) return
+  const checked = <T extends { error?: unknown }>(result: T): T => {
+    if (result.error) throw new Error('WhatsApp status database operation failed')
+    return result
+  }
   const wamid = entry.id
   const status = entry.status
 
@@ -157,7 +165,7 @@ export async function applyWhatsAppStatus(entry: WhatsAppStatusEntry): Promise<v
     }
     const from = allowedFrom[status]
     if (from) {
-      await svc
+      checked(await svc
         .from('whatsapp_messages')
         .update({
           status,
@@ -166,41 +174,42 @@ export async function applyWhatsAppStatus(entry: WhatsAppStatusEntry): Promise<v
             : {}),
         })
         .eq('wa_message_id', wamid)
-        .in('status', from)
+        .in('status', from))
     }
   } catch (err) {
     console.warn('[messaging-cost] whatsapp_messages status update failed:', err instanceof Error ? err.message : String(err))
+    if (options.strict) throw err
   }
 
   // Cost row.
   try {
-    const { data: row } = await svc
+    const { data: row } = checked(await svc
       .from('messaging_cost_events')
       .select('id, status, category, market')
       .eq('provider', 'meta')
       .eq('provider_message_id', wamid)
-      .maybeSingle()
+      .maybeSingle())
     const current = row as { id: string; status: string; category: string | null; market: string | null } | null
     if (!current || current.status !== 'sent') return // unknown message, or already settled
 
     const category = entry.pricing?.category ?? current.category ?? null
 
     if (status === 'failed') {
-      await svc
+      checked(await svc
         .from('messaging_cost_events')
         .update({ status: 'failed', cost_usd: 0, ...(category ? { category } : {}) })
         .eq('id', current.id)
-        .eq('status', 'sent')
+        .eq('status', 'sent'))
       return
     }
 
     if (status === 'sent') {
       if (entry.pricing?.category && !current.category) {
-        await svc
+        checked(await svc
           .from('messaging_cost_events')
           .update({ category: entry.pricing.category })
           .eq('id', current.id)
-          .eq('status', 'sent')
+          .eq('status', 'sent'))
       }
       return
     }
@@ -219,7 +228,7 @@ export async function applyWhatsAppStatus(entry: WhatsAppStatusEntry): Promise<v
     const deliveredAt = entry.timestamp
       ? new Date(Number(entry.timestamp) * 1000).toISOString()
       : new Date().toISOString()
-    await svc
+    checked(await svc
       .from('messaging_cost_events')
       .update({
         status: 'delivered',
@@ -229,19 +238,21 @@ export async function applyWhatsAppStatus(entry: WhatsAppStatusEntry): Promise<v
         ...(category ? { category } : {}),
       })
       .eq('id', current.id)
-      .eq('status', 'sent')
+      .eq('status', 'sent'))
   } catch (err) {
     console.warn('[messaging-cost] cost status update failed:', err instanceof Error ? err.message : String(err))
+    if (options.strict) throw err
   }
 }
 
 /** Apply every status of a webhook payload, sequentially; one failure never stops the rest. */
-export async function applyWhatsAppStatuses(entries: WhatsAppStatusEntry[]): Promise<void> {
+export async function applyWhatsAppStatuses(entries: WhatsAppStatusEntry[], options: { strict?: boolean } = {}): Promise<void> {
   for (const entry of entries) {
     try {
-      await applyWhatsAppStatus(entry)
+      await applyWhatsAppStatus(entry, options)
     } catch (err) {
       console.warn('[messaging-cost] status entry failed:', err instanceof Error ? err.message : String(err))
+      if (options.strict) throw err
     }
   }
 }

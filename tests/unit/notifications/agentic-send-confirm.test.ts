@@ -388,6 +388,12 @@ describe('resolvePendingByChannelRef', () => {
     const { client } = makeChainClient('limit', { data: null, error: { message: 'boom' } })
     await expect(resolvePendingByChannelRef(client, 'company-1', '+15551234567')).resolves.toBeNull()
   })
+
+  it('a strict lookup rejects a DB error so ingress cannot persist it as an absent draft', async () => {
+    const { client } = makeChainClient('limit', { data: null, error: { message: 'boom' } })
+    await expect(resolvePendingByChannelRef(client, 'company-1', '+15551234567', { throwOnError: true }))
+      .rejects.toThrow('Could not read the pending customer message confirmation')
+  })
 })
 
 describe('resolveByToken', () => {
