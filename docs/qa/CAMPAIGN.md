@@ -94,6 +94,10 @@ API suite does invoke the actual Next.js webhook handler with an official
 retrieved event and ephemeral receiver signatures. It checks missing, altered,
 expired and unconfigured signatures before verifying inbox and ledger replay.
 
+## Browser runner
+
+The complete acceptance job runs on macOS15 so WebKit provides its native MediaRecorder implementation. Playwright1.59.1 explicitly disables ENABLE_MEDIA_RECORDER in its Linux GTK/WPE build patches ([upstream source](https://github.com/microsoft/playwright/blob/v1.59.1/browser_patches/webkit/patches/bootstrap.diff)). The observed Linux recording failure has recorderAvailable=false despite a live native synthetic MediaStream. Replacing MediaRecorder with a mock would not establish the required recording behavior. All three projects run in the same job and share one fresh report; the matrix is not assembled from older platform runs. The PDF reader uses a temporary Python environment; OpenSSL3 provides per-run TLS keys. Mobile profiles still emulate devices and cannot establish physical iPhone/Android capture.
+
 ## Hypothesis, evidence and retest
 
 The expanded scenarios cover native capture with synthetic media/provider output, project/settings/price-book persistence, exhausted generation retries, microphone refusal, stale document signing, editor hydration, automated accessibility rules, client keyboard interaction, public/workspace screen rendering, rejection of forged provider callbacks and change-order approval/decline. A rendered screen does not prove all of its controls or states. A synthetic provider result does not establish live provider quality or delivery.

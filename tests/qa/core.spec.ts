@@ -83,12 +83,18 @@ test('[QA:CLIENT-CRUD] client form edits persist and survive navigation and relo
   const name = `${fixture.clientName} Updated`
   await page.getByPlaceholder('Client name', { exact: true }).fill(name)
   await page.getByRole('button', { name: 'Update Client', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect.poll(async () => (await fixture.readClient(createdId))?.name).toBe(name)
   await page.reload()
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
-  await page.goto('/clients')
-  await expect(page.getByText(name, { exact: true }).first()).toBeVisible()
-  await page.goto(`/clients/${createdId}`)
+  // Use the application's navigation while its refresh completes, rather than
+  // racing a second document load against the router's refreshed detail page.
+  await page.getByTestId('app-sidebar').or(page.getByTestId('bottom-nav')).filter({ visible: true })
+    .getByRole('link', { name: 'Clients', exact: true }).click()
+  await expect(page).toHaveURL(/\/clients$/)
+  await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible()
+  await page.getByText(name, { exact: true }).filter({ visible: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/clients/${createdId}$`))
   await page.getByRole('button', { name: `Client actions: ${name}` }).click()
   await page.getByRole('menuitem', { name: 'Delete client', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
