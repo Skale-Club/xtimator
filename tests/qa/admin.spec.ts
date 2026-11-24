@@ -27,6 +27,31 @@ async function withTenant(page: Page, baseURL: string, platformAdmin: boolean, r
 
 test('[QA:ADM-DENIAL] an authenticated tenant cannot read the admin UI or admin API', async ({ page, baseURL }, info) => {
   await withTenant(page, baseURL!, false, async tenant => {
+    const origin = new URL(baseURL!).origin
+    const navigations: { pathClass: string; loginQuery: boolean }[] = []
+    const chunkFailures: { path: string; status: number | null }[] = []
+    const authChunks = new Set<string>()
+    page.on('framenavigated', frame => {
+      if (frame !== page.mainFrame() || navigations.length >= 16) return
+      const url = new URL(frame.url())
+      const isRelevant = url.origin === origin && ['/', '/admin', '/api/logout'].includes(url.pathname)
+      navigations.push({ pathClass: isRelevant ? url.pathname : 'other', loginQuery: url.searchParams.get('auth') === 'login' })
+    })
+    function recordChunk(rawUrl: string, status: number | null) {
+      const url = new URL(rawUrl)
+      if (url.origin !== origin || !url.pathname.startsWith('/_next/static/') || !url.pathname.endsWith('.js')) return
+      if (/auth[-_]dialog/i.test(url.pathname)) authChunks.add(url.pathname)
+      if ((status === null || status >= 400) && chunkFailures.length < 12) chunkFailures.push({ path: url.pathname, status })
+    }
+    page.on('requestfailed', request => recordChunk(request.url(), null))
+    page.on('response', response => recordChunk(response.url(), response.status()))
+    await page.addInitScript(() => {
+      const isLoginQuery = () => new URLSearchParams(location.search).get('auth') === 'login'
+      const state = { atDocumentStart: isLoginQuery(), atDomReady: null as boolean | null, atLoad: null as boolean | null }
+      Object.assign(window, { __qaAdminLoginQuery: state })
+      document.addEventListener('DOMContentLoaded', () => { state.atDomReady = isLoginQuery() }, { once: true })
+      window.addEventListener('load', () => { state.atLoad = isLoginQuery() }, { once: true })
+    })
     const browserErrors: string[] = []
     page.on('pageerror', error => browserErrors.push(
       /Rendered (?:more|fewer) hooks/i.test(error.message) ? 'router-hooks'
@@ -60,9 +85,22 @@ test('[QA:ADM-DENIAL] an authenticated tenant cannot read the admin UI or admin 
       await expect(page.getByRole('navigation', { name: 'Platform admin navigation' })).toHaveCount(0)
       expect(browserErrors).toEqual([])
     } finally {
+      const loginFlow = await page.evaluate(() => {
+        const browser = window as Window & { __qaAdminLoginQuery?: object; dataLayer?: unknown[] }
+        return {
+          documentQuery: browser.__qaAdminLoginQuery ?? null,
+          finalQueryIsLogin: new URLSearchParams(location.search).get('auth') === 'login',
+          landingSawLoginLink: Array.isArray(browser.dataLayer) && browser.dataLayer.some(entry =>
+            typeof entry === 'object' && entry !== null && 'xt_cta' in entry && entry.xt_cta === 'open_login'
+            && 'xt_cta_placement' in entry && entry.xt_cta_placement === 'link'),
+        }
+      }).catch(() => null)
       await info.attach('admin-denial-evidence.json', {
         body: JSON.stringify({ authenticatedBeforeDenial: true, adminApiStatus: api.status(), logoutStatus: logout.status(), sessionCleared: true,
           finalPath: new URL(page.url()).pathname, browserErrors,
+          logoutWasDocumentNavigation: logout.request().isNavigationRequest(),
+          loginFlow, navigations, authChunks: [...authChunks], chunkFailures,
+          anyDialogs: await page.getByRole('dialog').count(),
           loginDialogs: await page.getByRole('dialog', { name: /^Sign in to / }).count(),
           phoneFields: await page.getByLabel('Phone number', { exact: true }).count(),
           landingVisible: await page.getByTestId('landing-shell').isVisible(),
@@ -108,6 +146,12 @@ test('[QA:ADM-READONLY] a marked DEV platform admin can read the admin screens w
       for (const { route, path = route, heading, verify } of surfaces) {
         await test.step(`Read ${route}`, async () => {
           const screen = await page.context().newPage()
+          // Wait for the real proxy response instead of closing the page while
+          // its catalog effect is still pending. The catalog is synthetic.
+          const catalog = route === '/admin/integrations'
+            ? screen.waitForResponse(response => new URL(response.url()).pathname === '/api/admin/openrouter-models', { timeout: 25_000 })
+              .then(async response => ({ status: response.status(), body: await response.json() })).catch(() => null)
+            : null
           const evidence = { route, status: null as number | null, ready: false, pageErrors: 0, serverErrors: 0 }
           visits.push(evidence)
           screen.on('pageerror', () => { evidence.pageErrors++ })
@@ -121,6 +165,13 @@ test('[QA:ADM-READONLY] a marked DEV platform admin can read the admin screens w
             await expect(screen.getByText(`Super Admin Mode - ${tenant.userEmail}`, { exact: true })).toBeVisible()
             await expect(screen.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible()
             await verify(screen)
+            if (catalog) {
+              const loaded = await catalog
+              expect(loaded?.status).toBe(200)
+              expect(loaded?.body?.models).toContainEqual(expect.objectContaining({
+                id: 'anthropic/claude-sonnet-5', name: 'QA synthetic estimate model',
+              }))
+            }
             evidence.ready = true
           } finally {
             await screen.close()

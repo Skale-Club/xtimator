@@ -54,6 +54,20 @@ test('[QA:SIGNATURE-KEYBOARD] an anonymous recipient signs the estimate and obta
     expect((await page.reload())?.status()).toBe(200)
     await expect(page.getByTestId('response-status')).toContainText('Estimate Accepted')
     expect((await fixture.readSignature())?.snapshot_sha256).toBe(digest)
+
+    await page.context().addCookies(fixture.cookies())
+    expect((await page.goto(`/projects/${fixture.projectId}`))?.status()).toBe(200)
+    const signatureBlock = page.locator('[data-page-block-id="signature"]').filter({ visible: true })
+    await expect(signatureBlock.getByText(signer, { exact: true })).toBeVisible()
+    await expect(signatureBlock.getByRole('img')).toHaveAttribute('src', signature!.signature_data)
+    if (info.project.name === 'chromium') {
+      const pageView = page.getByRole('button', { name: 'Page view', exact: true })
+      await tabTo(page, pageView)
+      await page.keyboard.press('Enter')
+      await expect(pageView).toHaveAttribute('aria-pressed', 'true')
+      await expect(signatureBlock.getByText(signer, { exact: true })).toBeVisible()
+      await expect(signatureBlock.getByRole('img')).toHaveAttribute('src', signature!.signature_data)
+    }
   } finally {
     try { await page.close() } finally { await fixture.cleanup() }
   }

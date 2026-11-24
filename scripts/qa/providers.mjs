@@ -21,6 +21,14 @@ export function startProviders(port = 9651) {
     const json = (status, value) => { response.writeHead(status, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)) }
     if (request.url === '/health') return json(200, { mode: 'synthetic', realProviderCalls: 0 })
     if (request.url === '/history') return json(200, history)
+    if (request.url === '/openrouter/models' && request.method === 'GET') {
+      history.push({ kind: 'model-catalog' })
+      return json(200, { data: [{
+        id: 'anthropic/claude-sonnet-5', name: 'QA synthetic estimate model',
+        description: 'Local acceptance fixture; no live model availability claim.',
+        context_length: 8192, pricing: { prompt: '0', completion: '0' },
+      }] })
+    }
     if (request.url === '/fault' && ['POST', 'DELETE'].includes(request.method)) {
       let control
       try { const chunks = []; for await (const chunk of request) chunks.push(chunk); control = JSON.parse(Buffer.concat(chunks).toString()) }

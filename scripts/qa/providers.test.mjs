@@ -40,3 +40,18 @@ test('provider faults are bounded and cannot fail an unrelated synthetic project
     assert.equal((await request(scope)).status, 200)
   } finally { await new Promise(resolve => server.close(resolve)) }
 })
+
+test('the isolated admin catalog returns structured models without contacting a provider', async () => {
+  const server = await startProviders(0)
+  const origin = `http://127.0.0.1:${server.address().port}`
+  try {
+    const response = await fetch(`${origin}/openrouter/models`)
+    assert.equal(response.status, 200)
+    const catalog = await response.json()
+    assert.equal(catalog.data[0].id, 'anthropic/claude-sonnet-5')
+    assert.match(catalog.data[0].name, /^QA synthetic /)
+    assert.deepEqual(catalog.data[0].pricing, { prompt: '0', completion: '0' })
+    assert.deepEqual(await (await fetch(`${origin}/history`)).json(), [{ kind: 'model-catalog' }])
+    assert.equal((await fetch(`${origin}/unsupported-catalog`)).status, 404)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})

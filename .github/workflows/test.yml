@@ -3,7 +3,8 @@ name: Test
 # TEST gate only (EVAL-04) — NOT a deploy change.
 # Deploy lives entirely in build-deploy.yml: `next build` runs in Docker on a
 # GitHub runner, the image is pushed to GHCR, and Coolify PULLs it. This
-# workflow NEVER builds the app, builds no image, and touches no deploy path.
+# workflow publishes no image and touches no deploy path. Its separate trusted
+# development job can compile a production-mode artifact for QA evidence.
 # It runs a scoped typecheck + the unit/eval suite (twice, for determinism) and
 # fails the build the moment a quality metric, schema validity, or engine
 # behavior regresses.
@@ -57,7 +58,9 @@ jobs:
     # 15 min stopped fitting: the full suite (~8k tests) took 11.5 min on one
     # runner and blew 15 on another (2026-11-07), and a timeout reports as
     # "cancelled", which silently skips Build and Deploy.
-    timeout-minutes: 25
+    # Two complete passes took about21minutes including setup on2026-11-24.
+    # Leave runner-variance headroom while retaining per-test timeouts.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
