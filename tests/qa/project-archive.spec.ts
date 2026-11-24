@@ -72,7 +72,8 @@ test('[QA:PROJECT-ARCHIVE-RESTORE] moves an owned project between views without 
     await unrelated.seed()
     await context.addCookies(fixture.cookies())
     expect((await page.goto('/projects'))?.status()).toBe(200)
-    await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
+    await expect(page).toHaveURL(/\/projects$/)
+    await expect(page.getByPlaceholder('Search projects...', { exact: true })).toBeVisible()
     await expect(page.getByText(unrelated.projectName, { exact: true })).toHaveCount(0)
     expect(await fixture.readProject()).toMatchObject({ ...preservedProject, archived_at: null })
 

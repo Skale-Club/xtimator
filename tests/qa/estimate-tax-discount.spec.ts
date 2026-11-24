@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { typeSignature } from './fixtures/keyboard-signature'
+import { normalizePdfText } from './fixtures/pdf-text'
 import { createQaFixture } from './fixtures/tenant'
 import { expect, test } from './test'
 
@@ -37,9 +38,9 @@ async function checkPdf(page: Page, info: TestInfo, path: string, name: string, 
   expect(response.headers()['content-type']).toContain('application/pdf')
   const pdf = await response.body()
   expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
-  const text = execFileSync(process.env.QA_PYTHON || 'python', ['-c',
+  const text = normalizePdfText(execFileSync(process.env.QA_PYTHON || 'python', ['-c',
     'import io,sys;from pypdf import PdfReader;print(" ".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(sys.stdin.buffer.read())).pages))',
-  ], { input: pdf, encoding: 'utf8', timeout: 15_000 }).replace(/\s+/g, ' ')
+  ], { input: pdf, encoding: 'utf8', timeout: 15_000 }))
   for (const description of descriptions) expect(text).toContain(description)
   expect(text).toMatch(/\bSubtotal\s+\$1,033\.33\s+Discount \(13\.33%\)\s+-\$137\.74\s+Tax \(7\.25%\)\s+\$62\.84\s+Total\s+\$958\.43\b/)
   await info.attach(name, { body: pdf, contentType: 'application/pdf' })

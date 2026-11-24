@@ -189,6 +189,7 @@ export default async function EventLogPage({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
+                        prefetch={false}
                         href={`/admin/events/${a.attempt_id as string}`}
                         className="text-[hsl(var(--primary))] hover:underline text-xs font-medium"
                       >
@@ -207,7 +208,7 @@ export default async function EventLogPage({
       {totalPages > 1 && (
         <div className="flex items-center gap-2 text-sm">
           {page > 1 ? (
-            <Link href={pageUrl(page - 1)} className="text-[hsl(var(--primary))] hover:underline">
+            <Link href={pageUrl(page - 1)} prefetch={false} className="text-[hsl(var(--primary))] hover:underline">
               <T>Previous</T>
             </Link>
           ) : (
@@ -217,7 +218,7 @@ export default async function EventLogPage({
             <T text={`Page ${page} of ${totalPages}`} />
           </span>
           {page < totalPages ? (
-            <Link href={pageUrl(page + 1)} className="text-[hsl(var(--primary))] hover:underline">
+            <Link href={pageUrl(page + 1)} prefetch={false} className="text-[hsl(var(--primary))] hover:underline">
               <T>Next</T>
             </Link>
           ) : (

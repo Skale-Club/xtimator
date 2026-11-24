@@ -32,6 +32,7 @@ export default async function AttemptDetailPage({
     <div className="space-y-6">
       {/* Back link — mirrors companies/[id] pattern */}
       <Link
+        prefetch={false}
         href="/admin/events"
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >

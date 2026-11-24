@@ -61,13 +61,17 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
     })
 
     await test.step('Delete the new project from its list entry', async () => {
-      await page.getByTestId('app-sidebar').or(page.getByTestId('bottom-nav')).filter({ visible: true })
-        .getByRole('link', { name: 'Projects', exact: true }).click()
+      const desktop = info.project.name === 'chromium'
+      const projectsLink = desktop
+        ? page.getByTestId('app-sidebar').getByRole('link', { name: 'Projects', exact: true })
+        : page.getByTestId('editor-top-bar').getByRole('link', { name: 'Back to projects', exact: true })
+      await expect(projectsLink).toBeVisible()
+      await projectsLink.click()
       await expect(page).toHaveURL(/\/projects$/)
-      await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
+      await expect(page.getByPlaceholder('Search projects...', { exact: true })).toBeVisible()
       const link = page.locator(`a[href="/projects/${projectId}"][aria-hidden="true"]`)
       const actions = page.getByRole('button', { name: 'Actions', exact: true })
-      const entry = info.project.name === 'chromium'
+      const entry = desktop
         ? page.getByRole('row').filter({ has: link })
         : link.locator('xpath=..').filter({ has: actions })
       await expect(entry.getByText(projectName, { exact: true })).toBeVisible()
