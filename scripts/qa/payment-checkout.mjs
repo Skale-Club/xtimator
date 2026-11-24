@@ -123,6 +123,21 @@ async function cardControl(selector) {
   throw new Error('Required card control unavailable')
 }
 
+async function submitSubscription() {
+  const deadline = Date.now() + 15_000
+  do {
+    for (const frame of page.frames()) {
+      const button = frame.getByRole('button', { name: /^(?:Subscribe|Start subscription)(?:\b|$)/i })
+      if (await button.count() === 1 && await button.isVisible()) {
+        await button.click()
+        return
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 200))
+  } while (Date.now() < deadline)
+  throw new Error('Subscription confirmation unavailable')
+}
+
 // All values below are synthetic. Use the card in the real hosted UI per
 // https://docs.stripe.com/testing#test-code, never in a Stripe API call.
 async function checkout() {
@@ -164,7 +179,7 @@ async function checkout() {
   await fillOptional('#billingPostalCode, input[autocomplete="postal-code"]', '10001')
 
   phase = 'submit'
-  await page.getByRole('button', { name: /^(?:Subscribe|Start subscription)(?:\b|$)/i }).click()
+  await submitSubscription()
   phase = 'redirect'
   await page.waitForURL(successUrl, { waitUntil: 'commit', timeout: 30_000 })
 }
