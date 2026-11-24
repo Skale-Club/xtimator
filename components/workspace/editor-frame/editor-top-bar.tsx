@@ -104,7 +104,7 @@ function GenerationLine({ status }: { status: GenerationStatus }) {
  * share one left edge with the document below. On phones the back link is a
  * text row above the title; on desktop the global breadcrumb replaces it.
  */
-export function EditorTopBar({ project }: { project: ProjectDetail }) {
+export function EditorTopBar({ project, canRename }: { project: ProjectDetail; canRename?: boolean }) {
   const { slot } = useEstimateVersionSlot()
   const { t } = useTranslation()
   // The breadcrumb is app chrome: app language, never the estimate's (QA 2026-11-20).
@@ -172,6 +172,7 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
             projectId={project.id}
             initialName={project.name}
             onRenameSuccess={slot?.onProjectRenamed}
+            canRename={canRename}
           />
         </div>
         {hasChips && (

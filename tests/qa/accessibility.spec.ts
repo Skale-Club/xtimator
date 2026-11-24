@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright'
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { expect, test } from './test'
 import { createQaFixture } from './fixtures/tenant'
+import { focusTraversalKey } from './fixtures/keyboard-navigation'
 
 const WCAG_RULE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 type Tenant = ReturnType<typeof createQaFixture>
@@ -114,11 +115,12 @@ test('[QA:AXE-PUBLIC] anonymous estimate and signing dialog expose named control
 
 async function tabTo(page: Page, target: Locator, label: string) {
   await expect(target).toBeVisible()
+  const key = focusTraversalKey(process.platform, page.context().browser()?.browserType().name())
   for (let count = 0; count <= 45; count++) {
     if (await target.evaluate(element => element === document.activeElement)) return
-    await page.keyboard.press('Tab')
+    await page.keyboard.press(key)
   }
-  throw new Error(`Keyboard Tab did not reach ${label}`)
+  throw new Error(`Keyboard navigation did not reach ${label}`)
 }
 
 test('[QA:KEYBOARD-CLIENT] Tab and Enter open Add Client, report required input and restore focus on Escape', async ({ page, baseURL }, info) => {

@@ -1,14 +1,16 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { expect } from '../test'
+import { focusTraversalKey } from './keyboard-navigation'
 
 export async function tabTo(page: Page, target: Locator) {
   await expect(target).toBeVisible()
+  const key = focusTraversalKey(process.platform, page.context().browser()?.browserType().name())
   for (let count = 0; count < 60; count++) {
     if (await target.evaluate(element => element === document.activeElement)) return
-    await page.keyboard.press('Tab')
+    await page.keyboard.press(key)
   }
-  throw new Error('Keyboard Tab could not reach the required visible control')
+  throw new Error('Keyboard navigation could not reach the required visible control')
 }
 
 export async function observeSignaturePointers(page: Page) {

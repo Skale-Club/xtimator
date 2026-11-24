@@ -14,9 +14,10 @@ import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
+  canRename?: boolean
 }
 
-export function ProjectHeader({ project }: ProjectHeaderProps) {
+export function ProjectHeader({ project, canRename }: ProjectHeaderProps) {
   const { slot } = useEstimateVersionSlot()
   const { t } = useTranslation()
   // The breadcrumb is app chrome: app language, never the estimate's (QA 2026-11-20).
@@ -50,6 +51,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             projectId={project.id}
             initialName={project.name}
             onRenameSuccess={slot?.onProjectRenamed}
+            canRename={canRename}
           />
           {/* Credits plan 2026-11-20: the capture waits for credits. A small chip,
               not a panel: it opens the paused sheet (?paused=). */}

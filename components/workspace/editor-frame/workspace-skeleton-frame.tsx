@@ -23,8 +23,8 @@ export function WorkspaceSkeletonFrame({
   if (frame === 'v2') {
     return (
       <div data-editor-frame="v2" className="flex min-h-full flex-col">
-        <EditorTopBar project={project} />
-        <div className="min-w-0 flex-1">{children}</div>
+        <EditorTopBar project={project} canRename={false} />
+        <div aria-busy="true" className="min-w-0 flex-1">{children}</div>
       </div>
     )
   }
@@ -32,8 +32,8 @@ export function WorkspaceSkeletonFrame({
   return (
     <div className="relative flex min-h-full flex-row gap-0 items-start">
       <div className="min-w-0 flex-1">
-        <ProjectHeader project={project} />
-        {children}
+        <ProjectHeader project={project} canRename={false} />
+        <div aria-busy="true">{children}</div>
       </div>
     </div>
   )

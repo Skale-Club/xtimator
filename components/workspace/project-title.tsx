@@ -13,9 +13,11 @@ interface ProjectTitleProps {
   onRenameSuccess?: (name: string) => void
   /** 'compact' is the editor top bar's one-line title. */
   size?: 'display' | 'compact'
+  /** A streaming fallback displays the title without starting a draft. */
+  canRename?: boolean
 }
 
-export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = 'display' }: ProjectTitleProps) {
+export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = 'display', canRename = true }: ProjectTitleProps) {
   const [name, setName] = useState(initialName)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(initialName)
@@ -80,7 +82,7 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
     })
   }
 
-  if (editing) {
+  if (canRename && editing) {
     return (
       <input
         ref={inputRef}
@@ -112,15 +114,16 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = '
           sm+: single-line ellipsis as before. Pencil is always visible on touch
           (no hover on mobile) and hover-revealed on desktop. */}
       <h1
-        onClick={enterEdit}
-        className={compact ? 'min-w-0 truncate text-[16.5px] md:text-[19px] font-semibold tracking-[-0.01em] leading-tight cursor-pointer' : 'min-w-0 line-clamp-3 break-words sm:line-clamp-1 text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15] cursor-pointer'}
+        onClick={canRename ? enterEdit : undefined}
+        className={`${compact ? 'min-w-0 truncate text-[16.5px] md:text-[19px] font-semibold tracking-[-0.01em] leading-tight' : 'min-w-0 line-clamp-3 break-words sm:line-clamp-1 text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15]'}${canRename ? ' cursor-pointer' : ''}`}
       >
         {name}
       </h1>
       <button
         type="button"
-        onClick={enterEdit}
-        className={`inline-flex items-center justify-center rounded-md ${compact ? 'p-1' : 'p-1.5'} text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 shrink-0`}
+        onClick={canRename ? enterEdit : undefined}
+        disabled={!canRename}
+        className={`inline-flex items-center justify-center rounded-md ${compact ? 'p-1' : 'p-1.5'} text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 disabled:pointer-events-none`}
         aria-label={t('Rename project')}
       >
         <Pencil className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />

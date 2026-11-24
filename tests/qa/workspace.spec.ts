@@ -1,7 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './test'
 import { createQaFixture } from './fixtures/tenant'
-import { observeSaveRefresh } from './fixtures/navigation'
 
 const DEVELOPMENT_ORIGIN = 'https://prmqgcrnpuvpzruyzvuv.supabase.co'
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
@@ -51,11 +50,14 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
 
     const projectName = `QA manual project ${projectId.slice(0, 8)}`
     await test.step('Rename the project and recover the saved title after a reload', async () => {
+      await expect(page.locator('[data-editor-dock]').getByRole('button', { name: 'Share', exact: true })).toBeVisible()
       await page.getByRole('button', { name: 'Rename project', exact: true }).click()
       const name = page.getByRole('textbox', { name: 'Project name', exact: true })
+      await expect(name).toBeVisible()
       await name.fill(projectName)
-      await observeSaveRefresh(page, `/projects/${projectId}`, () => name.press('Enter'))
+      await name.press('Enter')
       await expect.poll(async () => (await fixture.readOwn('projects', projectId))?.name).toBe(projectName)
+      await expect(page.getByRole('heading', { level: 1, name: projectName, exact: true })).toBeVisible()
       await page.reload()
       await expect(page.getByRole('heading', { level: 1, name: projectName, exact: true })).toBeVisible()
     })
