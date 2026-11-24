@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const maxFailures = Number(process.env.QA_MAX_FAILURES || '0')
+if (!Number.isInteger(maxFailures) || maxFailures < 0 || maxFailures > 100) throw new Error('Invalid QA_MAX_FAILURES')
+
 export default defineConfig({
   testDir: './tests/qa', testMatch: '**/*.spec.ts',
+  globalSetup: './tests/qa/setup.ts', maxFailures,
   timeout: 180_000, expect: { timeout: 20_000 },
   fullyParallel: false, workers: 1, forbidOnly: true, retries: 0,
   outputDir: 'qa-results/artifacts',

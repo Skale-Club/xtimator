@@ -24,6 +24,14 @@ on:
         description: 'Run the isolated autonomous acceptance campaign (synthetic providers; not public-launch approval)'
         type: boolean
         default: false
+      qa_max_failures:
+        description: 'Diagnostic failure limit (0 runs the complete matrix; missing cases always block readiness)'
+        type: string
+        default: '0'
+      qa_scenarios:
+        description: 'Optional comma-separated QA IDs for a focused diagnostic; omitted mandatory cases remain blocked'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -93,6 +101,8 @@ jobs:
       cancel-in-progress: false
     env:
       XTIMATOR_QA_DEV: '1'
+      QA_MAX_FAILURES: ${{ inputs.qa_max_failures }}
+      QA_SCENARIOS: ${{ inputs.qa_scenarios }}
       DATA_API_MODE: supabase
       NEXT_PUBLIC_AUTH_MODE: owned
       NEXT_PUBLIC_SUPABASE_URL: https://prmqgcrnpuvpzruyzvuv.supabase.co

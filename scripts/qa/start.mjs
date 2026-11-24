@@ -11,7 +11,8 @@ for (const key of ['SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABL
   if (!process.env[key]) throw new Error(`Missing QA prerequisite: ${key}`)
 }
 mkdirSync('qa-results', { recursive: true })
-const env = Object.fromEntries(['PATH', 'Path', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'CI'].filter(key => process.env[key]).map(key => [key, process.env[key]]))
+const systemEnv = Object.fromEntries(['PATH', 'Path', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'CI'].filter(key => process.env[key]).map(key => [key, process.env[key]]))
+const env = { ...systemEnv }
 // Next loads dotenv files itself. Explicit empty values prevent an excluded
 // production/provider credential from being reintroduced by a local file.
 for (const file of ['.env', '.env.local', '.env.development', '.env.development.local']) {
@@ -38,7 +39,7 @@ const children = [
   spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', '9650'], { env, stdio: 'inherit' }),
   spawn(process.platform === 'win32' ? process.execPath : resolve('node_modules/.bin/inngest-cli'),
     [...(process.platform === 'win32' ? ['node_modules/inngest-cli/bin/inngest'] : []), 'dev', '--no-discovery', '-u', 'http://127.0.0.1:9650/api/inngest'],
-    { env: { ...env, NODE_OPTIONS: '' }, stdio: 'inherit' }),
+    { env: { ...systemEnv, INNGEST_DEV: '1', DO_NOT_TRACK: '1' }, stdio: 'inherit' }),
 ]
 let stopping = false
 function stop(code = 0) {

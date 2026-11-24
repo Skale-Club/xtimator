@@ -1,4 +1,5 @@
-import { test, expect, type Page, type TestInfo } from '@playwright/test'
+import type { Page, TestInfo } from '@playwright/test'
+import { test, expect } from './test'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createQaFixture } from './fixtures/tenant'
@@ -33,7 +34,7 @@ test('[QA:SESSION-OWNED] current owned session authenticates the synthetic tenan
   expect(typeof payload.accessToken).toBe('string')
   expect((await page.goto('/dashboard'))?.status()).toBe(200)
   await expect(page).toHaveURL(/\/dashboard/)
-  await expect(page.getByText(fixture.projectName, { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(fixture.projectName, { exact: true }).filter({ visible: true }).first()).toBeVisible()
   await page.context().clearCookies()
   const absent = await page.request.get('/api/auth/session')
   expect((await absent.json()).user).toBeNull()
@@ -111,7 +112,7 @@ test('[QA:ESTIMATE-EDIT] line edits persist, preserve totals and render in edito
   await expect.poll(async () => (await fixture.readOwn('estimate_items', fixture.itemId))?.description).toBe(description)
   await page.context().clearCookies()
   await page.goto(`/estimate/${fixture.shareToken}`)
-  await expect(page.getByText(description, { exact: true })).toBeVisible()
+  await expect(page.getByText(description, { exact: true }).filter({ visible: true })).toBeVisible()
   await expect(page.getByText('$1,000.00', { exact: true }).first()).toBeVisible()
   await noOverflow(page)
   await screenshot(page, info, 'edited-public-document')
@@ -119,8 +120,8 @@ test('[QA:ESTIMATE-EDIT] line edits persist, preserve totals and render in edito
 
 test('[QA:PUBLIC-SHARE] anonymous document shows persisted content and rejects an unknown token', async ({ page }, info) => {
   expect((await page.goto(`/estimate/${fixture.shareToken}`))?.status()).toBe(200)
-  await expect(page.getByText(fixture.lineDescription, { exact: true })).toBeVisible()
-  await expect(page.getByText(fixture.companyName, { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(fixture.lineDescription, { exact: true }).filter({ visible: true })).toBeVisible()
+  await expect(page.getByText(fixture.companyName, { exact: true }).filter({ visible: true }).first()).toBeVisible()
   await expect(page.getByText('$1,000.00', { exact: true }).first()).toBeVisible()
   await noOverflow(page)
   await screenshot(page, info, 'anonymous-estimate')
@@ -154,7 +155,7 @@ test('[QA:SIGNATURE-PDF] public signing persists frozen evidence and produces a 
   const evidence = await fixture.readSignature()
   expect(evidence?.snapshot_sha256).toMatch(/^[a-f0-9]{64}$/)
   expect(JSON.stringify(evidence?.signed_content)).toContain(fixture.lineDescription)
-  expect((await fixture.readEstimate())?.status).toBe('accepted')
+  expect((await fixture.readEstimate())?.client_response).toBe('accepted')
   const link = page.getByRole('link', { name: 'Download PDF', exact: true })
   await expect(link).toBeVisible()
   const response = await page.request.get((await link.getAttribute('href'))!)

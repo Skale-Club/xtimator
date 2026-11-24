@@ -61,9 +61,36 @@
       "titleToken": "[QA:CAPTURE-PIPELINE]",
       "requiredForExecution": true,
       "requiredForLaunch": true,
-      "routes": ["/projects/new", "/projects/[id]/capture", "/projects/[id]"],
+      "routes": ["/projects/[id]/capture", "/projects/[id]", "/estimate/[token]"],
       "hypothesis": "An audio capture can progress through the actual app, API and Inngest handlers to a persisted estimate draft.",
       "expectedEvidence": "Synthetic media enters the app and the draft renders in the workspace. Provider transports are simulated. The test makes no live AI or physical-device claim."
+    },
+    {
+      "id": "PROJECT-CRUD",
+      "titleToken": "[QA:PROJECT-CRUD]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/new", "/projects", "/projects/[id]"],
+      "hypothesis": "An owner can create a manual project, rename it and permanently delete it from the Projects list.",
+      "expectedEvidence": "New Xtimate creates a new project and blank estimate. The title survives reload. The action removes exactly the new project and its estimate and preserves the fixture's original project."
+    },
+    {
+      "id": "SETTINGS-PERSIST",
+      "titleToken": "[QA:SETTINGS-PERSIST]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/settings/company"],
+      "hypothesis": "An owner can change the company display name and mailing address through the company settings form.",
+      "expectedEvidence": "The synthetic company row stores the new name, street, city, state and ZIP. A fresh page reload shows those values."
+    },
+    {
+      "id": "PRICEBOOK-CRUD",
+      "titleToken": "[QA:PRICEBOOK-CRUD]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/price-book"],
+      "hypothesis": "An owner can create, edit, organize and delete a fixed-price service and its own Price Book category.",
+      "expectedEvidence": "The new service and category persist with updated names, price and assignment and survive reload. Removing the service and empty category removes their database rows and restores the empty state."
     }
   ],
   "capabilities": [

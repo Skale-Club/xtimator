@@ -6,6 +6,11 @@ import { requireQaDevelopment } from './development'
 const HOUR_MS = 60 * 60 * 1000
 const OWNED_COOKIE = 'xtimator_session'
 const COMPANY_COOKIE = 'active_company_id'
+const CAPTURE_BUCKETS = {
+  audio: /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.(webm|mp4|ogg)$/i,
+  photos: /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.webp$/i,
+}
+const STORAGE_PAGE_SIZE = 100
 type BrowserCookies = Parameters<BrowserContext['addCookies']>[0]
 type TenantTable = 'clients' | 'projects' | 'estimates' | 'estimate_sections' | 'estimate_items'
 
@@ -16,7 +21,7 @@ function check(operation: string, error: { code?: string } | null) {
 }
 
 /** Per-run data only. Pair every call to seed() with cleanup() in a finally block. */
-export function createQaFixture(baseURL: string) {
+export function createQaFixture(baseURL: string, { captureStorage = false } = {}) {
   const { localApp, supabaseOrigin, serviceKey } = requireQaDevelopment(baseURL)
   const db = createClient(supabaseOrigin, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -125,6 +130,61 @@ export function createQaFixture(baseURL: string) {
     return row.data
   }
 
+  async function readCompany() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its rows')
+    const row = await db.from('companies').select('id, name, address, city, state, zip')
+      .eq('id', companyId).eq('user_id', userId).maybeSingle()
+    check('read the fixture company settings', row.error)
+    return row.data
+  }
+
+  async function readPriceBook(kind: 'item' | 'category', match: { id: string } | { name: string }) {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its rows')
+    const query = kind === 'item'
+      ? db.from('company_price_book').select('id, name, folder_id, unit_price')
+      : db.from('price_book_folders').select('id, name')
+    const row = await query.eq('company_id', companyId)
+      .eq('id' in match ? 'id' : 'name', 'id' in match ? match.id : match.name).maybeSingle()
+    check(`read the fixture price book ${kind}`, row.error)
+    return row.data
+  }
+
+  async function readCapture() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its rows')
+    const [recordings, photos] = await Promise.all([
+      db.from('recordings').select('id, storage_path, duration_seconds, transcript').eq('company_id', companyId).eq('project_id', projectId),
+      db.from('photos').select('id, storage_path, ai_description').eq('company_id', companyId).eq('project_id', projectId),
+    ])
+    check('read the fixture recordings', recordings.error)
+    check('read the fixture photos', photos.error)
+    return { recordings: recordings.data ?? [], photos: photos.data ?? [] }
+  }
+
+  async function eraseCaptureObjects() {
+    // List before deleting so page offsets remain stable. The generated tenant
+    // and project scope also catches uploads which never produced a database row.
+    const directory = `${companyId}/${projectId}`
+    for (const [bucket, expectedName] of Object.entries(CAPTURE_BUCKETS)) {
+      const storage = db.storage.from(bucket)
+      const paths: string[] = []
+      for (let offset = 0; ; offset += STORAGE_PAGE_SIZE) {
+        const result = await storage.list(directory, {
+          limit: STORAGE_PAGE_SIZE, offset, sortBy: { column: 'name', order: 'asc' },
+        })
+        if (result.error || !result.data) throw new Error(`QA fixture could not list ${bucket} objects`)
+        for (const item of result.data) {
+          if (!item.id || !expectedName.test(item.name)) throw new Error(`QA fixture refused to remove an unrecognized ${bucket} object`)
+          paths.push(`${directory}/${item.name}`)
+        }
+        if (result.data.length < STORAGE_PAGE_SIZE) break
+      }
+      for (let offset = 0; offset < paths.length; offset += STORAGE_PAGE_SIZE) {
+        const result = await storage.remove(paths.slice(offset, offset + STORAGE_PAGE_SIZE))
+        if (result.error) throw new Error(`QA fixture could not remove ${bucket} objects`)
+      }
+    }
+  }
+
   async function eraseRows() {
     if (!seedWork) return
     await seedWork.catch(() => undefined)
@@ -138,6 +198,7 @@ export function createQaFixture(baseURL: string) {
       if (company.data.user_id !== userId || !company.data.name.startsWith(prefix)) {
         throw new Error('QA fixture refused to erase an unmarked company')
       }
+      if (captureStorage) await eraseCaptureObjects()
       check('erase the isolated company', (await db.rpc('erase_company_for_compliance', { p_company_id: companyId })).error)
     }
 
@@ -169,10 +230,10 @@ export function createQaFixture(baseURL: string) {
   return {
     companyId, clientId, projectId, estimateId, userId, sectionId, itemId, shareToken,
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total,
-    seed, cookies, readOwn, cleanup,
+    seed, cookies, readOwn, readCapture, readCompany, readPriceBook, cleanup,
     readClient: (id = clientId) => readOwn('clients', id),
     readProject: (id = projectId) => readOwn('projects', id),
-    readEstimate: (id = estimateId) => readOwn('estimates', id),
+    readEstimate: (id: string = estimateId) => readOwn('estimates', id),
     readSignature: async () => {
       const row = await db.from('estimate_signatures').select('signer_name,signed_at,signed_content,snapshot_sha256')
         .eq('company_id', companyId).eq('estimate_id', estimateId).maybeSingle()
