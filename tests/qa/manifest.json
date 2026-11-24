@@ -54,7 +54,7 @@
       "requiredForLaunch": true,
       "routes": ["/projects/[id]", "/estimate/[token]"],
       "hypothesis": "Two owner tabs cannot silently overwrite each other's saved estimate changes.",
-      "expectedEvidence": "A stale second-tab save is rejected without changing the first tab's persisted work. Reload latest restores that work, and a later independent edit preserves both changes in the database and public document."
+      "expectedEvidence": "Stale saves cannot overwrite the current document. Reload latest restores the other tab's saved work; Keep my changes explicitly rebases and saves the chosen draft. Database, reloaded editor and public quantity/total agree after both recovery paths."
     },
     {
       "id": "PROJECT-CLIENT-RELINK",
