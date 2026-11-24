@@ -6,6 +6,7 @@ const checkoutOrigin = 'https://checkout.stripe.com'
 const successUrl = 'https://example.com/?xtimator_sandbox_complete=1'
 const stripeHosts = new Set(['stripe.com', 'stripe.network'])
 const challengePattern = /hcaptcha|recaptcha|captcha|arkoselabs|turnstile/i
+const blockedHosts = new Set()
 
 function isStripeHost(host) {
   return [...stripeHosts].some(domain => host === domain || host.endsWith(`.${domain}`))
@@ -33,6 +34,7 @@ async function startProxy(observeChallenge) {
   proxy.on('connect', (request, downstream, head) => {
     const host = /^([a-z0-9.-]+):443$/i.exec(request.url ?? '')?.[1].toLowerCase()
     if (!host || (!isStripeHost(host) && host !== 'example.com')) {
+      if (host) blockedHosts.add(host)
       if (host && challengePattern.test(host)) observeChallenge()
       downstream.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
       return
@@ -106,6 +108,7 @@ async function checkout() {
     const target = new URL(request.url())
     const allowed = !target.username && !target.password && !target.port && target.protocol === 'https:'
       && (isStripeHost(target.hostname) || (target.href === successUrl && request.method() === 'GET'))
+    if (!allowed) blockedHosts.add(target.hostname)
     if (!allowed && challengePattern.test(target.hostname)) challengeRequested = true
     await (allowed ? route.continue() : route.abort())
   })
@@ -154,8 +157,21 @@ process.once('SIGTERM', async () => {
 
 try {
   await checkout()
-} catch {
+} catch (error) {
   process.exitCode = await visibleChallenge() ? 3 : failureCodes[phase]
+  const frames = []
+  for (const frame of page?.frames().slice(0, 8) ?? []) {
+    frames.push({
+      cardFields: await frame.locator('#cardNumber, input[autocomplete="cc-number"]').count().catch(() => -1),
+      emailFields: await frame.locator('input[type="email"]').count().catch(() => -1),
+      inputs: await frame.locator('input').count().catch(() => -1),
+    })
+  }
+  process.stdout.write(JSON.stringify({
+    timeout: error?.name === 'TimeoutError',
+    strictSelector: typeof error?.message === 'string' && error.message.includes('strict mode violation'),
+    frames, blockedHosts: [...blockedHosts].slice(0, 12),
+  }))
 } finally {
   await close().catch(() => { process.exitCode ||= 2 })
   clearTimeout(watchdog)

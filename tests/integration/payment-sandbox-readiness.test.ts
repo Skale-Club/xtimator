@@ -56,8 +56,9 @@ const evidence = {
   preflightPassed: false, customerId: null as string | null, subscriptionSession: null as string | null,
   hostedCheckout: process.env.RUN_PAYMENT_BROWSER === '1' ? 'pending' : 'disabled',
   hostedFailureStage: null as string | null,
+  hostedDiagnostics: null as object | null,
   hostedTarget: null as { sessionFormat: boolean; origin: boolean; exactPath: boolean; segments: number;
-    canonicalPrefix: boolean; testToken: boolean; startsSession: boolean; extraLength: number; inputWithinLimit: boolean } | null,
+    canonicalPrefix: boolean; testToken: boolean; startsSession: boolean; extraLength: number; inputWithinLimit: boolean; routePrefix: string } | null,
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
@@ -170,7 +171,8 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
     segments: target.pathname.split('/').filter(Boolean).length,
     canonicalPrefix: target.pathname.startsWith('/c/pay/'), testToken: /^cs_test_[A-Za-z0-9]+$/.test(opaquePart),
     startsSession: opaquePart.startsWith(session.id), extraLength: opaquePart.length - session.id.length,
-    inputWithinLimit: Buffer.byteLength(JSON.stringify({ sessionId: session.id, checkoutUrl: session.url }), 'utf8') <= 8192 }
+    inputWithinLimit: Buffer.byteLength(JSON.stringify({ sessionId: session.id, checkoutUrl: session.url }), 'utf8') <= 8192,
+    routePrefix: target.pathname.split('/').filter(Boolean).slice(0, -1).map(part => /^[a-z-]{1,16}$/.test(part) ? part : 'opaque').join('/') }
   saveEvidence()
   // The browser and its child processes receive only operating system settings.
   // Pass the short-lived Checkout URL on stdin and discard process diagnostics.
@@ -179,11 +181,26 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
     if (process.env[key]) env[key] = process.env[key]
   }
   const exitCode = await new Promise<number | null>(resolve => {
+    let diagnostics = ''
     const child = spawn(process.execPath, ['scripts/qa/payment-checkout.mjs'], {
-      env, stdio: ['pipe', 'ignore', 'ignore'], timeout: 120_000, windowsHide: true,
+      env, stdio: ['pipe', 'pipe', 'ignore'], timeout: 120_000, windowsHide: true,
     })
     child.once('error', () => resolve(null))
-    child.once('close', resolve)
+    child.stdout.on('data', chunk => { if (diagnostics.length < 4096) diagnostics += chunk.toString() })
+    child.once('close', code => {
+      try {
+        const parsed = JSON.parse(diagnostics)
+        evidence.hostedDiagnostics = {
+          timeout: parsed.timeout === true, strictSelector: parsed.strictSelector === true,
+          frames: Array.isArray(parsed.frames) ? parsed.frames.slice(0, 8).map(frame => ({
+            cardFields: Number(frame.cardFields), emailFields: Number(frame.emailFields), inputs: Number(frame.inputs),
+          })) : [],
+          blockedHosts: Array.isArray(parsed.blockedHosts) ? parsed.blockedHosts.filter(host =>
+            typeof host === 'string' && /^[a-z0-9.-]{1,180}$/.test(host)).slice(0, 12) : [],
+        }
+      } catch { /* Fixed diagnostic schema only; no raw process output is retained. */ }
+      resolve(code)
+    })
     child.stdin.on('error', () => {})
     child.stdin.end(JSON.stringify({ sessionId: session.id, checkoutUrl: session.url }))
   })
