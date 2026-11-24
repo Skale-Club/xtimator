@@ -5,11 +5,13 @@ import { checkoutTarget } from './checkout-target.mjs'
 const checkoutOrigin = 'https://checkout.stripe.com'
 const successUrl = 'https://example.com/?xtimator_sandbox_complete=1'
 const stripeHosts = new Set(['stripe.com', 'stripe.network'])
+// Exact static asset hosts requested by the verified Stripe-hosted Checkout.
+const stripeAssetHosts = new Set(['b.stripecdn.com', 'stripe-camo.global.ssl.fastly.net'])
 const challengePattern = /hcaptcha|recaptcha|captcha|arkoselabs|turnstile/i
 const blockedHosts = new Set()
 
 function isStripeHost(host) {
-  return [...stripeHosts].some(domain => host === domain || host.endsWith(`.${domain}`))
+  return stripeAssetHosts.has(host) || [...stripeHosts].some(domain => host === domain || host.endsWith(`.${domain}`))
 }
 
 async function readCheckout() {
