@@ -63,6 +63,7 @@ const evidence = {
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   subscriptionCanceled: false,
+  verifiedInactiveCatalogItems: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
   cleanupFailures: [] as string[],
 }
@@ -240,13 +241,16 @@ async function archiveSubscriptionCatalog(id: string) {
       throw new SandboxGuardError('Refused to archive an unmarked Stripe catalog item')
     }
     if (price.active) {
-      await stripe.prices.update(price.id, { active: false })
+      const archived = await stripe.prices.update(price.id, { active: false })
+      if (archived.id !== price.id || archived.active !== false) throw new SandboxGuardError('Stripe did not confirm archival of the tagged test price')
       evidence.archivedPrices++
     }
     if (product.active) {
-      await stripe.products.update(productId, { active: false })
+      const archived = await stripe.products.update(productId, { active: false })
+      if (archived.id !== productId || archived.active !== false) throw new SandboxGuardError('Stripe did not confirm archival of the tagged test product')
       evidence.archivedProducts++
     }
+    evidence.verifiedInactiveCatalogItems++
   }
 }
 
@@ -286,6 +290,9 @@ async function cleanStripe() {
         await stripe.checkout.sessions.expire(subscriptionSession)
       }
       await archiveSubscriptionCatalog(subscriptionSession)
+      if (linkedSubscription && evidence.verifiedInactiveCatalogItems === 0) {
+        throw new SandboxGuardError('No tagged subscription catalog item was verified during cleanup')
+      }
     }
   } finally {
     const deleted = await stripe.customers.del(customerId)
