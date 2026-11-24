@@ -2,6 +2,8 @@
 
 Implementation branch: `codex/signature-launch-readiness`, based on `dev` at `55ec4ce0`. All 12 findings in the earlier launch audit are addressed in code. These changes are not deployed to production.
 
+Source commit: `e5ab742f`. Journal: [XTM-125 — Signature corrections and verification](https://app.notion.com/p/422b7a6861218187875ad7cdbe3e9ed6).
+
 ## What changed
 
 | Finding | Correction |
@@ -37,7 +39,10 @@ Actual PDF smoke logs exposed an additional false drift warning: the runtime gua
 - Final WebKit/iPhone 13 profile: passed, 10.3 seconds. Chromium/Pixel 7 profile: passed, 7.2 seconds (21.7 seconds combined). Both use real development APIs and PDFs with synthetic touch pointers, and assert no horizontal page overflow before, during and after signing.
 - Inspected the final desktop and mobile screenshots and rendered all four PDF pages: estimate body, certificate and two change orders. No clipping or overlap found; historical totals and signature images are preserved. Artifacts remain in ignored `test-results/signature-visual-final/` and `test-results/signature-mobile-final/`.
 - Scoped application typecheck passed. Changed-file ESLint passed with one pre-existing unused `photos` warning in the editor. Staged-patch gitleaks scan found no secrets. The final development readback found all three exact migrations and zero remaining signature fixture companies; the test server was stopped.
-- Isolated PostgreSQL integrity checks: 22 passed. Receipt migration tests: 7 passed. Final full test results are added before handoff.
+- Final complete unit/eval suite: **10,652 passed, zero failures, 7 skipped and 5 todo**, across 1,012 files in 904 seconds (15 minutes), with four workers and no development environment variables. The report is retained in ignored `test-results/signature-full-final.json`.
+- Isolated PostgreSQL integrity checks: 22 passed. Receipt migration tests: 7 passed.
+
+Full unit/eval verification runs without development environment variables, matching the secret-free CI gate. The first complete run took 1,973 seconds on two workers: it exposed two structural test inventories that needed to follow the new attribution helper/receipt worker, plus four failures in three unchanged AI/demo tests caused by the local development environment. The environment-dependent tests passed without that environment; the updated structural checks and receipt tests passed 21 tests together. The temporary environment symlink was removed from this isolated QA worktree; the original checkout's environment remains untouched. Development commands below load it explicitly.
 
 Development preparation and isolated SQL checks are repeatable:
 
@@ -59,3 +64,5 @@ The browser suite uses Chromium, WebKit/iPhone and Chromium/Android profiles, ac
 5. Confirm physical iOS Safari and Android Chrome touch/keyboard/rotation behavior before broad public launch. Browser emulation does not replace the actual phones.
 
 No push, merge, production migration, deployment or real receipt delivery is part of this implementation run.
+
+Delivery estimate: approximately 90 minutes, by 22:30 ET. Implementation and final verification finished at 22:23 ET, approximately 80 minutes after the fix request. The initial full suite took about 33 minutes on two workers; the final clean-environment run used four workers.
