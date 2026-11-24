@@ -4,6 +4,8 @@ The campaign exercises Xtimator against its existing Supabase development projec
 
 ## Scope and evidence
 
+Administrative evidence uses a console reporter before JSON/HTML/JUnit: it preserves result status, retries, duration and error/attachment counts while removing raw administrative errors, steps, annotations, output and attachments. The pinned Playwright runner disables automatic ARIA snapshots, and artifact upload excludes all automatic error-context files and previous reports even if reporting is interrupted. Non-admin failure traces remain available. Global application/worker logs are a separate stream; this is not a blanket claim that every log is sanitized.
+
 Browser campaigns use `https://127.0.0.1:9650`. The runner requires OpenSSL,
 generates a one-day loopback certificate under ignored `.bg-shell/qa/tls`,
 and removes its key after Playwright stops. Keys never enter `qa-results`.

@@ -22,7 +22,7 @@ const started = Date.now()
 const tls = createQaTls()
 let browser
 try {
-  const env = { ...process.env, ...qaTlsEnvironment(tls) }
+  const env = { ...process.env, ...qaTlsEnvironment(tls), PLAYWRIGHT_NO_COPY_PROMPT: '1' }
   delete env.NODE_TLS_REJECT_UNAUTHORIZED
   browser = spawnSync(process.execPath, [
     'node_modules/@playwright/test/cli.js', 'test', '--config=playwright.qa.config.ts', ...projects, ...selection,

@@ -22,7 +22,7 @@ export default defineConfig({
   timeout: 180_000, expect: { timeout: 20_000 },
   fullyParallel: false, workers: 1, forbidOnly: true, retries: 0,
   outputDir: 'qa-results/artifacts',
-  reporter: [ ['list'], ['json', { outputFile: 'qa-results/playwright.json' }],
+  reporter: [ ['./tests/qa/reporters/privacy.mjs'], ['json', { outputFile: 'qa-results/playwright.json' }],
     ['html', { outputFolder: 'qa-results/html', open: 'never' }], ['junit', { outputFile: 'qa-results/junit.xml' }] ],
   use: { baseURL: QA_APP_ORIGIN, ignoreHTTPSErrors: true, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure', storageState: { cookies: [], origins: [] } },
   projects: [
