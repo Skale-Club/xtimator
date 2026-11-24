@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { recoverQaCampaign } from './cleanup.mjs'
 import { expectedOnboardingCompanyName } from './onboarding-cleanup.mjs'
+import { spawnSync } from 'node:child_process'
 
 const CAMPAIGN = '10783590211'
 const ATTEMPT = '2'
@@ -11,6 +12,13 @@ const ENV = {
   SUPABASE_SERVICE_ROLE_KEY: 'synthetic-test-key', GITHUB_RUN_ID: CAMPAIGN, QA_CAMPAIGN_ATTEMPT: ATTEMPT,
 }
 const id = value => `16000000-0000-4000-8000-${String(value).padStart(12, '0')}`
+
+test('the cleanup store can be required by the Playwright fixture loader without starting its CLI', () => {
+  const result = spawnSync(process.execPath, ['-e', "const { createQaCleanupStore } = require('./scripts/qa/cleanup.mjs'); process.stdout.write(typeof createQaCleanupStore)"],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  assert.equal(result.status, 0)
+  assert.equal(result.stdout, 'function')
+})
 
 function createFixture(start) {
   const [accountId, runId, companyId, projectId, sessionId, fileId] = Array.from({ length: 6 }, (_, index) => id(start + index))

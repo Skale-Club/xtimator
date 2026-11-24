@@ -276,12 +276,13 @@ export async function createQaCleanupStore({ supabaseOrigin, serviceKey }) {
 }
 
 if (import.meta.main) {
-  try {
-    const summary = await recoverQaCampaign()
+  // Keep this module synchronous to import: Playwright's TS fixture loader
+  // requires the exported store through CommonJS even though the CLI is ESM.
+  void recoverQaCampaign().then(summary => {
     console.log('QA campaign cleanup completed.', JSON.stringify(summary))
-  } catch (error) {
+  }).catch(error => {
     const message = error instanceof Error ? error.message : ''
     console.error(message.startsWith('QA ') ? message : 'QA cleanup failed')
     process.exitCode = 1
-  }
+  })
 }
