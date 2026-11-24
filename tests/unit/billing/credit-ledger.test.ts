@@ -765,12 +765,14 @@ describe('CREDIT-05: checkCredits', () => {
     expect(res.shortfall).toBe(0)
   })
 
-  it('missing company row reports balance 0 and, like assertCanCreate, never locks out', async () => {
+  it('a missing company reports the shortfall and refuses paid work in fail-closed mode', async () => {
     billingConfig.enforcementEnabled = true
-    const res = await checkCredits(injectedClient(null) as never, COMPANY, 100)
-    expect(res.balance).toBe(0)
-    expect(res.shortfall).toBe(0)
-    expect(res.allowed).toBe(true)
+    const client = injectedClient(null) as never
+
+    expect(await checkCredits(client, COMPANY, 100)).toEqual({ allowed: true, balance: 0, shortfall: 100 })
+    expect(await checkCredits(client, COMPANY, 100, { failClosed: true })).toEqual({
+      allowed: false, balance: 0, shortfall: 100, unavailable: true,
+    })
   })
 
   // Owner decision (paid AI dispatch paths): opt-in fail CLOSED. Without the

@@ -23,6 +23,10 @@ vi.mock('next/cache', () => ({
 vi.mock('@/lib/ai', () => ({ getAIProvider: vi.fn() }))
 vi.mock('@/lib/ai/provider-with-fallback', () => ({ getAIProviderWithFallback: vi.fn() }))
 vi.mock('@/lib/estimate/public-url', () => ({ generatePublicSlugToken: vi.fn().mockReturnValue('tok') }))
+vi.mock('@/lib/estimate/price-research/provider', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/estimate/price-research/provider')>(),
+  getPriceResearchProviderChain: async () => [],
+}))
 
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -76,6 +80,10 @@ function setup(output: EstimateOutput) {
   vi.mocked(getProjectPhotos).mockResolvedValue([])
 }
 
+function pricingOnlyMeta(candidates: number) {
+  return { v: 1, pricing: { research: { candidates, cacheHits: 0, providerUsable: 0, missed: candidates } } }
+}
+
 describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -126,12 +134,12 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
     expect(rows[1]).toMatchObject({ confidence: null, basis: null })
   })
 
-  it('a legacy output has no ai_meta and non-null defaults on the item rows', async () => {
+  it('a legacy output keeps only pricing telemetry and non-null defaults on the item rows', async () => {
     setup(LEGACY)
     const mock = makeServiceMock()
     vi.mocked(requireServiceClient).mockReturnValue(mock as never)
     await generateEstimateForProject('company-1', 'project-1')
-    expect(mock.estimateInserts[0]).not.toHaveProperty('ai_meta')
+    expect(mock.estimateInserts[0].ai_meta).toEqual(pricingOnlyMeta(1))
     expect(mock.itemInserts[0][0]).toMatchObject({ confidence: null, basis: null, optional: false })
   })
 
@@ -248,6 +256,6 @@ describe('generateEstimateForProject - structure verdict (SEED-057 D)', () => {
     const result = await generateEstimateForProject('company-1', 'project-1')
 
     expect(result.structure!.band).toBe('ok')
-    expect(mock.estimateInserts[0]).not.toHaveProperty('ai_meta')
+    expect(mock.estimateInserts[0].ai_meta).toEqual(pricingOnlyMeta(4))
   })
 })

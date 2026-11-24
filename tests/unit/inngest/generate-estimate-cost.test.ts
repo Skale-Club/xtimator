@@ -141,6 +141,7 @@ function makeSvc() {
 }
 
 vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => null,
   requireServiceClient: () => makeSvc(),
 }))
 
