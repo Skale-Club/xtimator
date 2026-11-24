@@ -27,7 +27,7 @@ export function SessionKeepalive() {
     let active: AbortController | undefined
     let timeout: ReturnType<typeof setTimeout> | undefined
 
-    const ping = () => {
+    const ping = (revalidateRoute = true) => {
       // Only ping when the document is actually visible — pageshow/focus can
       // fire while still hidden.
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
@@ -63,7 +63,7 @@ export function SessionKeepalive() {
         timeout = requestTimeout = setTimeout(() => { controller.abort(); reject(new Error('Session check timed out')) }, 15_000)
       })
       void Promise.race([request, deadline])
-        .then(() => {
+        .then(({ loggedIn }) => {
           if (disposed || signingOut || controller.signal.aborted) return
           nextAttemptAt = Date.now() + KEEPALIVE_MIN_INTERVAL_MS
           invalidateOwnedBrowserSession()
@@ -71,7 +71,7 @@ export function SessionKeepalive() {
           // Re-run the protected route with the server's actual session. An
           // expired login reaches its normal login/demo destination; a changed
           // account gets a fresh shell. A network failure never signs users out.
-          router.refresh()
+          if (revalidateRoute || !loggedIn) router.refresh()
         })
         .catch(() => {})
         .finally(() => {
@@ -115,10 +115,11 @@ export function SessionKeepalive() {
     window.addEventListener(OWNED_SIGN_OUT_STARTED, onSignOutStarted)
     window.addEventListener(OWNED_SIGN_OUT_FAILED, onSignOutFailed)
 
-    // Run once on mount to cover the cold-open case where the PWA HTML was
-    // served from the service worker cache and the initial navigation never
-    // reached the middleware.
-    ping()
+    // The fresh document already passed the authenticated server layout; our
+    // service worker does not cache HTML. Renew its cookie without a redundant
+    // RSC refresh that could race the user's next navigation. A confirmed
+    // expired session still refreshes immediately, as do foreground restores.
+    ping(false)
 
     return () => {
       disposed = true

@@ -17,14 +17,55 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('PWA session recovery', () => {
-  it.each([true, false])('refreshes server authority for a verified loggedIn=%s response', async loggedIn => {
+  it.each([true, false])('checks an initial loggedIn=%s response and refreshes the route only if signed out', async loggedIn => {
     fetchMock.mockResolvedValueOnce(Response.json({ ok: true, loggedIn }))
+    const dispatch = vi.spyOn(window, 'dispatchEvent')
     render(<SessionKeepalive />)
-    await waitFor(() => expect(mocks.router.refresh).toHaveBeenCalledOnce())
+
+    await act(async () => {})
+
     expect(mocks.invalidate).toHaveBeenCalledOnce()
-    expect(fetchMock).toHaveBeenCalledWith('/api/auth/keepalive', expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', signal: expect.any(AbortSignal) }))
-    act(() => { window.dispatchEvent(new Event('pageshow')); window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')) })
+    expect(dispatch.mock.calls.filter(([event]) => event.type === 'xtimator:auth')).toHaveLength(1)
+    expect(mocks.router.refresh).toHaveBeenCalledTimes(loggedIn ? 0 : 1)
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/auth/keepalive', expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', signal: expect.any(AbortSignal) }))
+  })
+
+  it.each([
+    { eventName: 'focus', bypassThrottle: false },
+    { eventName: 'pageshow', bypassThrottle: false },
+    { eventName: 'visibilitychange', bypassThrottle: false },
+    { eventName: 'online', bypassThrottle: true },
+    { eventName: 'persisted pageshow', bypassThrottle: true },
+  ])('refreshes the route after $eventName confirms the user is still signed in', async ({ eventName, bypassThrottle }) => {
+    vi.useFakeTimers()
+    render(<SessionKeepalive />)
+    await act(async () => {})
     expect(fetchMock).toHaveBeenCalledOnce()
+    expect(mocks.invalidate).toHaveBeenCalledOnce()
+    expect(mocks.router.refresh).not.toHaveBeenCalled()
+
+    const comeToForeground = () => {
+      if (eventName === 'persisted pageshow') {
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+      } else {
+        const target = eventName === 'visibilitychange' ? document : window
+        target.dispatchEvent(new Event(eventName))
+      }
+    }
+
+    if (!bypassThrottle) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000 - 1) })
+      act(comeToForeground)
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(mocks.router.refresh).not.toHaveBeenCalled()
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    }
+
+    await act(async () => { comeToForeground() })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(mocks.invalidate).toHaveBeenCalledTimes(2)
+    expect(mocks.router.refresh).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -87,7 +128,7 @@ describe('PWA session recovery', () => {
       act(() => window.dispatchEvent(new Event(OWNED_SIGN_OUT_STARTED)))
       expect(signal.aborted).toBe(true)
 
-      await act(async () => { resolve(Response.json({ ok: true, loggedIn: true })) })
+      await act(async () => { resolve(Response.json({ ok: true, loggedIn: false })) })
       await act(async () => {
         window.dispatchEvent(new Event('online'))
         window.dispatchEvent(new Event('pageshow'))
@@ -133,7 +174,7 @@ describe('PWA session recovery', () => {
       expect(newSignal.aborted).toBe(false)
 
       // Simulate a transport that returned the old response despite the abort.
-      await act(async () => { resolveOld(Response.json({ ok: true, loggedIn: true })) })
+      await act(async () => { resolveOld(Response.json({ ok: true, loggedIn: false })) })
       expect(mocks.invalidate).not.toHaveBeenCalled()
       expect(authChange).not.toHaveBeenCalled()
       expect(mocks.router.refresh).not.toHaveBeenCalled()
