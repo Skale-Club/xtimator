@@ -50,6 +50,7 @@ vi.mock('@/lib/estimate/graph', () => ({
 // Track Supabase from() calls to verify no whatsapp_sessions writes
 const fromCalls: string[] = []
 vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => null,
   requireServiceClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       fromCalls.push(table)

@@ -26,6 +26,8 @@ import {
   getAccessState,
   assertCanCreate,
   assertCanEdit,
+  canContinueRun,
+  resolveSpendable,
 } from '@/lib/billing/access-state'
 import { DEMO_COMPANY_ID } from '@/lib/demo/config'
 
@@ -53,7 +55,12 @@ const base: Row = {
  * lots. When `lots` is omitted the company holds a single signup lot equal to
  * its (positive) cached balance, i.e. the cache and the lots agree.
  */
-function fakeClient(state: { row: Row | null; ledgerCount: number; lots?: Lot[] }) {
+function fakeClient(state: {
+  row: Row | null
+  ledgerCount: number
+  lots?: Lot[]
+  lotReadFailure?: { error: { message: string } | null }
+}) {
   return {
     from: (table: string) => {
       if (table === 'credit_lots') {
@@ -61,6 +68,7 @@ function fakeClient(state: { row: Row | null; ledgerCount: number; lots?: Lot[] 
           select: () => ({
             eq: () => ({
               in: async (_col: string, sources: string[]) => {
+                if (state.lotReadFailure) return { data: null, error: state.lotReadFailure.error }
                 const lots = state.lots ?? [
                   {
                     source: 'signup',
@@ -193,9 +201,27 @@ describe('getAccessState matrix', () => {
     expect(res).toEqual({ state: 'active', tier: 'pro', balance: 12, enforcement: true })
   })
 
-  it('an unknown company is never locked out', async () => {
+  it('keeps display and edits accessible when the company row is unavailable', async () => {
     const client = fakeClient({ row: null, ledgerCount: 0 })
     expect((await getAccessState(COMPANY, client)).state).toBe('active')
+    expect(await assertCanEdit(COMPANY, client)).toEqual({ ok: true })
+    await expect(assertCanCreate(COMPANY, 1, client)).rejects.toThrow('Billing company is unavailable')
+  })
+})
+
+describe('spendable balance availability', () => {
+  it.each([{ message: 'read failed' }, null])('only uses the cached balance for display and edit when lot data is unavailable (%j)', async (error) => {
+    const client = fakeClient({
+      row: { ...base, credit_balance: 20 },
+      ledgerCount: 1,
+      lotReadFailure: { error },
+    })
+
+    expect(await getAccessState(COMPANY, client)).toMatchObject({ state: 'active', balance: 20 })
+    expect(await assertCanEdit(COMPANY, client)).toEqual({ ok: true })
+    await expect(assertCanCreate(COMPANY, 1, client)).rejects.toThrow('Spendable credit lots are unavailable')
+    await expect(canContinueRun(COMPANY, client)).rejects.toThrow('Spendable credit lots are unavailable')
+    await expect(resolveSpendable(COMPANY, 1, client)).rejects.toThrow('Spendable credit lots are unavailable')
   })
 })
 
@@ -217,6 +243,17 @@ describe('signup-grant self-heal', () => {
     grantSignupCredits.mockResolvedValue({ applied: false })
     const res = await getAccessState(COMPANY, fakeClient({ row: { ...base }, ledgerCount: 0 }))
     expect(res.state).toBe('paywalled')
+  })
+
+  it('blocks paid continuation when the company is missing after the signup grant', async () => {
+    const state = { row: { ...base } as Row | null, ledgerCount: 0 }
+    grantSignupCredits.mockImplementation(async () => {
+      state.row = null
+      return { applied: true }
+    })
+
+    await expect(canContinueRun(COMPANY, fakeClient(state))).rejects.toThrow('Billing company is unavailable')
+    expect(grantSignupCredits).toHaveBeenCalledOnce()
   })
 
   it('does not grant when the company already has ledger history', async () => {

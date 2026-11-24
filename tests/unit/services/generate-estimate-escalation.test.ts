@@ -13,7 +13,10 @@ const phaseMock = vi.fn()
 const escalationCfgMock = vi.fn()
 const langfuseGen = vi.fn(() => ({ end: vi.fn() }))
 
-vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: vi.fn() }))
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => null,
+  requireServiceClient: vi.fn(),
+}))
 vi.mock('@/lib/queries/recording', () => ({ getProjectRecordings: vi.fn() }))
 vi.mock('@/lib/queries/photo', () => ({ getProjectPhotos: vi.fn() }))
 vi.mock('next/cache', () => ({

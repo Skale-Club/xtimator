@@ -13,6 +13,7 @@ const { generateEstimateMock, researchMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => null,
   requireServiceClient: vi.fn(),
 }))
 

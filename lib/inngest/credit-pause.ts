@@ -1,4 +1,5 @@
 import 'server-only'
+import { BillingBlockedError } from '@/lib/billing/access-guard'
 import { recordPipelineEvent, type PipelineInputType } from '@/lib/observability/pipeline-events'
 import { EVENT_CREDITS_GRANTED } from '@/lib/inngest/events'
 
@@ -173,14 +174,13 @@ export async function continueOrPauseForCredits(
   return 'expired'
 }
 
-/** Fails OPEN: a balance read error must never pause (or fail) a paid run. */
+/** An unavailable balance can be retried without starting paid work or a top-up. */
 async function hasCredits(companyId: string): Promise<boolean> {
   try {
     const { canContinueRun } = await import('@/lib/billing/access-state')
     return (await canContinueRun(companyId)).ok
-  } catch (err) {
-    console.warn('[credit-pause] balance check failed open:', err instanceof Error ? err.message : err)
-    return true
+  } catch {
+    throw new BillingBlockedError('unavailable')
   }
 }
 

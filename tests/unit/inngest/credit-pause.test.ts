@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { BillingBlockedError } from '@/lib/billing/access-guard'
 
 /**
  * Credits plan 2026-11-20 - continueOrPauseForCredits: a run checks credits
@@ -227,12 +228,22 @@ describe('continueOrPauseForCredits', () => {
     expect(ids).toContain('credits-wait-analyze-1')
   })
 
-  it('a balance read error fails OPEN (never pauses or fails a paid run)', async () => {
-    canContinueRun.mockRejectedValue(new Error('db down'))
-    const { step } = fakeStep([])
-    expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
-    expect(recordPipelineEvent).not.toHaveBeenCalled()
-  })
+  it.each(['analyze', 'generate_estimate'] as const)(
+    'a balance read error stops %s before charging or notifying',
+    async (next) => {
+      canContinueRun.mockRejectedValue(new Error('db down'))
+      const { step, ids, waitOpts } = fakeStep([])
+      const result = continueOrPauseForCredits(step, { ...CTX, next })
+
+      await expect(result).rejects.toBeInstanceOf(BillingBlockedError)
+      await expect(result).rejects.toMatchObject({ code: 'unavailable' })
+      expect(ids).toEqual([`credits-check-${next}`])
+      expect(waitOpts).toEqual([])
+      expect(triggerAutoTopupIfNeeded).not.toHaveBeenCalled()
+      expect(recordPipelineEvent).not.toHaveBeenCalled()
+      expect(notify).not.toHaveBeenCalled()
+    },
+  )
 
   it('a notify failure never breaks the pause', async () => {
     canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })

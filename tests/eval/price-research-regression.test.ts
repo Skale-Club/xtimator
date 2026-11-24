@@ -80,6 +80,7 @@ vi.mock('next/cache', () => ({
 
 // --- Service client: chainable mock + persisted-estimate capture -------------
 vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => null,
   requireServiceClient: vi.fn(),
 }))
 

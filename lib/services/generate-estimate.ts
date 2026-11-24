@@ -208,11 +208,11 @@ export async function generateEstimateForProject(
   // take its generation step (the old 160-credit re-check charged the audio and
   // photos and then failed). The Inngest job pauses for credits before this
   // point (lib/inngest/credit-pause.ts); this stays the backstop for every
-  // other entry. Fails open; inert while enforcement is OFF.
+  // other entry. A billing outage blocks the step without treating it as an
+  // empty balance. The check is inert while enforcement is OFF.
   if (!options.skipCreditGate) {
-    const run = await canContinueRun(companyId).catch((err) => {
-      console.warn('[generate-estimate] credit check failed open:', err)
-      return { ok: true as const, code: 'paywalled' as const, balance: 0 }
+    const run = await canContinueRun(companyId).catch(() => {
+      throw new BillingBlockedError('unavailable')
     })
     if (!run.ok) throw new BillingBlockedError(run.code)
   }

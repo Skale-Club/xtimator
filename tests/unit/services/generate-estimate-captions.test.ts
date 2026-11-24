@@ -15,6 +15,7 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 const generateEstimateMock = vi.fn()
 
 vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => null,
   requireServiceClient: vi.fn(),
 }))
 

@@ -54,16 +54,15 @@ const NON_SUBSCRIBER_SOURCES = ['signup', 'adjust'] as const
 /** Subscription statuses that keep a paid tier "live" (past_due = Stripe dunning). */
 const LIVE_STATUSES = new Set(['active', 'trialing', 'past_due'])
 
-// `strict` (the create gate): a failed read THROWS instead of reading as "unknown
-// company" (which resolves to active / exempt). billingCreateDenied turns the
-// throw into the fail-closed 'unavailable' denial; display callers stay lenient.
+// Paid gates require a confirmed company row. Display and edit callers keep
+// their fallback when the company record is unavailable.
 async function readCompany(
   db: SupabaseClient,
   companyId: string,
   strict = false
 ): Promise<CompanyRow | null> {
   const { data, error } = await db.from('companies').select(COMPANY_COLUMNS).eq('id', companyId).maybeSingle()
-  if (strict && error) throw new Error(`company read failed: ${error.message}`)
+  if (strict && (error || !data)) throw new Error('Billing company is unavailable')
   return (data as CompanyRow | null) ?? null
 }
 
@@ -78,21 +77,24 @@ function emptyBalanceState(row: CompanyRow): BillingWallCode {
 
 /**
  * Spendable balance of a company that is NOT a live subscriber:
- * SUM(remaining of live signup/adjust lots) - credit_debt. Falls back to the
- * cached `credit_balance` if the lots cannot be read (never lock out on a read
- * hiccup).
+ * SUM(remaining of live signup/adjust lots) - credit_debt. Display and edit
+ * callers can fall back to cached credit_balance during a read outage.
  */
 async function spendableNonSubscriberBalance(
   db: SupabaseClient,
   companyId: string,
-  row: CompanyRow
+  row: CompanyRow,
+  strict = false
 ): Promise<number> {
   const { data, error } = await db
     .from('credit_lots')
     .select('remaining, expires_at')
     .eq('company_id', companyId)
     .in('source', [...NON_SUBSCRIBER_SOURCES])
-  if (error || !data) return row.credit_balance ?? 0
+  if (error || !data) {
+    if (strict) throw new Error('Spendable credit lots are unavailable')
+    return row.credit_balance ?? 0
+  }
   const now = Date.now()
   const live = (data as Array<{ remaining?: number | null; expires_at?: string | null }>).reduce(
     (acc, l) => {
@@ -122,7 +124,7 @@ async function resolve(
 
   let row = await readCompany(db, companyId, opts?.strict)
   if (!row) {
-    // Unknown company: never lock out on a missing row.
+    // A missing row stays permissive for display and edit callers.
     return { state: 'active', tier: null, balance: 0, enforcement, exempt: true, blocked: 'paywalled' }
   }
 
@@ -141,7 +143,7 @@ async function resolve(
       // action/service importing this module would otherwise load.
       const { grantSignupCredits } = await import('@/lib/billing/credit-ledger')
       await grantSignupCredits(companyId)
-      row = (await readCompany(db, companyId)) ?? row
+      row = (await readCompany(db, companyId, opts?.strict)) ?? row
     }
   }
 
@@ -149,7 +151,7 @@ async function resolve(
   const balance =
     exempt || blocked === 'out_of_credits'
       ? (row.credit_balance ?? 0)
-      : await spendableNonSubscriberBalance(db, companyId, row)
+      : await spendableNonSubscriberBalance(db, companyId, row, opts?.strict)
   const state: AccessState = exempt || balance > 0 ? 'active' : blocked
   return { state, tier: row.tier, balance, enforcement, exempt, blocked }
 }
@@ -200,7 +202,7 @@ export async function canContinueRun(
   companyId: string,
   client?: SupabaseClient
 ): Promise<{ ok: boolean; code: BillingWallCode; balance: number }> {
-  const r = await resolve(companyId, client)
+  const r = await resolve(companyId, client, { strict: true })
   return { ok: r.exempt || r.state === 'active', code: r.blocked, balance: r.balance }
 }
 
@@ -208,15 +210,16 @@ export async function canContinueRun(
  * The same decision assertCanCreate makes, but exposing the SPENDABLE balance it
  * was made on. Used by credit-ledger's checkCredits so the AI routes/jobs and the
  * create gate can never disagree (a lapsed subscriber's leftover top-up lots are
- * not spendable in either). `exempt` is true for BYOK, the demo company and an
- * unknown company row; `balance` is 0 while enforcement is OFF (no DB read).
+ * not spendable in either). `exempt` is true for BYOK and the demo company.
+ * With enforcement OFF, the decision is exempt with a balance of 0 and no
+ * company DB read.
  */
 export async function resolveSpendable(
   companyId: string,
   estimatedCredits: number,
   client?: SupabaseClient
 ): Promise<{ ok: boolean; balance: number; exempt: boolean; enforcement: boolean }> {
-  const r = await resolve(companyId, client)
+  const r = await resolve(companyId, client, { strict: true })
   const ok = r.exempt || (r.state === 'active' && r.balance >= startGate(r, estimatedCredits))
   return { ok, balance: r.balance, exempt: r.exempt, enforcement: r.enforcement }
 }
