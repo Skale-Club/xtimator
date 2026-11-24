@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { createServiceClient } from '@/lib/supabase/service'
 import { decrypt } from '@/lib/crypto/aes'
 import { invalidateBillingConfigCache } from '@/lib/billing/billing-config'
+import { qaIntegrationKey } from '@/lib/qa/runtime'
 import {
   parseEscalationConfig,
   parseModelSlots,
@@ -269,6 +270,8 @@ export async function getLandingContent(): Promise<LandingContent> {
 export async function getIntegrationKey(
   provider: IntegrationProvider
 ): Promise<string | null> {
+  const qaKey = qaIntegrationKey(provider)
+  if (qaKey !== undefined) return qaKey
   const now = Date.now()
   const cached = integrationCache.get(provider)
   if (cached && now - cached.fetchedAt < TTL_MS) {

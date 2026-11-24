@@ -15,11 +15,22 @@ export const ESTIMATE = {
 
 export function startProviders(port = 9651) {
   const history = []
+  const faults = new Map()
   let failures = 0
   const server = createServer(async (request, response) => {
     const json = (status, value) => { response.writeHead(status, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)) }
     if (request.url === '/health') return json(200, { mode: 'synthetic', realProviderCalls: 0 })
     if (request.url === '/history') return json(200, history)
+    if (request.url === '/fault' && ['POST', 'DELETE'].includes(request.method)) {
+      let control
+      try { const chunks = []; for await (const chunk of request) chunks.push(chunk); control = JSON.parse(Buffer.concat(chunks).toString()) }
+      catch { return json(400, { error: 'Invalid synthetic fault control' }) }
+      if (typeof control.scope !== 'string' || !/^qa-[a-f0-9-]{36} /.test(control.scope) || control.scope.length > 160) return json(400, { error: 'Fault scope must identify a synthetic QA project' })
+      if (request.method === 'DELETE') { faults.delete(control.scope); return json(200, { cleared: true }) }
+      if (!Number.isInteger(control.attempts) || control.attempts < 1 || control.attempts > 3) return json(400, { error: 'Fault attempts must be bounded from one to three' })
+      faults.set(control.scope, control.attempts)
+      return json(200, { configured: true, attempts: control.attempts })
+    }
     if (request.url === '/fail-next' && request.method === 'POST') { failures = 1; return json(200, { configured: true }) }
     if (failures > 0) { failures--; return json(503, { error: { message: 'Controlled QA provider outage' } }) }
     if (request.url === '/openrouter/audio/transcriptions') {
@@ -33,6 +44,16 @@ export function startProviders(port = 9651) {
     catch { return json(400, { error: 'Invalid synthetic request' }) }
     const names = body.tools?.map(tool => tool.function?.name) ?? []
     const name = names.includes('create_estimate') ? 'create_estimate' : names[0]
+    if (name === 'create_estimate') {
+      const serialized = JSON.stringify(body)
+      for (const [scope, remaining] of faults) {
+        if (!serialized.includes(scope)) continue
+        if (remaining <= 1) faults.delete(scope)
+        else faults.set(scope, remaining - 1)
+        history.push({ kind: 'controlled-outage', tool: name, scope })
+        return json(503, { error: { message: 'Bounded synthetic project provider outage' } })
+      }
+    }
     history.push({ kind: 'chat', tool: name ?? null, streamed: body.stream === true })
     let output
     if (name === 'create_estimate') output = ESTIMATE

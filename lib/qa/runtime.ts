@@ -10,3 +10,9 @@ export function isQaDevelopmentRuntime(env: NodeJS.ProcessEnv = process.env): bo
   }
   return true
 }
+
+/** Undefined preserves ordinary configuration; QA never reads a real provider key. */
+export function qaIntegrationKey(provider: string, env: NodeJS.ProcessEnv = process.env): string | null | undefined {
+  if (!isQaDevelopmentRuntime(env)) return undefined
+  return provider === 'openrouter' ? 'qa-synthetic-never-a-real-key' : null
+}

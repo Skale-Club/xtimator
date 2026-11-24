@@ -14,8 +14,8 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:9650', trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure', storageState: { cookies: [], origins: [] } },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile-safari', use: { ...devices['iPhone 13'] } },
-    { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },
+    { name: 'mobile-safari', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['iPhone 13'] } },
+    { name: 'mobile-chrome', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['Pixel 7'] } },
   ],
   webServer: { command: 'node scripts/qa/start.mjs', url: 'http://127.0.0.1:9650/api/health?quick=1', reuseExistingServer: false, timeout: 180_000 },
 })

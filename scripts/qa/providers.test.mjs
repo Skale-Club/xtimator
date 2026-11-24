@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { startProviders, ESTIMATE, TRANSCRIPT } from './providers.mjs'
+import { randomUUID } from 'node:crypto'
 
 test('synthetic provider exercises actual HTTP and preserves tool JSON across SSE frames', async () => {
   const server = await startProviders(0)
@@ -20,5 +21,22 @@ test('synthetic provider exercises actual HTTP and preserves tool JSON across SS
     await fetch(origin + '/fail-next', { method: 'POST' })
     assert.equal((await fetch(origin + '/openrouter/chat/completions', { method: 'POST', body: '{}' })).status, 503)
     assert.equal((await fetch(origin + '/openrouter/chat/completions', { method: 'POST', body: JSON.stringify({ tools: [{ function: { name: 'unknown' } }] }) })).status, 422)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})
+
+test('provider faults are bounded and cannot fail an unrelated synthetic project', async () => {
+  const server = await startProviders(0)
+  const origin = `http://127.0.0.1:${server.address().port}`
+  const scope = `qa-${randomUUID()} Project`
+  const request = async text => fetch(origin + '/openrouter/chat/completions', {
+    method: 'POST', body: JSON.stringify({ messages: [{ content: text }], tools: [{ function: { name: 'create_estimate' } }] }),
+  })
+  try {
+    assert.equal((await fetch(origin + '/fault', { method: 'POST', body: JSON.stringify({ scope, attempts: 4 }) })).status, 400)
+    assert.equal((await fetch(origin + '/fault', { method: 'POST', body: JSON.stringify({ scope: 'real customer', attempts: 1 }) })).status, 400)
+    assert.equal((await fetch(origin + '/fault', { method: 'POST', body: JSON.stringify({ scope, attempts: 3 }) })).status, 200)
+    assert.equal((await request('an unrelated project')).status, 200)
+    for (let count = 0; count < 3; count++) assert.equal((await request(scope)).status, 503)
+    assert.equal((await request(scope)).status, 200)
   } finally { await new Promise(resolve => server.close(resolve)) }
 })

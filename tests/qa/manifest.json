@@ -66,6 +66,16 @@
       "expectedEvidence": "Synthetic media enters the app and the draft renders in the workspace. Provider transports are simulated. The test makes no live AI or physical-device claim."
     },
     {
+      "id": "EDITOR-HYDRATION",
+      "titleToken": "[QA:EDITOR-HYDRATION]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "projects": ["chromium"],
+      "routes": ["/projects/[id]"],
+      "hypothesis": "The desktop description field prevents edits until its client handlers mount. A single replacement after mounting must persist exactly.",
+      "expectedEvidence": "The server-rendered field is disabled or read-only while client scripts are held. After mounting, native input events show the previous value fully selected and the exact replacement is saved in the database."
+    },
+    {
       "id": "PROJECT-CRUD",
       "titleToken": "[QA:PROJECT-CRUD]",
       "requiredForExecution": true,

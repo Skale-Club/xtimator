@@ -42,12 +42,9 @@ import {
   signatureReceiptJob,
 } from '@/lib/inngest/functions'
 
-export const { GET, POST, PUT } = serve({
+const productionHandlers = serve({
   client: inngest,
-  // The development QA campaign must not register global maintenance crons
-  // against the shared development database. These three jobs operate only
-  // on explicitly dispatched synthetic project events.
-  functions: isQaDevelopmentRuntime() ? [generateEstimateJob, transcribeAudioJob, analyzePhotosJob] : [
+  functions: [
     generateEstimateJob,
     transcribeAudioJob,
     analyzePhotosJob,
@@ -79,3 +76,12 @@ export const { GET, POST, PUT } = serve({
     signatureReceiptJob,
   ],
 })
+
+// Only the selected handler is exposed to Inngest discovery/registration. QA
+// must not register maintenance crons against the shared development database.
+const qaHandlers = isQaDevelopmentRuntime() ? serve({
+  client: inngest,
+  functions: [generateEstimateJob, transcribeAudioJob, analyzePhotosJob],
+}) : null
+
+export const { GET, POST, PUT } = qaHandlers ?? productionHandlers
