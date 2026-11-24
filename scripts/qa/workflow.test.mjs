@@ -37,9 +37,26 @@ test('branch diagnostics select the requested job without changing push/PR gates
   assert.equal(enabled(job('unit'), github, { qa: true }), false)
   assert.equal(enabled(focused, github, { qa: false, unit_scope: 'generation-credits' }), true)
   for (const event_name of ['push', 'pull_request']) {
-    const event = { ...github, event_name }
+    const event = { ...github, event_name, repository: 'Skale-Club/xtimator',
+      event: { pull_request: { head: { repo: { full_name: 'external/xtimator' } } } } }
     assert.equal(enabled(job('unit'), event, {}), true)
     assert.equal(enabled(job('acceptance'), event, {}), false)
     for (const condition of full) assert.equal(enabled(condition, event, {}), true)
+  }
+})
+
+test('acceptance runs automatically for dev pushes and internal PRs, never main pushes or forks', () => {
+  for (const ref of ['refs/heads/main', 'refs/heads/dev']) {
+    const github = { ref, event_name: 'push' }
+    assert.equal(enabled(job('acceptance'), github, {}), ref === 'refs/heads/dev')
+    assert.equal(enabled(job('unit'), github, {}), true)
+    for (const condition of full) assert.equal(enabled(condition, github, {}), true)
+  }
+  for (const owner of ['Skale-Club/xtimator', 'external/xtimator']) {
+    const github = { ref: 'refs/pull/123/merge', event_name: 'pull_request', repository: 'Skale-Club/xtimator',
+      event: { pull_request: { head: { repo: { full_name: owner } } } } }
+    assert.equal(enabled(job('acceptance'), github, {}), owner === github.repository)
+    assert.equal(enabled(job('unit'), github, {}), true)
+    for (const condition of full) assert.equal(enabled(condition, github, {}), true)
   }
 })

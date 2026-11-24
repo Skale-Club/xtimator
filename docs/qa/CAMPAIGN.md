@@ -22,6 +22,10 @@ The initial campaign uses synthetic tenant data, creates isolated sessions, and 
 
 ## Run and interpret the reports
 
+The isolated acceptance job runs automatically on pushes to `dev` and pull requests whose source repository is `Skale-Club/xtimator`. Fork pull requests receive the secret-free unit/eval checks; they cannot access the dedicated development credentials. Feature branches can also dispatch `Test` with `qa=true`. Development campaigns are serialized to avoid competing background workers. A main push retains its full unit/eval gate and production deployment behavior; it does not start the development acceptance job.
+
+The CI job uses `--execution-only`: green means the implemented mandatory scenarios passed in their complete browser matrix. The report still blocks public launch until the separate real-provider, identity, device and release-environment capabilities have evidence. This job is not itself a production release or a claim of complete product coverage.
+
 Use the campaign runner from the repository root on a machine with enough memory to run Next.js, Inngest and a browser together. It requires the repository dependencies, Playwright browsers, Python 3 with `pypdf`, and the designated development credentials. Use the approved development environment and keep credentials outside tracked files. The browser profiles exercise emulated viewports and browser engines. Real-device capture has a separate gate.
 
 The runner requires `XTIMATOR_QA_DEV=1`, `DATA_API_MODE=supabase`, `NEXT_PUBLIC_AUTH_MODE=owned`, the development Supabase URL in `NEXT_PUBLIC_SUPABASE_URL`, and credentials in `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and `XTIMATOR_DATA_JWT_SECRET`. When `DATA_API_UPSTREAM_URL` is set, it must point to the same development origin.

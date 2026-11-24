@@ -8,11 +8,13 @@ name: Test
 # fails the build the moment a quality metric, schema validity, or engine
 # behavior regresses.
 #
-# Secret-free by construction: the eval harness mocks every provider
+# The unit/eval job is secret-free: the eval harness mocks every provider
 # (getAIProviderWithFallback + transcribeAudioOR/analyzePhotoOR) and the
 # Supabase service client, so NO AI keys and NO Supabase keys are required.
-# tests/integration/** (which needs a live Supabase) is intentionally EXCLUDED
-# from the gate so it stays secret-free.
+# tests/integration/** remains excluded from that job. A separate isolated
+# browser job uses development-only credentials and synthetic providers on dev
+# pushes, internal pull requests and explicit feature-branch dispatches. It
+# never runs on a main push or changes the production deployment trigger.
 
 on:
   push:
@@ -105,7 +107,7 @@ jobs:
 
   acceptance:
     name: Isolated acceptance campaign
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' || github.event_name == 'push' && github.ref == 'refs/heads/dev' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     concurrency:
