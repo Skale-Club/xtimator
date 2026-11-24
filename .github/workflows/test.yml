@@ -50,6 +50,10 @@ on:
         description: 'Run the Stripe test-mode ledger cases against the designated development database'
         type: boolean
         default: false
+      payment_browser:
+        description: 'With payment_sandbox, also complete a hosted Stripe Checkout with a test card'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -206,7 +210,7 @@ jobs:
 
   payment-sandbox:
     name: Stripe test-mode ledger readiness
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_sandbox && github.ref_type == 'branch' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_sandbox && github.repository == 'Skale-Club/xtimator' && github.ref_type == 'branch' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     concurrency:
@@ -222,10 +226,13 @@ jobs:
           cache: npm
       - name: Install test dependencies without lifecycle scripts
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium for hosted Stripe Checkout
+        if: ${{ inputs.payment_browser }}
+        run: ./node_modules/.bin/playwright install --with-deps chromium
       - name: Exercise Stripe test mode and the development ledger
         env:
           RUN_PAYMENT_SANDBOX: '1'
-          RUN_PAYMENT_BROWSER: '0'
+          RUN_PAYMENT_BROWSER: ${{ inputs.payment_browser && '1' || '0' }}
           NODE_ENV: test
           DATA_API_MODE: supabase
           NEXT_PUBLIC_AUTH_MODE: owned

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import pg from 'pg'
@@ -50,6 +51,7 @@ const evidence = {
   companyId, runMarker, environment: 'development + Stripe test mode', checks: [] as string[],
   preflightStage: 'environment',
   preflightPassed: false, customerId: null as string | null, subscriptionSession: null as string | null,
+  hostedCheckout: process.env.RUN_PAYMENT_BROWSER === '1' ? 'pending' : 'disabled',
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
@@ -139,6 +141,32 @@ async function assertOwnedCheckout(id: string, requireMarker = false) {
     throw new SandboxGuardError('Refused an unverified sandbox Checkout session')
   }
   return session
+}
+
+async function completeHostedCheckout(session: Stripe.Checkout.Session) {
+  if (!/^cs_test_[A-Za-z0-9]+$/.test(session.id) || session.status !== 'open' || session.mode !== 'subscription'
+    || session.success_url !== 'https://example.com/?xtimator_sandbox_complete=1' || !session.url) {
+    throw new SandboxGuardError('Refused a non-open or unexpected Stripe test subscription Checkout')
+  }
+  // The browser and its child processes receive only operating system settings.
+  // Pass the short-lived Checkout URL on stdin and discard process diagnostics.
+  const env: NodeJS.ProcessEnv = {}
+  for (const key of ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'WINDIR', 'TMPDIR', 'TEMP', 'TMP', 'LANG']) {
+    if (process.env[key]) env[key] = process.env[key]
+  }
+  const exitCode = await new Promise<number | null>(resolve => {
+    const child = spawn(process.execPath, ['scripts/qa/payment-checkout.mjs'], {
+      env, stdio: ['pipe', 'ignore', 'ignore'], timeout: 120_000, windowsHide: true,
+    })
+    child.once('error', () => resolve(null))
+    child.once('close', resolve)
+    child.stdin.on('error', () => {})
+    child.stdin.end(JSON.stringify({ sessionId: session.id, checkoutUrl: session.url }))
+  })
+  evidence.hostedCheckout = exitCode === 0 ? 'redirected' : exitCode === 3 ? 'challenge' : 'failed'
+  saveEvidence()
+  if (exitCode === 3) throw new SandboxGuardError('Stripe hosted Checkout required a security challenge')
+  if (exitCode !== 0) throw new SandboxGuardError('Stripe hosted Checkout did not reach the sandbox success destination')
 }
 
 async function archiveSubscriptionCatalog(id: string) {
@@ -357,17 +385,33 @@ sandbox('payment launch against real Stripe sandbox and development PostgreSQL',
   }), 60_000)
 
   it.skipIf(process.env.RUN_PAYMENT_BROWSER !== '1')('fulfills the browser-completed test subscription from official Stripe events', () => safe(async () => {
-    let session = await stripe.checkout.sessions.retrieve(subscriptionSession)
-    for (let i = 0; i < 480 && session.status !== 'complete'; i++) { await pause(); session = await stripe.checkout.sessions.retrieve(subscriptionSession) }
+    let session = await assertOwnedCheckout(subscriptionSession, true)
+    await completeHostedCheckout(session)
+    const deadline = Date.now() + 45_000
+    do {
+      session = await assertOwnedCheckout(subscriptionSession, true)
+      if (session.status !== 'open') break
+      await pause()
+    } while (Date.now() < deadline)
     expect(session.status).toBe('complete')
-    subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription!.id
-    const paidEvent = await event('invoice.paid', (await stripe.subscriptions.retrieve(subscriptionId)).latest_invoice as string)
+    expect(session.payment_status).toBe('paid')
+    subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null
+    if (!subscriptionId) throw new SandboxGuardError('The completed Stripe test Checkout has no subscription')
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    if (subscription.livemode !== false || subscription.customer !== customerId
+      || subscription.metadata.companyId !== companyId || subscription.metadata.qa_run_id !== runMarker) {
+      throw new SandboxGuardError('Refused an unverified Stripe test subscription')
+    }
+    const invoiceId = typeof subscription.latest_invoice === 'string' ? subscription.latest_invoice : subscription.latest_invoice?.id
+    if (!invoiceId) throw new SandboxGuardError('The completed Stripe test subscription has no invoice')
+    const paidEvent = await event('invoice.paid', invoiceId)
     expect((await processVerifiedStripeEvent(paidEvent, stripe)).status).toBe(200)
     const checkoutEvent = await event('checkout.session.completed', subscriptionSession)
     expect((await processVerifiedStripeEvent(checkoutEvent, stripe)).status).toBe(200)
     expect(await balance()).toBe(3900)
     const company = (await db.query('SELECT tier,stripe_subscription_id FROM companies WHERE id=$1', [companyId])).rows[0]
     expect(company.tier).toBe('pro'); expect(company.stripe_subscription_id).toBe(subscriptionId)
+    evidence.hostedCheckout = 'fulfilled'
     checks.push('Browser paid a test subscription; invoice-before-Checkout delivery repaired Free tier and granted monthly credits exactly once'); saveEvidence()
   }), 300_000)
 })

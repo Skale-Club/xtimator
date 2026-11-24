@@ -22,12 +22,12 @@ function enabled(condition, github, inputs) {
 test('manual acceptance and focused diagnostics cannot bypass main/dev regression', () => {
   assert.equal(full.length, 2, 'Both full determinism passes must remain configured')
   for (const ref of ['refs/heads/main', 'refs/heads/dev']) {
-    const github = { ref, ref_type: 'branch', event_name: 'workflow_dispatch' }
+    const github = { ref, ref_type: 'branch', event_name: 'workflow_dispatch', repository: 'Skale-Club/xtimator' }
     for (const inputs of [
       { qa: false, payment_sandbox: false, unit_scope: 'generation-credits' },
       { qa: true, payment_sandbox: false, unit_scope: 'generation-credits' },
       { qa: false, payment_sandbox: true, unit_scope: 'generation-credits' },
-      { qa: true, payment_sandbox: true, unit_scope: 'generation-credits' },
+      { qa: true, payment_sandbox: true, payment_browser: true, unit_scope: 'generation-credits' },
     ]) {
       assert.equal(enabled(job('unit'), github, inputs), true)
       assert.equal(enabled(job('acceptance'), github, inputs), false)
@@ -52,11 +52,12 @@ test('branch diagnostics select the requested job without changing push/PR gates
   }
 })
 
-test('payment is opt-in on branch dispatches and cannot run on pushes, PRs or tags', () => {
-  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch' }
+test('payment is opt-in on upstream branch dispatches and cannot run on pushes, PRs, forks or tags', () => {
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch', repository: 'Skale-Club/xtimator' }
   assert.equal(enabled(job('payment-sandbox'), github, { payment_sandbox: false }), false)
   const inputs = { payment_sandbox: true, qa: true }
   assert.equal(enabled(job('payment-sandbox'), github, inputs), true)
+  assert.equal(enabled(job('payment-sandbox'), { ...github, repository: 'external/xtimator' }, inputs), false)
   assert.equal(enabled(job('acceptance'), github, inputs), false)
   assert.equal(enabled(job('unit'), github, inputs), false)
   assert.equal(enabled(job('unit'), github, { payment_sandbox: true, qa: false }), false)
@@ -70,6 +71,24 @@ test('payment is opt-in on branch dispatches and cannot run on pushes, PRs or ta
   const tag = { ...github, ref: 'refs/tags/test', ref_type: 'tag' }
   assert.equal(enabled(job('payment-sandbox'), tag, inputs), false)
   assert.equal(enabled(job('unit'), tag, inputs), true)
+})
+
+test('hosted Checkout requires a separate explicit opt-in and installs Chromium before secrets', () => {
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch', repository: 'Skale-Club/xtimator' }
+  const payment = source.split('\n  payment-sandbox:')[1]?.split('\n  cleanup:')[0]
+  const install = payment?.match(/name: Install Chromium for hosted Stripe Checkout\r?\n\s+if: (\$\{\{[^\n]+\}\})\r?\n\s+run: [^\n]+/)?.[0]
+  const browserEnv = payment?.match(/RUN_PAYMENT_BROWSER: (\$\{\{[^\n]+\}\})/)?.[1]
+  assert.match(source, /payment_browser:\r?\n\s+description: [^\n]+\r?\n\s+type: boolean\r?\n\s+default: false/)
+  assert.ok(install && browserEnv)
+  assert.ok(payment.indexOf(install) < payment.indexOf('env:'))
+  assert.equal(enabled(job('payment-sandbox'), github, { payment_browser: true }), false)
+  for (const payment_browser of [false, true]) {
+    const inputs = { payment_sandbox: true, payment_browser }
+    assert.equal(enabled(job('payment-sandbox'), github, inputs), true)
+    assert.equal(enabled(install.match(/if: (\$\{\{[^\n]+\}\})/)?.[1], github, inputs), payment_browser)
+    // Evaluate the literal 1/0 branches as booleans to confirm the same opt-in.
+    assert.equal(enabled(browserEnv.replace("'1'", 'true').replace("'0'", 'false'), github, inputs), payment_browser)
+  }
 })
 
 test('acceptance runs automatically for dev pushes and internal PRs, never main pushes or forks', () => {
