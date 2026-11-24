@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { useState, type Dispatch } from 'react'
+import { renderToString } from 'react-dom/server'
 import {
   EstimateDocument,
   type EstimateDocumentData,
 } from '@/components/workspace/estimate/estimate-document'
+import type { EstimateAction } from '@/components/workspace/estimate/use-estimate-reducer'
 
 // Editor totals (2026-11-12 redesign): one three-column grid so every row is
 // ONE line on every width (label | control | amount); Discount and Deposit
@@ -36,9 +39,8 @@ function makeData(overrides: Partial<EstimateDocumentData> = {}): EstimateDocume
   }
 }
 
-function renderEdit(data: EstimateDocumentData, defaultTaxRate?: number) {
-  const dispatch = vi.fn()
-  render(
+function editDocument(data: EstimateDocumentData, dispatch: Dispatch<EstimateAction>, defaultTaxRate?: number) {
+  return (
     <EstimateDocument
       mode="edit"
       dispatch={dispatch}
@@ -49,14 +51,76 @@ function renderEdit(data: EstimateDocumentData, defaultTaxRate?: number) {
       estimateVersion={1}
       estimateCreatedAt="2026-01-01T00:00:00Z"
       companyDefaults={defaultTaxRate === undefined ? undefined : ({ tax_rate: defaultTaxRate } as never)}
-    />,
+    />
   )
+}
+
+function renderEdit(data: EstimateDocumentData, defaultTaxRate?: number) {
+  const dispatch = vi.fn()
+  render(editDocument(data, dispatch, defaultTaxRate))
   return dispatch
+}
+
+function TaxEditingHarness({ initialData, onAction }: {
+  initialData: EstimateDocumentData
+  onAction: Dispatch<EstimateAction>
+}) {
+  const [data, setData] = useState(initialData)
+  return editDocument(data, action => {
+    onAction(action)
+    if (action.type === 'UPDATE_TAX_RATE') setData(previous => ({ ...previous, tax_rate: action.tax_rate }))
+  })
 }
 
 const totals = () => document.querySelector('[data-page-block-id="totals"]') as HTMLElement
 
 describe('editor totals grid', () => {
+  it('enables the totals controls after hydration and preserves the first tax edit on blur', async () => {
+    const onAction = vi.fn()
+    const element = (
+      <TaxEditingHarness onAction={onAction} initialData={makeData({
+        discount_type: 'percentage', discount_value: 10, discount_amount: 150,
+        tax_rate: 0, tax_amount: 0, total: 1350,
+        deposit_type: 'percent', deposit_value: 30, deposit: 405, balance_due: 945,
+      })} />
+    )
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(element)
+    document.body.append(container)
+    let unmount: (() => void) | undefined
+    try {
+      const editor = within(container)
+      const taxInput = () => editor.getByRole<HTMLInputElement>('textbox', { name: 'Tax', exact: true })
+      const controls = () => [
+        taxInput(),
+        editor.getByRole<HTMLInputElement>('textbox', { name: 'Discount', exact: true }),
+        editor.getByRole<HTMLInputElement>('textbox', { name: 'Deposit', exact: true }),
+        ...['totals-discount-row', 'totals-deposit-row'].map(id =>
+          within(editor.getByTestId(id)).getByRole<HTMLButtonElement>('button', { name: '% → $', exact: true }),
+        ),
+      ]
+      for (const control of controls()) expect(control.disabled).toBe(true)
+      const serverTaxInput = taxInput()
+
+      unmount = render(element, { container, hydrate: true }).unmount
+      await waitFor(() => {
+        for (const control of controls()) expect(control.disabled).toBe(false)
+      })
+      const tax = taxInput()
+      expect(tax).toBe(serverTaxInput)
+      expect(tax.value).toBe('')
+      fireEvent.focus(tax)
+      fireEvent.change(tax, { target: { value: '7.25' } })
+      expect(tax.value).toBe('7.25')
+      fireEvent.blur(tax)
+      expect(tax.value).toBe('7.25')
+      expect(onAction).toHaveBeenCalledExactlyOnceWith({ type: 'UPDATE_TAX_RATE', tax_rate: 0.0725 })
+    } finally {
+      unmount?.()
+      container.remove()
+    }
+  })
+
   it('lays every adjustable row out as label | control | amount on one grid', () => {
     renderEdit(makeData({
       discount_type: 'percentage', discount_value: 10, discount_amount: 150,

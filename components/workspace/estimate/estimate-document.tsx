@@ -53,6 +53,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { useIsPhone } from '@/components/ui/use-is-phone'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { formatMoney, getCurrencySymbol } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
@@ -1210,11 +1211,12 @@ function UnitValueField({
   testId?: string
 }) {
   const [draft, setDraft] = useState<string | null>(null)
+  const clientReady = useClientReady()
   const inputRef = useRef<HTMLInputElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (autoFocus) inputRef.current?.focus()
-  }, [autoFocus])
+    if (autoFocus && clientReady) inputRef.current?.focus()
+  }, [autoFocus, clientReady])
   const shown = draft ?? (value ? String(Math.round(value * 100) / 100) : '')
 
   return (
@@ -1223,6 +1225,7 @@ function UnitValueField({
         ref={inputRef}
         type="text"
         inputMode="decimal"
+        disabled={!clientReady}
         value={shown}
         placeholder="0"
         aria-label={ariaLabel}
@@ -1243,6 +1246,7 @@ function UnitValueField({
       {otherUnit && onUnit ? (
         <button
           type="button"
+          disabled={!clientReady}
           onClick={onUnit}
           aria-label={`${unit} → ${otherUnit}`}
           className="flex h-7 min-w-7 items-center justify-center gap-0.5 rounded px-1 text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
@@ -1271,6 +1275,7 @@ function EditableTotals({
   defaultTaxRate?: number
 }) {
   const { t } = useTranslation()
+  const clientReady = useClientReady()
   const fmt = (v: number) => formatMoney(v, data.currency_code)
   const currency = getCurrencySymbol(data.currency_code)
   const taxPercent = Math.round(data.tax_rate * 10000) / 100
@@ -1343,6 +1348,7 @@ function EditableTotals({
               {isTaxOverridden ? (
                 <button
                   type="button"
+                  disabled={!clientReady}
                   onClick={() => dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTaxRate ?? 0 })}
                   className="inline-flex items-center gap-1 font-medium transition-colors hover:underline"
                   style={{ color: brandText }}
@@ -1417,6 +1423,7 @@ function EditableTotals({
             {!discountActive && (
               <button
                 type="button"
+                disabled={!clientReady}
                 onClick={() => {
                   setFocusKey('discount')
                   dispatch({ type: 'UPDATE_DISCOUNT', discount_type: 'percentage', discount_value: 0 })
@@ -1431,6 +1438,7 @@ function EditableTotals({
             {!depositActive && (
               <button
                 type="button"
+                disabled={!clientReady}
                 onClick={() => {
                   setFocusKey('deposit')
                   dispatch({ type: 'UPDATE_DEPOSIT', deposit_type: 'percent', deposit_value: 0 })

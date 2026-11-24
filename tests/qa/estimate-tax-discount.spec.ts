@@ -62,7 +62,9 @@ test('[QA:ESTIMATE-TAX-DISCOUNT] prorates the discount over taxable items and sh
     const totals = totalsBlock(page)
     const rate = totals.getByRole('textbox', { name: 'Tax', exact: true })
     await rate.fill('7.25')
+    await expect(rate).toHaveValue('7.25')
     await rate.press('Tab')
+    await expect(rate).toHaveValue('7.25')
 
     if (desktop) {
       const taxable = page.locator(`[data-item-id="${fixture.itemId}"]`).filter({ visible: true })

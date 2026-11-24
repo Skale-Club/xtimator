@@ -151,6 +151,7 @@ export function EditorTopBar({ project, canRename }: { project: ProjectDetail; c
       <div className={cn('flex min-h-[34px] items-center justify-between md:hidden', GUTTER)}>
         <Link
           href="/projects"
+          prefetch={false}
           aria-label={t('Back to projects')}
           className="-ml-[5px] inline-flex min-h-[34px] items-center pr-3 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
