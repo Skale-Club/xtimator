@@ -30,6 +30,7 @@ test('manual acceptance and focused diagnostics cannot bypass main/dev regressio
       { qa: false, payment_sandbox: true, unit_scope: 'generation-credits' },
       { qa: true, payment_sandbox: true, payment_browser: true, unit_scope: 'generation-credits' },
       { qa: false, payment_sandbox: false, unit_scope: 'qa-foundations' },
+      { qa: false, payment_sandbox: false, unit_scope: 'dependency-lock' },
     ]) {
       assert.equal(enabled(job('unit'), github, inputs), true)
       assert.equal(enabled(job('acceptance'), github, inputs), false)
@@ -139,4 +140,24 @@ test('production-mode compilation uses the same trusted development boundary', (
       event: { pull_request: { head: { repo: { full_name } } } } }
     assert.equal(enabled(job('build'), pr, {}), full_name === pr.repository)
   }
+})
+
+test('dependency resolution is a secret-free manual candidate and cannot replace protected regression', () => {
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch', repository: 'Skale-Club/xtimator' }
+  const inputs = { qa: false, payment_sandbox: false, unit_scope: 'dependency-lock' }
+  assert.equal(enabled(job('dependency-lock'), github, inputs), true)
+  assert.equal(enabled(job('unit'), github, inputs), false)
+  for (const event of [
+    { ...github, ref: 'refs/heads/main' }, { ...github, ref: 'refs/heads/dev' },
+    { ...github, ref_type: 'tag' }, { ...github, event_name: 'push' }, { ...github, event_name: 'pull_request' },
+  ]) {
+    assert.equal(enabled(job('dependency-lock'), event, inputs), false)
+    assert.equal(enabled(job('unit'), event, inputs), true)
+  }
+  assert.equal(enabled(job('dependency-lock'), { ...github, repository: 'external/xtimator' }, inputs), false)
+  const candidate = source.split('\n  dependency-lock:')[1]?.split('\n  build:')[0]
+  assert.ok(candidate)
+  assert.doesNotMatch(candidate, /secrets\.|persist-credentials: true|npm audit fix|--force/)
+  assert.match(candidate, /--package-lock-only --ignore-scripts/)
+  assert.match(candidate, /name: dependency-lock-\$\{\{ github.run_id \}\}/)
 })

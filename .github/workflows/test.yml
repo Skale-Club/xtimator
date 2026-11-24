@@ -42,6 +42,7 @@ on:
           - all
           - generation-credits
           - qa-foundations
+          - dependency-lock
         default: all
       verify_build:
         description: 'Compile a production-mode artifact with development resources; never publish or deploy it'
@@ -61,7 +62,7 @@ permissions:
 
 jobs:
   unit:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.qa && !inputs.payment_sandbox || github.ref_type != 'branch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.qa && !inputs.payment_sandbox && inputs.unit_scope != 'dependency-lock' || github.ref_type != 'branch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
     name: Typecheck + unit/eval suite
     runs-on: ubuntu-latest
     # 15 min stopped fitting: the full suite (~8k tests) took 11.5 min on one
@@ -133,6 +134,42 @@ jobs:
         run: |
           npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts
           npm run qa:loader
+
+  dependency-lock:
+    name: Prepare a dependency lock candidate without credentials
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.unit_scope == 'dependency-lock' && github.repository == 'Skale-Club/xtimator' && github.ref_type == 'branch' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Resolve the reviewed manifest and transitive proxy fix
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm update proxy-addr --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Assess the candidate without treating audit exit one as a pass
+        run: |
+          set +e
+          npm audit --omit=dev --json > dependency-audit.json
+          audit_status=$?
+          set -e
+          node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("dependency-audit.json","utf8"));if(p.error||!p.metadata?.vulnerabilities)process.exit(2);console.log(JSON.stringify(p.metadata.vulnerabilities))'
+          if [ "$audit_status" -gt 1 ]; then exit "$audit_status"; fi
+      - name: Retain the unvalidated lock candidate for review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependency-lock-${{ github.run_id }}
+          path: |
+            package.json
+            package-lock.json
+            dependency-audit.json
+          retention-days: 7
+          if-no-files-found: error
 
   build:
     name: Production compilation with development resources

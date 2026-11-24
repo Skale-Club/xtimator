@@ -29,7 +29,8 @@ test('[QA:ADMIN-EVENT-DETAIL] reads the ordered failure timeline for its own syn
     const link = main.getByRole('link', { name: 'View →', exact: true })
     await expect(link).toHaveAttribute('href', path)
     expect(await main.locator('tbody tr').count()).toBe(1)
-    const row = main.getByRole('row').filter({ has: link })
+    // The inner locator is resolved relative to each row, not to <main> again.
+    const row = main.getByRole('row').filter({ has: page.getByRole('link', { name: 'View →', exact: true }) })
     await expect(row.getByText('transcribe', { exact: true })).toBeVisible()
     await expect(row.getByText('failed', { exact: true })).toBeVisible()
     listed = true
