@@ -60,3 +60,18 @@ test('acceptance runs automatically for dev pushes and internal PRs, never main 
     for (const condition of full) assert.equal(enabled(condition, github, {}), true)
   }
 })
+
+test('production-mode compilation uses the same trusted development boundary', () => {
+  const github = { ref: 'refs/heads/feat/autonomous-launch-qa', event_name: 'workflow_dispatch' }
+  assert.equal(enabled(job('build'), github, { verify_build: true }), true)
+  assert.equal(enabled(job('build'), github, { verify_build: false }), false)
+  for (const ref of ['refs/heads/main', 'refs/heads/dev']) {
+    assert.equal(enabled(job('build'), { ...github, ref }, { verify_build: true }), false)
+    assert.equal(enabled(job('build'), { ref, event_name: 'push' }, {}), ref === 'refs/heads/dev')
+  }
+  for (const full_name of ['Skale-Club/xtimator', 'external/xtimator']) {
+    const pr = { ref: 'refs/pull/1/merge', event_name: 'pull_request', repository: 'Skale-Club/xtimator',
+      event: { pull_request: { head: { repo: { full_name } } } } }
+    assert.equal(enabled(job('build'), pr, {}), full_name === pr.repository)
+  }
+})

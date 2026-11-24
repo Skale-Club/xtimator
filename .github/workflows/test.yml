@@ -41,6 +41,10 @@ on:
           - all
           - generation-credits
         default: all
+      verify_build:
+        description: 'Compile a production-mode artifact with development resources; never publish or deploy it'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -112,6 +116,36 @@ jobs:
       - name: Characterize generation credit-read failures on a feature branch
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.unit_scope == 'generation-credits' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
         run: npx vitest run tests/unit/services/generation-credit-read-failure.test.ts
+
+  build:
+    name: Production compilation with development resources
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_build && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' || github.event_name == 'push' && github.ref == 'refs/heads/dev' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # No service-role, provider, deployment or production credentials. This
+    # artifact is a compilation check, not the deployed release candidate.
+    env:
+      DATA_API_MODE: supabase
+      NEXT_PUBLIC_AUTH_MODE: owned
+      NEXT_PUBLIC_SUPABASE_URL: https://prmqgcrnpuvpzruyzvuv.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QA_DEV_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SITE_URL: https://qa-build.example.invalid
+      APP_ORIGIN: https://qa-build.example.invalid
+      GOOGLE_AUTH_PROJECT_ID: skaleclub
+      FIREBASE_API_KEY: qa-no-external-auth
+      FIREBASE_AUTH_DOMAIN: qa.invalid
+      ACADEMY_FIXTURES: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: test -f .next/BUILD_ID
 
   acceptance:
     name: Isolated acceptance campaign

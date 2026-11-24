@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LucideIcon } from 'lucide-react'
+import type { MouseEventHandler } from 'react'
 import { T } from '@/components/i18n/t'
 
 interface EmptyStateProps {
@@ -10,7 +11,7 @@ interface EmptyStateProps {
   description: string
   actionLabel?: string
   actionHref?: string
-  onAction?: () => void
+  onAction?: MouseEventHandler<HTMLButtonElement>
   onClearFilter?: () => void
 }
 

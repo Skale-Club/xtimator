@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 
 const setLanguageMock = vi.fn()
 const useLanguageMock = vi.fn()
@@ -17,6 +17,13 @@ function setupLanguage(lang: 'en' | 'pt' | 'es') {
     pendingCount: 0,
     setPendingCount: vi.fn(),
   })
+}
+
+async function openLanguageMenu() {
+  render(<LanguageToggle />)
+  const trigger = await screen.findByRole('button', { name: 'Language: English' })
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+  return within(await screen.findByRole('menu'))
 }
 
 beforeEach(() => {
@@ -47,8 +54,21 @@ describe('LanguageToggle — I18N-01', () => {
     expect(btn).toBeTruthy()
   })
 
-  // Radix DropdownMenu renders via Portal — interaction tests require full browser env
-  it.todo('opening dropdown shows all 3 language options')
-  it.todo('clicking Português menu item calls setLanguage with "pt"')
-  it.todo('clicking Español menu item calls setLanguage with "es"')
+  it('keyboard opening exposes all three language options without changing language', async () => {
+    const menu = await openLanguageMenu()
+    expect(menu.getAllByRole('menuitem')).toHaveLength(3)
+    for (const name of ['English', 'Português', 'Español']) {
+      expect(menu.getByRole('menuitem', { name, exact: true })).toBeTruthy()
+    }
+    expect(setLanguageMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Português', 'pt'],
+    ['Español', 'es'],
+  ])('selecting %s changes the language to %s', async (label, language) => {
+    const menu = await openLanguageMenu()
+    fireEvent.click(menu.getByRole('menuitem', { name: label, exact: true }))
+    expect(setLanguageMock).toHaveBeenCalledExactlyOnceWith(language)
+  })
 })
