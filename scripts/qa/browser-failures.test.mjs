@@ -48,12 +48,28 @@ test('fails same-origin stylesheet/script errors and records only explicit cance
   tracker.assetRequestFailed(script, 'script', 'Load failed')
   tracker.assetRequestFailed(script, 'script', 'net::ERR_ABORTED')
   tracker.assetRequestFailed(script, 'script', 'NS_BINDING_ABORTED')
+  tracker.assetRequestFailed(script, 'script', 'cancelled')
   tracker.assetRequestFailed(script, 'script', 'net::ERR_ABORTED with unspecified follow-up')
   assert.equal(tracker.summary().fatalCount, 5)
   assert.deepEqual(tracker.summary().events.map(entry => [entry.classification, entry.resourceType, entry.fatal, entry.count]), [
     ['http-4xx', 'script', true, 1], ['http-5xx', 'stylesheet', true, 1],
     ['connection-retry-limit', 'stylesheet', true, 1], ['load-failed', 'script', true, 1],
-    ['cancelled', 'script', false, 2], ['request-failed', 'script', true, 1],
+    ['cancelled', 'script', false, 3], ['request-failed', 'script', true, 1],
+  ])
+})
+
+test('WebKit navigation cancellations do not mask fetch exceptions or other failed assets', () => {
+  const tracker = createBrowserFailureTracker(origin)
+  tracker.assetRequestFailed(script, 'script', 'cancelled')
+  tracker.assetRequestFailed(stylesheet, 'stylesheet', 'cancelled')
+  tracker.assetRequestFailed(script, 'script', 'cancelled with an unknown reason')
+  tracker.assetRequestFailed(script, 'script', 'The network connection was lost.')
+  tracker.assetRequestFailed(script, 'script', 'Load failed')
+  tracker.pageError('Fetch API cannot load the session endpoint due to access control checks.')
+  assert.equal(tracker.summary().fatalCount, 4)
+  assert.deepEqual(tracker.summary().events.map(entry => [entry.classification, entry.fatal, entry.count]), [
+    ['cancelled', false, 1], ['cancelled', false, 1], ['request-failed', true, 2],
+    ['load-failed', true, 1], ['unhandled-exception', true, 1],
   ])
 })
 

@@ -49,9 +49,13 @@ export function TopNavAuth({ branding, onOpenAuth, navUser, ctaLabel = 'Start' }
             }
           : null,
       )
+    }, () => {
+      // Navigation can abort this optional refresh. Keep the server-rendered
+      // identity or a newer auth event; the next foreground refresh can retry.
     })
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return
       const user = session?.user
       setResolvedUser(
         user

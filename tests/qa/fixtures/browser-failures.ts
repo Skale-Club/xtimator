@@ -50,7 +50,7 @@ export function createBrowserFailureTracker(baseURL: string) {
       const asset = firstPartyAsset(url, resourceType)
       if (!asset) return
       const code = errorText?.trim()
-      const classification = code === 'net::ERR_ABORTED' || code === 'NS_BINDING_ABORTED' ? 'cancelled'
+      const classification = code === 'net::ERR_ABORTED' || code === 'NS_BINDING_ABORTED' || code === 'cancelled' ? 'cancelled'
         : code === 'net::ERR_TOO_MANY_RETRIES' ? 'connection-retry-limit'
         : code === 'Load failed' ? 'load-failed' : 'request-failed'
       record({ source: 'asset-requestfailed', resourceType: asset, classification, fatal: classification !== 'cancelled' })
