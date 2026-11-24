@@ -138,6 +138,23 @@ vi.mock('@/lib/inngest/client', () => ({
   },
 }))
 
+
+// Business-event fixtures mock the extracted signature/inbox boundaries. Real
+// signature verification and recoverable lease RPCs are tested separately.
+vi.mock('@/lib/billing/stripe-signature', () => ({
+  verifyStripeSignature: (...args: unknown[]) => {
+    try { return mocks.constructEvent(...args) } catch { return null }
+  },
+}))
+vi.mock('@/lib/billing/stripe-event-inbox', async () => {
+  const { legacyStripeInboxBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeInboxBoundary()
+})
+vi.mock('@/lib/billing/stripe-refund-resolution', async () => {
+  const { legacyStripeRefundBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeRefundBoundary()
+})
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: (...args: unknown[]) => mocks.getStripeClient(...args),
 }))
@@ -480,13 +497,13 @@ describe('SAFE-02: signed Stripe webhook authority order', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'app/api/webhooks/stripe/route.ts'),
       'utf8',
-    )
+    ) + readFileSync(resolve(process.cwd(), 'lib/billing/stripe-event-processing.ts'), 'utf8')
 
-    const signature = source.indexOf('stripe.webhooks.constructEvent(')
+    const signature = source.indexOf('verifyStripeSignature(rawBody')
     const companyGuard = source.indexOf(
       'assertCompanyWritable(resolvedCompanyId)',
     )
-    const idempotency = source.indexOf(".from('processed_stripe_events')")
+    const idempotency = source.indexOf('claimStripeEvent(svc, event)')
     const connectDispatch = source.indexOf('handleConnectEvent(event')
 
     expect(signature).toBeGreaterThan(-1)

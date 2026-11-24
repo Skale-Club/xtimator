@@ -31,6 +31,7 @@ const updates: Array<{ table: string; payload: Record<string, unknown> }> = []
 // resolves to. Defaults to a landed grant — tests that need to prove the
 // "charged but not granted" alert override this to { applied: false }.
 let ledgerRpcApplied = true
+let ledgerRpcError: { message: string } | null = null
 const grantRpcParams: Array<Record<string, unknown>> = []
 
 vi.mock('@/lib/supabase/service', () => ({
@@ -38,7 +39,7 @@ vi.mock('@/lib/supabase/service', () => ({
     rpc: async (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'grant_credit_lot') {
         grantRpcParams.push(params ?? {})
-        return { data: [{ balance_after: 1300, applied: ledgerRpcApplied, lot_id: 'lot-1' }], error: null }
+        return { data: [{ balance_after: 1300, applied: ledgerRpcApplied, lot_id: 'lot-1' }], error: ledgerRpcError }
       }
       return { data: true, error: null } // lock acquire/release always granted in this file's tests
     },
@@ -59,7 +60,9 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 // ---- stripe-client mock ------------------------------------------------------
-const paymentIntentsCreate = vi.fn().mockResolvedValue({ id: 'pi_test' })
+const paymentIntentsRetrieve = vi.fn().mockResolvedValue({ id: 'pi_processing', status: 'processing' })
+const paymentIntentsCancel = vi.fn().mockResolvedValue({ id: 'pi_declined', status: 'canceled' })
+const paymentIntentsCreate = vi.fn().mockResolvedValue({ id: 'pi_test', status: 'succeeded' })
 let customerRetrieveResult: unknown = {
   invoice_settings: { default_payment_method: { id: 'pm_test' } },
 }
@@ -69,12 +72,18 @@ const customersRetrieve = vi.fn(async () => customerRetrieveResult)
 let subscriptionPm: unknown = null
 const subscriptionsRetrieve = vi.fn(async () => ({ default_payment_method: subscriptionPm }))
 const paymentMethodsList = vi.fn(async () => ({ data: [] }))
+vi.mock('@/lib/billing/operations', async () => {
+  const { memoryBillingOperationBoundary } = await import('@/tests/fixtures/billing-operations-memory')
+  return memoryBillingOperationBoundary()
+})
+import { resetBillingOperationFixtures } from '@/tests/fixtures/billing-operations-memory'
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: async () => ({
     customers: { retrieve: customersRetrieve },
     subscriptions: { retrieve: subscriptionsRetrieve },
     paymentMethods: { list: paymentMethodsList },
-    paymentIntents: { create: paymentIntentsCreate },
+    paymentIntents: { create: paymentIntentsCreate, retrieve: paymentIntentsRetrieve, cancel: paymentIntentsCancel },
   }),
 }))
 
@@ -109,6 +118,7 @@ import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
 const COMPANY = 'company-trigger-test'
 
 beforeEach(() => {
+  resetBillingOperationFixtures()
   companyRow = {
     auto_topup_enabled: true,
     auto_topup_threshold_credits: 100,
@@ -126,10 +136,13 @@ beforeEach(() => {
     invoice_settings: { default_payment_method: { id: 'pm_test' } },
   }
   updates.length = 0
+  paymentIntentsRetrieve.mockClear()
+  paymentIntentsCancel.mockClear()
   paymentIntentsCreate.mockClear()
-  paymentIntentsCreate.mockResolvedValue({ id: 'pi_test' })
+  paymentIntentsCreate.mockResolvedValue({ id: 'pi_test', status: 'succeeded' })
   customersRetrieve.mockClear()
   ledgerRpcApplied = true
+  ledgerRpcError = null
   mockNotifyOps.mockClear()
   mockNotify.mockClear()
   subscriptionPm = null
@@ -162,7 +175,7 @@ describe('credits plan 2026-11-20: auto top-up on the subscription card', () => 
   })
 
   it('a declined charge emails the owner that it failed and how to keep going', async () => {
-    paymentIntentsCreate.mockRejectedValueOnce(Object.assign(new Error('declined'), { code: 'card_declined' }))
+    paymentIntentsCreate.mockRejectedValueOnce(Object.assign(new Error('declined'), { code: 'card_declined', payment_intent: { id: 'pi_declined', status: 'canceled' } }))
     await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
     await vi.waitFor(() => expect(mockNotify).toHaveBeenCalled())
     const n = mockNotify.mock.calls[0][0] as { title: string; body: string }
@@ -264,7 +277,7 @@ describe('CREDITUI-07: tenant opt-out', () => {
 
 describe('CREDITUI-07: never-throws under failure', () => {
   it('resolves without throwing on a Stripe decline, and sets auto_topup_last_failed_at', async () => {
-    paymentIntentsCreate.mockRejectedValueOnce(new Error('card declined'))
+    paymentIntentsCreate.mockRejectedValueOnce(Object.assign(new Error('card declined'), { payment_intent: { id: 'pi_declined', status: 'canceled' } }))
     await expect(
       triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
     ).resolves.toBeUndefined()
@@ -295,7 +308,7 @@ describe('FIX 1 (HIGH): auto_topup_charge_failed alert + sanitized logging', () 
     paymentIntentsCreate.mockRejectedValueOnce(
       Object.assign(new Error('Your card was declined.'), {
         code: 'card_declined',
-        payment_intent: { id: 'pi_declined', last4: '4242', raw: { decline_code: 'generic_decline' } },
+        payment_intent: { id: 'pi_declined', status: 'canceled', last4: '4242', raw: { decline_code: 'generic_decline' } },
       })
     )
 
@@ -317,6 +330,7 @@ describe('FIX 1 (HIGH): auto_topup_charge_failed alert + sanitized logging', () 
         code: 'card_declined',
         payment_intent: {
           id: 'pi_declined',
+          status: 'canceled',
           last4: '4242',
           brand: 'visa',
           raw: { decline_code: 'generic_decline', card: { last4: '4242' } },
@@ -334,7 +348,9 @@ describe('FIX 1 (HIGH): auto_topup_charge_failed alert + sanitized logging', () 
     expect(loggedPayload).not.toHaveProperty('raw')
     expect(JSON.stringify(loggedPayload)).not.toContain('4242')
     expect(JSON.stringify(loggedPayload)).not.toContain('visa')
-    expect(loggedPayload).toMatchObject({ code: 'card_declined', paymentIntentId: 'pi_declined' })
+    // The shared purchase flow has already proved cancellation and exposes a
+    // safe closed result, rather than propagating the original card object.
+    expect(loggedPayload).toMatchObject({ code: 'payment_closed', paymentIntentId: null })
 
     // notifyOps message: same sanitization requirement — no card details/raw object.
     const alertCall = mockNotifyOps.mock.calls.find(
@@ -344,7 +360,7 @@ describe('FIX 1 (HIGH): auto_topup_charge_failed alert + sanitized logging', () 
     const alertMessage = (alertCall?.[0] as { message: string }).message
     expect(alertMessage).not.toContain('4242')
     expect(alertMessage).not.toContain('visa')
-    expect(alertMessage).toContain('pi_declined')
+    expect(alertMessage).toContain('payment_closed')
 
     warn.mockRestore()
   })
@@ -356,6 +372,23 @@ describe('FIX 1 (HIGH): auto_topup_charge_failed alert + sanitized logging', () 
 // is itself never-throw and no-ops on an existing idempotency key).
 // =============================================================================
 describe('FIX 1 (HIGH): verifying the grant landed before clearing the failure flag', () => {
+  it('reuses the unresolved purchase in a later hour without charging a second PaymentIntent', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-11-24T01:00:00Z'))
+      paymentIntentsCreate.mockResolvedValueOnce({ id: 'pi_processing', status: 'processing' })
+      await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+      vi.setSystemTime(new Date('2026-11-24T03:00:00Z'))
+      await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 40 })
+      expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
+      expect(paymentIntentsRetrieve).toHaveBeenCalledWith('pi_processing')
+      expect(grantRpcParams).toHaveLength(0)
+      expect(mockNotifyOps).toHaveBeenCalledWith(expect.objectContaining({ kind: 'auto_topup_payment_pending' }))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('clears auto_topup_last_failed_at when grantCredits reports applied:true', async () => {
     ledgerRpcApplied = true
     await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
@@ -369,22 +402,11 @@ describe('FIX 1 (HIGH): verifying the grant landed before clearing the failure f
     )
   })
 
-  it('does NOT clear auto_topup_last_failed_at and fires auto_topup_charged_without_grant when the card was charged but the grant did not apply', async () => {
+  it('an already-recorded strict grant clears failure without a false charged-without-grant alert', async () => {
     ledgerRpcApplied = false
     await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
-
-    expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
-    const clearUpdate = updates.find(
-      (u) => u.table === 'companies' && u.payload.auto_topup_last_failed_at === null
-    )
-    expect(clearUpdate).toBeUndefined()
-    expect(mockNotifyOps).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'auto_topup_charged_without_grant',
-        severity: 'error',
-        message: expect.stringContaining(COMPANY),
-      })
-    )
+    expect(updates.find(u => u.payload.auto_topup_last_failed_at === null)).toBeDefined()
+    expect(mockNotifyOps).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'auto_topup_charged_without_grant' }))
   })
 })
 
@@ -594,5 +616,17 @@ describe('CREDITUI-07: credit-ledger.ts wiring', () => {
     vi.doUnmock('@/lib/supabase/service')
     vi.doUnmock('@/lib/billing/billing-config')
     vi.resetModules()
+  })
+})
+
+
+describe('paid automatic purchase with temporarily unavailable credit storage', () => {
+  it('keeps recovery pending without telling the owner their successful charge failed', async () => {
+    ledgerRpcError = { message: 'Database unavailable' }
+    await triggerAutoTopupIfNeeded({ companyId: 'co_test', newBalance: 50 })
+    expect(paymentIntentsCreate).toHaveBeenCalledOnce()
+    expect(mockNotifyOps).toHaveBeenCalledWith(expect.objectContaining({ kind: 'auto_topup_charged_without_grant' }))
+    expect(updates.some(u => typeof u.payload.auto_topup_last_failed_at === 'string')).toBe(false)
+    expect(mockNotify).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Auto top-up failed' }))
   })
 })

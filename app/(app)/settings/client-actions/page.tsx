@@ -74,7 +74,7 @@ export default async function ClientActionsPage({
   const email = (company.stripe_account_email as string | null) ?? null
 
   let connectState: ConnectState
-  if (!clientId && !onlinePayments.linked) {
+  if ((!clientId || !/^ca_[A-Za-z0-9]+$/.test(clientId)) && !onlinePayments.linked) {
     connectState = { kind: 'not_configured' }
   } else if (onlinePayments.healthy) {
     connectState = { kind: 'connected', displayName, email }

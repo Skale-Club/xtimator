@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 /**
@@ -128,6 +128,8 @@ function makeRequest(query: Record<string, string>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubEnv('NODE_ENV', 'test')
+  vi.stubEnv('DATA_API_MODE', 'supabase')
   cookieGetFn.mockReturnValue(undefined)
   vi.mocked(getActiveCompanyId).mockResolvedValue('company_abc')
   vi.mocked(requireCompanyOwner).mockResolvedValue({
@@ -136,6 +138,7 @@ beforeEach(() => {
     role: 'owner',
   } as never)
 })
+afterEach(() => vi.unstubAllEnvs())
 
 describe('GET /api/stripe/connect/callback', () => {
   it('persists stripe_account_id on happy-path code exchange', async () => {
@@ -364,28 +367,28 @@ describe('GET /api/stripe/connect/callback', () => {
       expect(update).not.toHaveBeenCalled()
     })
 
-    it('refuses a live account on a test platform key and writes nothing', async () => {
+    it('refuses a live account in a sandbox environment and writes nothing', async () => {
       const { state, update } = setup({ charges_enabled: true }, { livemode: true })
       const res = await GET(makeRequest({ code: 'ac_test', state }))
       expect(res.headers.get('location')).toContain('error=mode_mismatch')
       expect(update).not.toHaveBeenCalled()
     })
 
-    it('refuses a test account on a live platform key (rk_live_ too)', async () => {
-      // Built from parts so secret scanners do not read a fake key as a real one.
-      vi.mocked(getIntegrationKey).mockResolvedValueOnce(['rk', 'live', 'placeholder'].join('_'))
+    it('refuses a test account against production data', async () => {
+      vi.stubEnv('NODE_ENV', 'production')
+      vi.stubEnv('DATA_API_MODE', 'postgrest')
       const { state, update } = setup({ charges_enabled: true }, { livemode: false })
       const res = await GET(makeRequest({ code: 'ac_test', state }))
       expect(res.headers.get('location')).toContain('error=mode_mismatch')
       expect(update).not.toHaveBeenCalled()
     })
 
-    it('does not block when the platform key mode cannot be determined', async () => {
+    it('still rejects a live account in development when a key value is ambiguous', async () => {
       vi.mocked(getIntegrationKey).mockResolvedValueOnce('unknown_format')
       const { state, update } = setup({ charges_enabled: true }, { livemode: true })
       const res = await GET(makeRequest({ code: 'ac_test', state }))
-      expect(res.headers.get('location')).toContain('connected=1')
-      expect(update).toHaveBeenCalled()
+      expect(res.headers.get('location')).toContain('error=mode_mismatch')
+      expect(update).not.toHaveBeenCalled()
     })
 
     it('redirects account_in_use on a unique violation and never reports success', async () => {

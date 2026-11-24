@@ -18,6 +18,10 @@ vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn(async
 vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn(async () => undefined) }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn(async () => null) }))
 vi.mock('@/lib/platform-config', () => ({ getIntegrationKey: (...a: unknown[]) => getIntegrationKey(...a) }))
+vi.mock('@/lib/billing/connect-readiness', () => ({
+  checkConnectReadiness: vi.fn().mockResolvedValue({ ready: true, missing: [] }),
+}))
+
 vi.mock('@/lib/billing/connect-oauth', () => ({
   mintOAuthState: (...a: unknown[]) => mintOAuthState(...a),
   buildAuthorizeUrl: vi.fn(() => 'https://connect.stripe.com/oauth/authorize?state=s'),

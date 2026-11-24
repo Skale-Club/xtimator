@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
+vi.mock('@/lib/billing/subscription-checkout', () => ({
+  createSubscriptionCheckout: async (stripe: any, companyId: string, params: unknown) =>
+    (await stripe.checkout.sessions.create(params, { idempotencyKey: `subscription-checkout:${companyId}` })).url,
+}))
 
 /**
  * Phase 143 Plan 01 — annual billing interval for create-checkout-session (ANN-03).

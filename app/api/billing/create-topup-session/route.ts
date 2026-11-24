@@ -6,7 +6,9 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { isTwaRequest, TWA_PURCHASE_BLOCKED_BODY } from '@/lib/pwa/twa-context'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
-import { createTopupCheckoutSession } from '@/lib/billing/topup-checkout'
+import { buyCreditPack, resumeCreditPurchase, PAYMENT_PENDING, PaymentClosedError } from '@/lib/billing/credit-purchase'
+import { findPendingCreditPurchase } from '@/lib/billing/operations'
+import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { rateLimit } from '@/lib/ratelimit'
 import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { isTopupEligible, TOPUP_REQUIRES_SUBSCRIPTION_BODY } from '@/lib/billing/topup-eligibility'
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
   const blocked = await demoGuardResponse()
   if (blocked) return blocked
 
-  const body = (await request.json().catch(() => null)) as { packIndex?: number; returnTo?: string } | null
+  const body = (await request.json().catch(() => null)) as { packIndex?: number; returnTo?: string; requestId?: string } | null
   const packIndex = Number(body?.packIndex)
 
   const companyId = await getActiveCompanyId()
@@ -78,6 +80,17 @@ export async function POST(request: NextRequest) {
 
   if (!company?.id) {
     return NextResponse.json({ error: 'Company not found' }, { status: 400 })
+  }
+
+  const pending = await findPendingCreditPurchase(company.id)
+  if (pending) {
+    try {
+      const result = await resumeCreditPurchase(await getStripeClient(), pending)
+      return NextResponse.json(result, { status: result.mode === 'pending' ? 202 : 200 })
+    } catch (err) {
+      if (err instanceof PaymentClosedError) return NextResponse.json({ error: err.message, code: err.code }, { status: 409 })
+      return NextResponse.json(PAYMENT_PENDING, { status: 202 })
+    }
   }
 
   // SEED-055 Phase C: top-ups are sold to Pro companies with a live
@@ -108,22 +121,18 @@ export async function POST(request: NextRequest) {
 
   const stripe = await getStripeClient()
 
-  // Fix 4b — a double-click must not mint TWO top-up Checkout Sessions.
-  // The pack's credits and price are part of the key: if the admin changes the
-  // pack table inside the same minute, Stripe would otherwise reject the reused
-  // key because the request parameters differ.
-  const idempotencyKey = `topup:${company.id}:${packIndex}:${pack.credits}:${priceCents}:${currency}:${Math.floor(Date.now() / 60000)}`
-
-  const session = await createTopupCheckoutSession({
-    stripe,
-    companyId: company.id as string,
-    packIndex,
-    pack,
-    priceCents,
-    currency,
-    returnTo: typeof body?.returnTo === 'string' ? body.returnTo : null,
-    idempotencyKey,
-  })
-
-  return NextResponse.json({ url: session.url })
+  // Legacy clients share the durable purchase reservation with the one-click
+  // route. A timeout, reload or another device cannot open a second payment.
+  try {
+    const result = await buyCreditPack({ stripe, companyId: company.id,
+      requestId: typeof body?.requestId === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(body.requestId) ? body.requestId : crypto.randomUUID(),
+      request: { packIndex, pack, priceCents, currency,
+        customerId: await ensureStripeCustomer(stripe, company.id), cardId: null, card: null,
+        useOtherCard: true, returnTo: typeof body?.returnTo === 'string' ? body.returnTo : null },
+    })
+    return NextResponse.json(result, { status: result.mode === 'pending' ? 202 : 200 })
+  } catch (err) {
+    if (err instanceof PaymentClosedError) return NextResponse.json({ error: err.message, code: err.code }, { status: 409 })
+    return NextResponse.json(PAYMENT_PENDING, { status: 202 })
+  }
 }

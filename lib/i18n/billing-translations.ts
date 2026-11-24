@@ -238,6 +238,10 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Redirecting...': 'Redirecionando...',
     'Redirecting…': 'Redirecionando…',
     'Could not start top-up. Please try again.': 'Não foi possível iniciar a recarga. Tente de novo.',
+    'Your payment is being confirmed. Your credits will appear once it is complete.': 'Seu pagamento está sendo confirmado. Os créditos aparecerão assim que a confirmação terminar.',
+    'Check payment status': 'Conferir pagamento',
+    'This payment session has ended. Choose a pack to start again.': 'Esta sessão de pagamento terminou. Escolha um pacote para começar novamente.',
+    'Could not confirm the invoice. Please try again.': 'Não foi possível confirmar a fatura. Tente novamente.',
     'Auto top-up': 'Recarga automática',
     'On': 'Ativa',
     "We'll add {amount} when your balance drops below {threshold} credits.":
@@ -566,6 +570,10 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Redirecting...': 'Redirigiendo...',
     'Redirecting…': 'Redirigiendo…',
     'Could not start top-up. Please try again.': 'No se pudo iniciar la recarga. Inténtelo de nuevo.',
+    'Your payment is being confirmed. Your credits will appear once it is complete.': 'Se está confirmando su pago. Los créditos aparecerán cuando finalice la confirmación.',
+    'Check payment status': 'Consultar pago',
+    'This payment session has ended. Choose a pack to start again.': 'Esta sesión de pago ha terminado. Elija un paquete para empezar de nuevo.',
+    'Could not confirm the invoice. Please try again.': 'No se pudo confirmar la factura. Inténtelo de nuevo.',
     'Auto top-up': 'Recarga automática',
     'On': 'Activa',
     "We'll add {amount} when your balance drops below {threshold} credits.":

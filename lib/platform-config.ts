@@ -78,6 +78,7 @@ export type IntegrationProvider =
   | 'openrouter'
   | 'meta_whatsapp'
   | 'stripe'
+  | 'stripe_test'
   // Stripe Connect Client ID (ca_...) — admin-managed; enables tenant OAuth
   // flow for customer payments on estimates (Phase 70). Not technically a
   // secret per Stripe docs (appears in browser OAuth URLs) but stored via the
@@ -277,13 +278,18 @@ export async function getIntegrationKey(
   const svc = createServiceClient()
   // svc is null when env vars are absent (e.g. Vercel static build time).
   if (!svc) return null
-  const { data } = await svc
+  const { data, error } = await svc
     .from('platform_integrations')
     .select('ciphertext, iv, auth_tag')
     .eq('provider', provider)
     .maybeSingle()
 
+  if (error && (provider === 'stripe' || provider === 'stripe_test' || provider === 'stripe_connect_client_id')) {
+    throw new Error('Could not read Stripe integration configuration')
+  }
+
   if (!data) {
+    if (process.env.NODE_ENV === 'production' && (provider === 'stripe' || provider === 'stripe_test')) return null
     // Fallback to env var for local dev (D-16). Warn so the fallback path is visible.
     //
     // Per-provider candidate list, tried in order. The default for every provider
@@ -292,7 +298,9 @@ export async function getIntegrationKey(
     // so code and the .env examples agree. Every non-stripe provider keeps the single
     // `{PROVIDER}_API_KEY` candidate — behaviour byte-for-byte unchanged.
     const candidates =
-      provider === 'stripe'
+      provider === 'stripe_test'
+        ? ['STRIPE_TEST_SECRET_KEY']
+        : provider === 'stripe'
         ? ['STRIPE_SECRET_KEY', 'STRIPE_API_KEY']
         : provider === 'notion'
           ? ['NOTION_TOKEN', 'NOTION_API_KEY']

@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { getStripeSecretKey } from '@/lib/billing/stripe-environment'
 
 /**
  * HMAC-signed OAuth state helpers for the Stripe Connect Standard authorize
@@ -122,7 +122,7 @@ export async function exchangeCode(code: string): Promise<{
   livemode: boolean
   scope: 'read_write' | 'read_only'
 }> {
-  const secretKey = await getIntegrationKey('stripe')
+  const secretKey = await getStripeSecretKey()
   if (!secretKey) {
     throw new Error('[connect-oauth] STRIPE secret key not configured')
   }
@@ -163,7 +163,7 @@ export async function deauthorize(opts: {
   stripeUserId: string
 }): Promise<void> {
   try {
-    const secretKey = await getIntegrationKey('stripe')
+    const secretKey = await getStripeSecretKey()
     if (!secretKey) return
     await fetch('https://connect.stripe.com/oauth/deauthorize', {
       method: 'POST',

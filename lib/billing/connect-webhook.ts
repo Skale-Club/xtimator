@@ -985,22 +985,12 @@ async function handleChargeRefundedViaInvoice(
   // Record the refund. charge.amount_refunded is cumulative, so writing it is
   // idempotent across duplicate and out-of-order deliveries. Scoped to the
   // TRUSTED companyId. `status` is deliberately untouched (see the header).
-  if (typeof charge.amount_refunded === 'number') {
-    const now = new Date().toISOString()
-    const { error: refundError } = await svc
-      .from('invoices')
-      .update({
-        refunded_cents: Math.max(0, charge.amount_refunded),
-        refunded_at: now,
-        updated_at: now,
-      })
-      .eq('id', inv.id)
-      .eq('company_id', companyId)
-    if (refundError) {
-      throw new Error(
-        `[stripe-webhook][connect] failed to record invoice refund: ${refundError.message} invoiceRowId=${inv.id}`
-      )
-    }
+  const total = (charge as Stripe.Charge & { invoice_refunded_total?: number }).invoice_refunded_total ?? charge.amount_refunded
+  if (typeof total === 'number') {
+    const { error } = await svc.rpc('record_invoice_refund', {
+      p_company_id: companyId, p_invoice_id: inv.id, p_refunded_cents: Math.max(0, total),
+    })
+    if (error) throw new Error('Could not persist invoice refund')
   }
 
   const { data: company } = await svc
@@ -1065,6 +1055,7 @@ async function handleAccountDeauthorized(
       '[stripe-webhook][connect] account.application.deauthorized update failed:',
       error
     )
+    throw new Error('Could not persist Connect deauthorization')
   }
 }
 
@@ -1125,5 +1116,6 @@ async function handleAccountUpdated(
       '[stripe-webhook][connect] account.updated sync failed:',
       error
     )
+    throw new Error('Could not persist Connect account health')
   }
 }

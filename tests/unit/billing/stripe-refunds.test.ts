@@ -22,6 +22,23 @@ const mockChargesRetrieve = vi.fn()
 const mockSubscriptionsRetrieve = vi.fn()
 const mockSubscriptionsCancel = vi.fn()
 
+
+// Business-event fixtures mock the extracted signature/inbox boundaries. Real
+// signature verification and recoverable lease RPCs are tested separately.
+vi.mock('@/lib/billing/stripe-signature', () => ({
+  verifyStripeSignature: (...args: unknown[]) => {
+    try { return mockConstructEvent(...args) } catch { return null }
+  },
+}))
+vi.mock('@/lib/billing/stripe-event-inbox', async () => {
+  const { legacyStripeInboxBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeInboxBoundary()
+})
+vi.mock('@/lib/billing/stripe-refund-resolution', async () => {
+  const { legacyStripeRefundBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeRefundBoundary()
+})
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: mockConstructEvent },
@@ -135,13 +152,15 @@ beforeEach(() => {
 // FIX 1 — charge.refunded: credit clawback for a top-up/auto-topup charge
 // ==================================================================
 describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () => {
-  it('claws back the granted credits via a consume_credits adjust debit, keyed on refund:{chargeId}', async () => {
+  it('reconciles the granted credits to the cumulative refunded target for the charge', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_refund_topup',
       type: 'charge.refunded',
       data: {
         object: {
           id: 'ch_topup1',
+          amount: 1000,
+          amount_refunded: 1000,
           customer: 'cus_1',
           invoice: null,
           payment_intent: {
@@ -156,13 +175,11 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
 
     expect(res.status).toBe(200)
     expect(mockRpc).toHaveBeenCalledWith(
-      'consume_credits',
+      'reverse_stripe_credits',
       expect.objectContaining({
         p_company_id: 'company-1',
-        p_credits: 500,
-        p_reason: 'adjust',
-        p_ref_id: 'ch_topup1',
-        p_idempotency_key: 'refund:ch_topup1',
+        p_target_credits: 500,
+        p_charge_id: 'ch_topup1',
       })
     )
   })
@@ -174,6 +191,8 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
       data: {
         object: {
           id: 'ch_auto1',
+          amount: 1000,
+          amount_refunded: 1000,
           customer: 'cus_1',
           invoice: null,
           payment_intent: {
@@ -187,8 +206,8 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
     await POST(makeRequest())
 
     expect(mockRpc).toHaveBeenCalledWith(
-      'consume_credits',
-      expect.objectContaining({ p_credits: 200, p_idempotency_key: 'refund:ch_auto1' })
+      'reverse_stripe_credits',
+      expect.objectContaining({ p_target_credits: 200, p_charge_id: 'ch_auto1' })
     )
   })
 
@@ -200,7 +219,7 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
       id: 'evt_refund_bareid',
       type: 'charge.refunded',
       data: {
-        object: { id: 'ch_bareid', customer: 'cus_1', invoice: null, payment_intent: 'pi_bareid' },
+        object: { id: 'ch_bareid', amount: 1000, amount_refunded: 1000, customer: 'cus_1', invoice: null, payment_intent: 'pi_bareid' },
       },
     })
 
@@ -208,18 +227,20 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
 
     expect(mockPaymentIntentsRetrieve).toHaveBeenCalledWith('pi_bareid')
     expect(mockRpc).toHaveBeenCalledWith(
-      'consume_credits',
-      expect.objectContaining({ p_credits: 900 })
+      'reverse_stripe_credits',
+      expect.objectContaining({ p_target_credits: 900, p_charge_id: 'ch_bareid' })
     )
   })
 
-  it('a second delivery for the SAME charge (different event id) reuses the SAME refund idempotency key — the RPC (not this route) is the no-op authority', async () => {
+  it('a second event for the SAME charge reuses the cumulative target - the RPC is the no-op authority', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_refund_dup_1',
       type: 'charge.refunded',
       data: {
         object: {
           id: 'ch_dup',
+          amount: 1000,
+          amount_refunded: 1000,
           customer: 'cus_1',
           invoice: null,
           payment_intent: { id: 'pi_3', metadata: { type: 'credit_topup', companyId: 'company-1', credits: '300' } },
@@ -228,32 +249,31 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
     })
     await POST(makeRequest())
 
-    // Second delivery: a DIFFERENT event id (a genuine Stripe redelivery uses
-    // a fresh id) so the outer processed_stripe_events dedup does not itself
-    // short-circuit this call — the assertion is that the REFUND key is what
-    // protects against a double clawback, not the event-id dedup.
+    // A distinct event for the same charge bypasses event-id dedup. The
+    // charge-level cumulative target must still prevent another credit debit.
     mockConstructEvent.mockReturnValue({
       id: 'evt_refund_dup_2',
       type: 'charge.refunded',
       data: {
         object: {
           id: 'ch_dup',
+          amount: 1000,
+          amount_refunded: 1000,
           customer: 'cus_1',
           invoice: null,
           payment_intent: { id: 'pi_3', metadata: { type: 'credit_topup', companyId: 'company-1', credits: '300' } },
         },
       },
     })
-    // Simulate consume_credits' OWN idempotency catching the
-    // redelivery — same contract as grantCredits' applied:false.
+    // Simulate the reversal RPC finding this cumulative target already applied.
     mockRpc.mockResolvedValue({ data: [{ balance_after: 100, applied: false }], error: null })
 
     const res2 = await POST(makeRequest())
 
     expect(res2.status).toBe(200)
     expect(mockRpc).toHaveBeenLastCalledWith(
-      'consume_credits',
-      expect.objectContaining({ p_idempotency_key: 'refund:ch_dup' })
+      'reverse_stripe_credits',
+      expect.objectContaining({ p_target_credits: 300, p_charge_id: 'ch_dup' })
     )
   })
 
@@ -265,6 +285,8 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
       data: {
         object: {
           id: 'ch_dberr',
+          amount: 1000,
+          amount_refunded: 1000,
           customer: 'cus_1',
           invoice: null,
           payment_intent: { id: 'pi_4', metadata: { type: 'credit_topup', companyId: 'company-1', credits: '100' } },

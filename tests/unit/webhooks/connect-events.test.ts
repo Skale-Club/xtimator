@@ -36,6 +36,23 @@ import {
 
 const mockConstructEvent = vi.fn()
 
+
+// Business-event fixtures mock the extracted signature/inbox boundaries. Real
+// signature verification and recoverable lease RPCs are tested separately.
+vi.mock('@/lib/billing/stripe-signature', () => ({
+  verifyStripeSignature: (...args: unknown[]) => {
+    try { return mockConstructEvent(...args) } catch { return null }
+  },
+}))
+vi.mock('@/lib/billing/stripe-event-inbox', async () => {
+  const { legacyStripeInboxBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeInboxBoundary()
+})
+vi.mock('@/lib/billing/stripe-refund-resolution', async () => {
+  const { legacyStripeRefundBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeRefundBoundary()
+})
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: mockConstructEvent },
@@ -66,6 +83,7 @@ const dedupDelete = vi.fn().mockImplementation(() => ({ eq: dedupDeleteEq }))
 //   - handleInvoicePaid:                .eq().eq().select().single()
 //   - handleInvoiceStatusChange/Failed: awaited directly after the second .eq()
 const invoiceUpdate = vi.fn()
+const recordInvoiceRefund = vi.fn()
 const invoiceUpdateEq = vi.fn()
 const invoiceUpdateEq2 = vi.fn()
 const invoiceUpdateSelect = vi.fn()
@@ -116,6 +134,7 @@ const projectSelectEq = vi.fn()
 const projectSelectSingle = vi.fn()
 
 function resetSupabaseMocks() {
+  recordInvoiceRefund.mockReset().mockResolvedValue({ data: true, error: null })
   dedupInsert.mockReset()
   dedupDeleteEq.mockReset()
   invoiceUpdate.mockReset()
@@ -262,6 +281,7 @@ function resetSupabaseMocks() {
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
+    rpc: (...args: unknown[]) => recordInvoiceRefund(...args),
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'processed_stripe_events') {
         return { insert: dedupInsert, delete: dedupDelete }
@@ -489,6 +509,16 @@ describe('stripe connect webhook — invoice.paid (INVOICE-05)', () => {
 })
 
 describe('stripe connect webhook — account.application.deauthorized (unchanged)', () => {
+  it('retries deauthorization when persisting the connection removal fails', async () => {
+    const event = makeConnectEvent('account.application.deauthorized')
+    companyUpdateEq.mockResolvedValueOnce({ error: { message: 'db down' } })
+    mockConstructEvent.mockReturnValue(event)
+
+    expect((await POST(makeRequest())).status).toBe(500)
+    expect(dedupDeleteEq).toHaveBeenCalledWith('event_id', event.id)
+    expect(notify).not.toHaveBeenCalled()
+  })
+
   it('clears stripe_account_id on account.application.deauthorized', async () => {
     // The deauthorized handler wraps a Checkout-session envelope by default,
     // but only event.account + event.type matter for this path.
@@ -618,6 +648,16 @@ describe('stripe connect webhook — account.updated (CONNECT-HEALTH-01, Fix 1)'
         stripe_account_display_name: 'Test Business Display',
       })
     )
+  })
+
+  it('retries account health updates when persisting restricted status fails', async () => {
+    const event = makeConnectAccountUpdatedEvent({ charges_enabled: false })
+    companyUpdateEqNeq.mockResolvedValueOnce({ error: { message: 'db down' } })
+    mockConstructEvent.mockReturnValue(event)
+
+    expect((await POST(makeRequest())).status).toBe(500)
+    expect(dedupDeleteEq).toHaveBeenCalledWith('event_id', event.id)
+    expect(notify).not.toHaveBeenCalled()
   })
 })
 
@@ -1179,13 +1219,11 @@ describe('charge.refunded records the refund on the invoices row', () => {
     const res = await POST(makeRequest())
 
     expect(res.status).toBe(200)
-    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
-    const payload = invoiceUpdate.mock.calls[0][0]
-    expect(payload.refunded_cents).toBe(12000)
-    expect(typeof payload.refunded_at).toBe('string')
-    expect(payload).not.toHaveProperty('status')
-    expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
-    expect(invoiceUpdateEq2).toHaveBeenCalledWith('company_id', 'co_fixture_1')
+    expect(recordInvoiceRefund).toHaveBeenCalledOnce()
+    expect(recordInvoiceRefund).toHaveBeenCalledWith('record_invoice_refund', {
+      p_company_id: 'co_fixture_1', p_invoice_id: 'inv_row_fixture_1', p_refunded_cents: 12000,
+    })
+    expect(invoiceUpdate).not.toHaveBeenCalled()
     // The existing notification keeps working.
     expect(notify).toHaveBeenCalledTimes(1)
     expect(notify.mock.calls[0][0]).toMatchObject({ eventType: 'payment.refunded', resourceType: 'invoice' })
@@ -1194,7 +1232,9 @@ describe('charge.refunded records the refund on the invoices row', () => {
   it('writes the full amount again on a second event (cumulative, idempotent)', async () => {
     mockConstructEvent.mockReturnValue(refundEvent({ amount_refunded: 30000, refunded: true }))
     await POST(makeRequest())
-    expect(invoiceUpdate.mock.calls[0][0].refunded_cents).toBe(30000)
+    expect(recordInvoiceRefund).toHaveBeenCalledWith('record_invoice_refund', {
+      p_company_id: 'co_fixture_1', p_invoice_id: 'inv_row_fixture_1', p_refunded_cents: 30000,
+    })
   })
 
   it('does not fail when the invoices row is missing (nothing written, 200)', async () => {
@@ -1203,11 +1243,12 @@ describe('charge.refunded records the refund on the invoices row', () => {
     const res = await POST(makeRequest())
     expect(res.status).toBe(200)
     expect(invoiceUpdate).not.toHaveBeenCalled()
+    expect(recordInvoiceRefund).not.toHaveBeenCalled()
   })
 
   it('throws (500, dedup row cleared, so Stripe retries) when the refund write fails', async () => {
     const event = refundEvent()
-    invoiceUpdateEq2.mockResolvedValueOnce({ error: { message: 'db down' } })
+    recordInvoiceRefund.mockResolvedValueOnce({ error: { message: 'db down' } })
     mockConstructEvent.mockReturnValue(event)
 
     const res = await POST(makeRequest())
@@ -1234,6 +1275,7 @@ describe('charge.refunded records the refund on the invoices row', () => {
 
     expect(res.status).toBe(200)
     expect(invoiceUpdate).not.toHaveBeenCalled()
+    expect(recordInvoiceRefund).not.toHaveBeenCalled()
     expect(notify).toHaveBeenCalledTimes(1)
   })
 
@@ -1242,7 +1284,9 @@ describe('charge.refunded records the refund on the invoices row', () => {
       companyNowOn('acct_test_123')
       mockConstructEvent.mockReturnValue(refundEvent())
       await POST(makeRequest())
-      expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+      expect(recordInvoiceRefund).toHaveBeenCalledWith('record_invoice_refund', {
+        p_company_id: 'co_fixture_1', p_invoice_id: 'inv_row_fixture_1', p_refunded_cents: 12000,
+      })
       expect(notifyOps).not.toHaveBeenCalledWith(
         expect.objectContaining({ kind: 'stripe_connect_account_mismatch' }),
       )
@@ -1257,7 +1301,9 @@ describe('charge.refunded records the refund on the invoices row', () => {
 
       expect(res.status).toBe(200)
       expect(invoiceSelectEq).toHaveBeenCalledWith('stripe_invoice_id', 'in_test_connect_123')
-      expect(invoiceUpdate).toHaveBeenCalledWith(expect.objectContaining({ refunded_cents: 12000 }))
+      expect(recordInvoiceRefund).toHaveBeenCalledWith('record_invoice_refund', {
+        p_company_id: 'co_fixture_1', p_invoice_id: 'inv_row_fixture_1', p_refunded_cents: 12000,
+      })
       expect(notifyOps).not.toHaveBeenCalledWith(
         expect.objectContaining({ kind: 'stripe_connect_account_mismatch' }),
       )
@@ -1272,6 +1318,7 @@ describe('charge.refunded records the refund on the invoices row', () => {
 
       expect(res.status).toBe(200)
       expect(invoiceUpdate).not.toHaveBeenCalled()
+      expect(recordInvoiceRefund).not.toHaveBeenCalled()
       expect(notify).not.toHaveBeenCalled()
       mismatchAlert()
     })
@@ -1282,6 +1329,7 @@ describe('charge.refunded records the refund on the invoices row', () => {
       mockConstructEvent.mockReturnValue(refundEvent())
       await POST(makeRequest())
       expect(invoiceUpdate).not.toHaveBeenCalled()
+      expect(recordInvoiceRefund).not.toHaveBeenCalled()
       mismatchAlert()
     })
 
@@ -1293,6 +1341,7 @@ describe('charge.refunded records the refund on the invoices row', () => {
       mockConstructEvent.mockReturnValue(refundEvent({ metadata: { company_id: 'co_fixture_1' } }))
       await POST(makeRequest())
       expect(invoiceUpdate).not.toHaveBeenCalled()
+      expect(recordInvoiceRefund).not.toHaveBeenCalled()
       expect(notify).not.toHaveBeenCalled()
       mismatchAlert()
     })

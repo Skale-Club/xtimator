@@ -22,12 +22,16 @@ const customersCreate = vi.fn()
 const invoiceItemsCreate = vi.fn()
 const invoicesCreate = vi.fn()
 const invoicesSendInvoice = vi.fn()
+const invoicesFinalize = vi.fn().mockResolvedValue({ id: 'in_123', status: 'open' })
+const invoicesRetrieve = vi.fn()
+const invoicesSearch = vi.fn()
+const invoicesLines = vi.fn()
 
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     customers: { create: customersCreate },
     invoiceItems: { create: invoiceItemsCreate },
-    invoices: { create: invoicesCreate, sendInvoice: invoicesSendInvoice },
+    invoices: { create: invoicesCreate, sendInvoice: invoicesSendInvoice, finalizeInvoice: invoicesFinalize, retrieve: invoicesRetrieve, search: invoicesSearch, listLineItems: invoicesLines },
   }),
 }))
 
@@ -204,5 +208,52 @@ describe('Fix 2: invoice-before-item ordering (double-charge guard)', () => {
     expect(typeof sendOpts.idempotencyKey).toBe('string')
     expect(sendOpts.idempotencyKey.length).toBeGreaterThan(0)
     expect(sendOpts.stripeAccount).toBe('acct_abc123')
+  })
+})
+
+
+describe('recovering an existing connected invoice without a replacement', () => {
+  const remote = (status: string) => ({ id: 'in_original', customer: 'cus_original', status,
+    hosted_invoice_url: 'https://invoice.stripe.com/original', invoice_pdf: null })
+  it('persists the remote id before a lost send response and resumes the same open invoice', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    const onProgress = vi.fn()
+    invoicesSendInvoice.mockRejectedValueOnce(new Error('Response lost'))
+    await expect(createConnectInvoice(baseOpts({ onProgress }))).rejects.toThrow('Response lost')
+    expect(onProgress).toHaveBeenCalledWith({ stripeInvoiceId: 'in_123', stripeCustomerId: 'cus_new_123' })
+    invoicesRetrieve.mockResolvedValue(remote('open'))
+    expect(await createConnectInvoice(baseOpts({ existingInvoiceId: 'in_original' }))).toMatchObject({
+      stripeInvoiceId: 'in_original', hostedInvoiceUrl: 'https://invoice.stripe.com/original' })
+    expect(invoicesCreate).toHaveBeenCalledTimes(1)
+    expect(invoiceItemsCreate).toHaveBeenCalledTimes(1)
+    expect(invoicesSendInvoice).toHaveBeenCalledTimes(1)
+  })
+  it('never creates a replacement when an old unknown invoice cannot be found', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    invoicesSearch.mockResolvedValue({ data: [] })
+    await expect(createConnectInvoice(baseOpts({ createdAt: new Date(Date.now() - 25 * 3600_000).toISOString() }))).rejects.toThrow('verification')
+    expect(invoicesCreate).not.toHaveBeenCalled(); expect(customersCreate).not.toHaveBeenCalled()
+  })
+  it('recovers a lost create older than Stripe idempotency retention using read-only metadata search', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    invoicesSearch.mockResolvedValue({ data: [remote('paid')] })
+    invoicesRetrieve.mockResolvedValue(remote('paid'))
+    expect(await createConnectInvoice(baseOpts({ createdAt: new Date(Date.now() - 25 * 3600_000).toISOString() }))).toMatchObject({ stripeInvoiceId: 'in_original', status: 'paid' })
+    expect(invoicesSearch).toHaveBeenCalledWith(expect.objectContaining({ query: expect.stringContaining('inv_row_1') }), { stripeAccount: 'acct_abc123' })
+    expect(invoicesCreate).not.toHaveBeenCalled(); expect(invoiceItemsCreate).not.toHaveBeenCalled()
+  })
+  it('does not append an invoice line again after its idempotency key could have expired', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    invoicesRetrieve.mockResolvedValue(remote('draft'))
+    invoicesLines.mockReturnValue({ async *[Symbol.asyncIterator]() { yield { amount: 30000, metadata: { invoice_row_id: 'inv_row_1' } } } })
+    await createConnectInvoice(baseOpts({ existingInvoiceId: 'in_original', createdAt: new Date(Date.now() - 25 * 3600_000).toISOString() }))
+    expect(invoiceItemsCreate).not.toHaveBeenCalled(); expect(invoicesCreate).not.toHaveBeenCalled()
+    expect(invoicesFinalize).toHaveBeenCalledWith('in_original', { auto_advance: false }, expect.objectContaining({ stripeAccount: 'acct_abc123' }))
+  })
+  it('returns remote terminal state for durable local reconciliation without reopening it', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    invoicesRetrieve.mockResolvedValue(remote('void'))
+    expect(await createConnectInvoice(baseOpts({ existingInvoiceId: 'in_original' }))).toMatchObject({ status: 'void' })
+    expect(invoiceItemsCreate).not.toHaveBeenCalled(); expect(invoicesSendInvoice).not.toHaveBeenCalled()
   })
 })

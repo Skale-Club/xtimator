@@ -11,6 +11,7 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
+import { createSubscriptionCheckout } from '@/lib/billing/subscription-checkout'
 import { portalConfigurationParam } from '@/lib/billing/stripe-portal-config'
 
 const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
@@ -132,12 +133,16 @@ export async function POST(request: NextRequest) {
     let sub: Stripe.Subscription | null = null
     try {
       sub = await stripe.subscriptions.retrieve(company.stripe_subscription_id)
-    } catch {
-      // retrieve failed (e.g. the subscription was deleted at Stripe) — fall
-      // through to a normal Checkout.
+    } catch (err) {
+      if ((err as { code?: string }).code !== 'resource_missing') {
+        return NextResponse.json(
+          { error: 'Could not verify your current subscription. Please try again.', code: 'billing_unavailable' },
+          { status: 503 },
+        )
+      }
     }
 
-    if (sub && (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due')) {
+    if (sub && sub.status !== 'canceled' && sub.status !== 'incomplete_expired') {
       // WP-L extra fix (1): seat billing adds a SECOND item to the same
       // subscription and Stripe does not guarantee list ordering — blindly
       // trusting items.data[0] can select the SEAT item instead of the plan
@@ -202,13 +207,9 @@ export async function POST(request: NextRequest) {
     // through to a normal Checkout to start a fresh one.
   }
 
-  // Fix 4b — a double-click (or a retried fetch) must not mint TWO Checkout
-  // Sessions. Minute-bucketed per-company+plan+interval key: distinct plan
-  // choices in the same minute still get distinct sessions; a genuine
-  // double-submit of the SAME choice within the minute collapses to one.
-  const idempotencyKey = `checkout:${company.id}:${plan}:${billingInterval}:${Math.floor(Date.now() / 60000)}`
-
-  const session = await stripe.checkout.sessions.create(
+  // The database reservation outlives the request and the minute boundary.
+  try {
+    const url = await createSubscriptionCheckout(stripe, company.id,
     {
       mode: 'subscription',
       // Launch promos / partner codes; the codes themselves are created in the Stripe Dashboard.
@@ -224,9 +225,9 @@ export async function POST(request: NextRequest) {
       subscription_data: {
         metadata: { companyId: company.id, plan, billing_interval: billingInterval },
       },
-    },
-    { idempotencyKey }
-  )
-
-  return NextResponse.json({ url: session.url })
+    })
+    return NextResponse.json({ url })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Could not prepare checkout. Please try again.' }, { status: 503 })
+  }
 }

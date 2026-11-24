@@ -63,11 +63,12 @@ export async function ensureStripeCustomer(
     name: company?.name ?? undefined,
   })
 
-  await svc
+  const { error: persistError } = await svc
     .from('companies')
     .update({ stripe_customer_id: created.id })
     .eq('id', companyId)
     .is('stripe_customer_id', null)
+  if (persistError) throw new Error('Could not persist the billing customer. Please retry.')
 
   const { data: reread, error: rereadError } = await svc
     .from('companies')
@@ -98,5 +99,6 @@ export async function ensureStripeCustomer(
     return persisted
   }
 
-  return persisted ?? created.id
+  if (!persisted) throw new Error('The billing customer was not persisted. Please retry.')
+  return persisted
 }

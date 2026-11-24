@@ -3,6 +3,8 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { GenerateInvoiceDialog } from '@/components/workspace/estimate/generate-invoice-dialog'
 import { IssuedInvoicesPanel } from '@/components/workspace/estimate/issued-invoices-panel'
 import type { InvoiceRow } from '@/lib/queries/invoice'
+import { generateInvoice } from '@/lib/actions/invoice'
+import { toast } from 'sonner'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -15,7 +17,11 @@ vi.mock('@/lib/actions/invoice', () => ({
   getInvoicingPreview: (...a: unknown[]) => getInvoicingPreview(...a),
 }))
 
-beforeEach(() => getInvoicingPreview.mockReset())
+beforeEach(() => {
+  vi.clearAllMocks()
+  getInvoicingPreview.mockReset()
+  vi.mocked(generateInvoice).mockReset()
+})
 afterEach(() => cleanup())
 
 function openDialog() {
@@ -32,6 +38,22 @@ function openDialog() {
 }
 
 describe('GenerateInvoiceDialog - contract preview', () => {
+  it('unlocks the issue button after a thrown server action so the owner can retry', async () => {
+    getInvoicingPreview.mockResolvedValue({ error: 'Preview unavailable' })
+    vi.mocked(generateInvoice)
+      .mockRejectedValueOnce(new Error('Connection lost'))
+      .mockResolvedValueOnce({ data: { hostedInvoiceUrl: 'https://invoice.stripe.com/i/confirmed', invoicePdfUrl: null } })
+    openDialog()
+    const issue = await screen.findByRole('button', { name: 'Issue invoice' })
+    fireEvent.click(issue)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not confirm the invoice. Please try again.'))
+    expect((issue as HTMLButtonElement).disabled).toBe(false)
+    expect(toast.success).not.toHaveBeenCalled()
+    fireEvent.click(issue)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Invoice issued'))
+    expect(generateInvoice).toHaveBeenCalledTimes(2)
+  })
+
   it('shows the breakdown and the contract-aware balance when change orders are approved', async () => {
     getInvoicingPreview.mockResolvedValue({
       data: {

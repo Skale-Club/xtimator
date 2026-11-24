@@ -28,6 +28,23 @@ import { NextRequest } from 'next/server'
 const mockConstructEvent = vi.fn()
 const mockSubscriptionsRetrieve = vi.fn()
 
+
+// Business-event fixtures mock the extracted signature/inbox boundaries. Real
+// signature verification and recoverable lease RPCs are tested separately.
+vi.mock('@/lib/billing/stripe-signature', () => ({
+  verifyStripeSignature: (...args: unknown[]) => {
+    try { return mockConstructEvent(...args) } catch { return null }
+  },
+}))
+vi.mock('@/lib/billing/stripe-event-inbox', async () => {
+  const { legacyStripeInboxBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeInboxBoundary()
+})
+vi.mock('@/lib/billing/stripe-refund-resolution', async () => {
+  const { legacyStripeRefundBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeRefundBoundary()
+})
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: mockConstructEvent },
@@ -197,6 +214,47 @@ describe('TOPUP-01 — invoice.paid monthly credit grant (SEED-055 Phase C)', ()
     }
   }
 
+  it.each(['metadata', 'price'] as const)('recovers the first paid subscription from %s when Checkout delivery was missed', async (authority) => {
+    const tier = authority === 'metadata' ? 'business' : 'pro'
+    const interval = authority === 'metadata' ? 'year' : 'month'
+    mockCompanyMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { id: 'co_1', tier: 'free' }, error: null })
+    mockSubscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_test', status: 'active',
+      metadata: authority === 'metadata' ? { plan: 'business' } : {},
+      items: { data: [{ current_period_end: 1900000000, metadata: {}, price: {
+        id: 'price_first_purchase', recurring: { interval },
+        metadata: authority === 'price' ? { kind: 'subscription_pro' } : {},
+      } }] },
+    })
+    mockConstructEvent.mockReturnValue(invoiceEvent('evt_first_paid', 'subscription_create', {
+      customer: 'cus_first_paid', metadata: { companyId: 'co_1' },
+    }))
+
+    expect((await POST(makeRequest())).status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith({ tier, stripe_subscription_status: 'active', stripe_subscription_interval: interval })
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_subscription_id: 'sub_test' })
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_customer_id: 'cus_first_paid' })
+    expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+    expect(grantMonthlyLot).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 'co_1', credits: TEST_CONFIG.tiers[tier].monthlyCreditGrant,
+    }))
+  })
+
+  it.each(['subscription mapping', 'company fallback'] as const)('keeps invoice.paid retryable on a %s database read failure', async (lookup) => {
+    if (lookup === 'company fallback') mockCompanyMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
+    mockCompanyMaybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'temporary database read failure' } })
+    mockConstructEvent.mockReturnValue(invoiceEvent('evt_lookup_failure', 'subscription_create', {
+      metadata: { companyId: 'co_1' },
+    }))
+
+    expect((await POST(makeRequest())).status).toBe(500)
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_lookup_failure')
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+  })
+
   it.each(['subscription_create', 'subscription_cycle'])(
     'billing_reason=%s grants the tier monthly lot via grantMonthlyLot(periodEnd = subscription period end)',
     async (reason) => {
@@ -255,14 +313,17 @@ describe('TOPUP-01 — invoice.paid monthly credit grant (SEED-055 Phase C)', ()
     )
   })
 
-  it('a grant failure never turns the already-applied tier_renews_at write into a 500', async () => {
+  it('a grant failure returns 500 and releases the event claim even after renewal metadata was saved', async () => {
     vi.mocked(grantMonthlyLot).mockRejectedValueOnce(new Error('rpc down'))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockConstructEvent.mockReturnValue(invoiceEvent('evt_fail', 'subscription_cycle'))
 
     const res = await POST(makeRequest())
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(500)
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ tier_renews_at: expect.any(String) }))
+    expect(grantMonthlyLot).toHaveBeenCalledWith(expect.objectContaining({ companyId: 'co_1', credits: 9000 }))
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_fail')
     warn.mockRestore()
   })
 
@@ -378,7 +439,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
         credits: 5000,
         reason: 'topup',
         source: 'topup',
-        idempotencyKey: 'evt_2',
+        idempotencyKey: 'topup:cs_top',
       })
     )
     // credits must be the NUMBER 5000, not the string '5000'.
@@ -467,7 +528,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
     expect(grantMonthlyLot).not.toHaveBeenCalled()
   })
 
-  it('checkout.session.completed does not grant when the subscription retrieve failed (no period end)', async () => {
+  it('checkout.session.completed retries instead of completing fulfillment when subscription retrieval fails', async () => {
     mockSubscriptionsRetrieve.mockRejectedValue(new Error('stripe down'))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockConstructEvent.mockReturnValue({
@@ -486,7 +547,8 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
 
     const res = await POST(makeRequest())
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(500)
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_nr2')
     expect(grantMonthlyLot).not.toHaveBeenCalled()
     warn.mockRestore()
   })
@@ -546,7 +608,7 @@ describe('checkout.session.async_payment_succeeded — delayed-payment top-up gr
         credits: 3000,
         reason: 'topup',
         source: 'topup',
-        idempotencyKey: 'evt_async_paid',
+        idempotencyKey: 'topup:cs_async',
         expiresAt: expect.any(String),
       })
     )
@@ -570,7 +632,7 @@ describe('MIG-01 parallel-run safety', () => {
       process.cwd(),
       'app/api/webhooks/stripe/route.ts'
     )
-    const src = readFileSync(routePath, 'utf8')
+    const src = readFileSync(routePath, 'utf8') + readFileSync(resolve(process.cwd(), 'lib/billing/stripe-event-processing.ts'), 'utf8')
 
     // The webhook must NOT add count-path entitlement gating.
     expect(src).not.toContain('maxEstimatesPerMonth')

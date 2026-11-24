@@ -539,11 +539,14 @@ export async function getBillingConfig(): Promise<BillingConfig> {
     billingConfigCache = { value: DEFAULT_BILLING_CONFIG, fetchedAt: now }
     return DEFAULT_BILLING_CONFIG
   }
-  const { data } = await svc
+  const { data, error } = await svc
     .from('platform_integrations')
     .select('metadata')
     .eq('provider', 'billing_config')
     .maybeSingle()
+  // A failed runtime read is not an unconfigured installation. In particular,
+  // falling back here would turn enforcement OFF and change commercial terms.
+  if (error) throw new Error('Billing configuration is temporarily unavailable')
   const stored = (data?.metadata ?? null) as Partial<BillingConfig> | null
   if (!stored) {
     billingConfigCache = { value: DEFAULT_BILLING_CONFIG, fetchedAt: now }

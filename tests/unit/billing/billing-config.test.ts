@@ -739,6 +739,8 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
         'app/api/billing/buy-credits/route.ts',
         // ...and a run paused for credits reads how long the pause lasts.
         'lib/inngest/credit-pause.ts',
+        'lib/billing/credit-purchase.ts',
+        'lib/billing/stripe-event-processing.ts',
       ].map((p) => resolve(process.cwd(), p)),
     ])
 
@@ -925,5 +927,18 @@ describe('mergeStoredBillingConfig: stored config without the BRL fields', () =>
     // A stored row without markupByOp keeps every op at its stored global
     // markup, so a deploy alone never changes what a customer is charged.
     expect(mergeStoredBillingConfig({})).toEqual({ ...DEFAULT_BILLING_CONFIG, markupByOp: {} })
+  })
+})
+
+
+describe('runtime configuration failures', () => {
+  it('throws on a database error instead of caching enforcement OFF; a later read recovers', async () => {
+    let broken = true
+    serviceClientImpl = () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => broken
+      ? { data: null, error: { message: 'unavailable' } }
+      : { data: { metadata: { enforcementEnabled: true } }, error: null } }) }) }) })
+    await expect(getBillingConfig()).rejects.toThrow('temporarily unavailable')
+    broken = false
+    expect((await getBillingConfig()).enforcementEnabled).toBe(true)
   })
 })

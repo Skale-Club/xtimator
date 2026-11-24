@@ -3,6 +3,10 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const invoiceSource = readFileSync(resolve(process.cwd(), 'lib/actions/invoice.ts'), 'utf8')
+const invoiceReservationSource = readFileSync(
+  resolve(process.cwd(), 'lib/billing/invoice-reservation.ts'),
+  'utf8',
+)
 const publicEstimateSource = readFileSync(
   resolve(process.cwd(), 'app/estimate/[token]/actions.ts'),
   'utf8',
@@ -80,17 +84,25 @@ describe('SAFE-01/SAFE-02: invoice, client, and public estimate mutation boundar
   it('uses the explicit estimate company guard before creating a Stripe invoice', () => {
     const body = functionBody(invoiceSource, 'issueInvoice', { exported: false })
 
-    expectGuardBefore(body, /createConnectInvoice\s*\(/, 'issueInvoice')
+    expectGuardBefore(body, /reserveConnectInvoice\s*\(/, 'issueInvoice')
+    expectGuardBefore(body, /issueReservedInvoice\s*\(/, 'issueInvoice')
     expect(body).not.toMatch(/isDemoCompany\s*\(/)
   })
 
   it('allows a normal tenant invoice path to reach Stripe after the guard', () => {
     const body = functionBody(invoiceSource, 'issueInvoice', { exported: false })
     const guardIndex = body.search(/assertCompanyWritable\s*\(/)
-    const stripeIndex = body.search(/createConnectInvoice\s*\(/)
+    const reservationIndex = body.search(/reserveConnectInvoice\s*\(/)
+    const issueIndex = body.search(/issueReservedInvoice\s*\(/)
+    const reserveBody = functionBody(invoiceReservationSource, 'reserveConnectInvoice')
+    const issuerBody = functionBody(invoiceReservationSource, 'issueReservedInvoice')
 
     expect(guardIndex).toBeGreaterThan(-1)
-    expect(stripeIndex).toBeGreaterThan(guardIndex)
+    expect(reservationIndex).toBeGreaterThan(guardIndex)
+    expect(issueIndex).toBeGreaterThan(guardIndex)
+    expect(reserveBody).toMatch(/\.rpc\(['"]reserve_connect_invoice['"]/)
+    expect(body).toMatch(/issued\s*=\s*await issueReservedInvoice\(reserved\)/)
+    expect(issuerBody).toMatch(/await createConnectInvoice\s*\(/)
   })
 
   it('denies a demo target before public view persistence, activity, notification, or email', () => {

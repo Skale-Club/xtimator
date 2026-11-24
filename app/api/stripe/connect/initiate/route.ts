@@ -11,6 +11,7 @@ import { resolveBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
 import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
 import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
+import { checkConnectReadiness } from '@/lib/billing/connect-readiness'
 
 /**
  * GET /api/stripe/connect/initiate
@@ -80,10 +81,18 @@ export async function GET(req: NextRequest) {
   }
 
   const clientId = await getIntegrationKey('stripe_connect_client_id')
-  if (!clientId) {
+  if (!clientId || !/^ca_[A-Za-z0-9]+$/.test(clientId)) {
     return NextResponse.redirect(
       new URL('/settings/client-actions?error=platform_not_configured', base)
     )
+  }
+
+  try {
+    if (!(await checkConnectReadiness()).ready) {
+      return NextResponse.redirect(new URL('/settings/client-actions?error=platform_not_configured', base))
+    }
+  } catch {
+    return NextResponse.redirect(new URL('/settings/client-actions?error=platform_not_configured', base))
   }
 
   const state = mintOAuthState(company.id as string)

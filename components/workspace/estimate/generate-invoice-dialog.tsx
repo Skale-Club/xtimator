@@ -155,26 +155,30 @@ export function GenerateInvoiceDialog({
       : null
 
   async function handleIssue() {
+    if (pending) return
     setPending(true)
     const opts =
       kind === 'full'
         ? ({ kind: 'full' } as const)
         : ({ kind, depositPct: safePct } as const)
 
-    const result = await generateInvoice(estimateId, opts)
-    setPending(false)
+    try {
+      const result = await generateInvoice(estimateId, opts)
+      if ('error' in result) {
+        toast.error(t(result.error))
+        return
+      }
 
-    if ('error' in result) {
-      toast.error(t(result.error))
-      return
+      toast.success(t('Invoice issued'))
+      // Close first, then refresh the persisted invoice snapshot.
+      setOpen(false)
+      router.refresh()
+      onIssued?.()
+    } catch {
+      toast.error(t('Could not confirm the invoice. Please try again.'))
+    } finally {
+      setPending(false)
     }
-
-    toast.success(t('Invoice issued'))
-    // Pitfall 5 — close the dialog first, then refresh so the issued-invoice
-    // panel re-renders from the server-fetched snapshot.
-    setOpen(false)
-    router.refresh()
-    onIssued?.()
   }
 
   const segments: { value: InvoiceKind; label: string }[] = [

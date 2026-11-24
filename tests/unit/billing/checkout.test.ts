@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+vi.mock('@/lib/billing/subscription-checkout', () => ({
+  createSubscriptionCheckout: async (stripe: any, companyId: string, params: unknown) =>
+    (await stripe.checkout.sessions.create(params, { idempotencyKey: `subscription-checkout:${companyId}` })).url,
+}))
 
 // Mock modules before importing the route
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -119,7 +123,7 @@ describe('POST /api/billing/create-checkout-session', () => {
       }),
       // Fix 4b — idempotencyKey request option, so a double-click never mints
       // two Checkout Sessions.
-      expect.objectContaining({ idempotencyKey: expect.stringContaining('checkout:company-1:pro:') })
+      expect.objectContaining({ idempotencyKey: expect.stringContaining('subscription-checkout:company-1') })
     )
     // The success_url passed to Stripe resolves via getCanonicalBaseUrl() —
     // a real https origin pointing at the billing settings page (FIX-3).
@@ -298,7 +302,7 @@ describe('POST /api/billing/create-checkout-session', () => {
     const mockStripe = {
       checkout: { sessions: { create: sessionCreate } },
       subscriptions: {
-        retrieve: vi.fn().mockRejectedValue(new Error('No such subscription')),
+        retrieve: vi.fn().mockRejectedValue(Object.assign(new Error('No such subscription'), { code: 'resource_missing' })),
         cancel: vi.fn(),
       },
       billingPortal: { sessions: { create: vi.fn() } },

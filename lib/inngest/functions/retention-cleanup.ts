@@ -70,11 +70,13 @@ async function deleteInBatches(
   let deleted = 0
 
   for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
-    const { data: rows, error: selectErr } = await svc
+    let query = svc
       .from(table)
       .select(idColumn)
       .lt(column, cutoffIso)
       .limit(DELETE_BATCH)
+    if (table === 'processed_stripe_events') query = query.eq('status', 'completed')
+    const { data: rows, error: selectErr } = await query
 
     if (selectErr) {
       console.warn(`[retention-cleanup] ${table} select failed:`, selectErr.message)

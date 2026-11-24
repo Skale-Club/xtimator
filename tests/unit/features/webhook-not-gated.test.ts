@@ -40,6 +40,23 @@ vi.mock('@/lib/billing/billing-config', () => ({
 }))
 
 const mockConstructEvent = vi.fn()
+
+// Business-event fixtures mock the extracted signature/inbox boundaries. Real
+// signature verification and recoverable lease RPCs are tested separately.
+vi.mock('@/lib/billing/stripe-signature', () => ({
+  verifyStripeSignature: (...args: unknown[]) => {
+    try { return mockConstructEvent(...args) } catch { return null }
+  },
+}))
+vi.mock('@/lib/billing/stripe-event-inbox', async () => {
+  const { legacyStripeInboxBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeInboxBoundary()
+})
+vi.mock('@/lib/billing/stripe-refund-resolution', async () => {
+  const { legacyStripeRefundBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeRefundBoundary()
+})
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: (...a: unknown[]) => mockConstructEvent(...a) },
@@ -208,7 +225,7 @@ describe('Connect webhook is never gated on the feature switches (global stop cl
 })
 
 describe('static guard: the Stripe webhook sources import no switch module', () => {
-  const FILES = ['lib/billing/connect-webhook.ts', 'app/api/webhooks/stripe/route.ts']
+  const FILES = ['lib/billing/connect-webhook.ts', 'app/api/webhooks/stripe/route.ts', 'lib/billing/stripe-event-processing.ts']
   const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 
   it.each(FILES)('%s does not import company-features or platform-feature-state', (file) => {
