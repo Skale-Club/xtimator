@@ -11,6 +11,23 @@ const mockSubscriptionsCancel = vi.fn()
 const mockSetupIntentRetrieve = vi.fn()
 const mockCustomersUpdate = vi.fn()
 
+
+// Business-event fixtures mock the extracted signature/inbox boundaries. Real
+// signature verification and recoverable lease RPCs are tested separately.
+vi.mock('@/lib/billing/stripe-signature', () => ({
+  verifyStripeSignature: (...args: unknown[]) => {
+    try { return mockConstructEvent(...args) } catch { return null }
+  },
+}))
+vi.mock('@/lib/billing/stripe-event-inbox', async () => {
+  const { legacyStripeInboxBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeInboxBoundary()
+})
+vi.mock('@/lib/billing/stripe-refund-resolution', async () => {
+  const { legacyStripeRefundBoundary } = await import('@/tests/fixtures/stripe-webhook-boundaries')
+  return legacyStripeRefundBoundary()
+})
+
 vi.mock('@/lib/billing/stripe-client', () => ({
   // route.ts selects the PLAN item by this tag (never items.data[0], which can
   // be the seat item) — the mock must export it or every arm that touches
@@ -81,6 +98,19 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
+// This suite owns subscription row transitions; credit delivery is exercised
+// by stripe-credit-grant.test.ts with its own failure/success expectations.
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: vi.fn().mockResolvedValue({
+    tiers: { pro: { monthlyCreditGrant: 3000 }, business: { monthlyCreditGrant: 12000 } },
+  }),
+}))
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  grantCredits: vi.fn().mockResolvedValue({ applied: true }),
+  grantMonthlyLot: vi.fn().mockResolvedValue({ applied: true }),
+  closeMonthlyLots: vi.fn().mockResolvedValue({ expired: 0 }),
+}))
+
 // Phase 175 (PLAT-01) test-safety: route.ts now imports notifyOps, which
 // carries a dedupeKey and would otherwise attempt a real Upstash SETNX
 // round-trip (this file's @/lib/supabase/service mock is module-wide and its
@@ -111,6 +141,7 @@ function makeRequest(body = '{}') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockSubscriptionsRetrieve.mockResolvedValue({ status: 'active', items: { data: [] } })
   // Default: dedup insert succeeds (no duplicate)
   mockInsert.mockResolvedValue({ error: null })
   // Default: update chain returns eq which resolves cleanly — and also

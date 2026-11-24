@@ -9,11 +9,11 @@ import { getBillingConfig } from '@/lib/billing/billing-config'
 import { rateLimit } from '@/lib/ratelimit'
 import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { isTopupEligible, TOPUP_REQUIRES_SUBSCRIPTION_BODY } from '@/lib/billing/topup-eligibility'
-import { createTopupCheckoutSession } from '@/lib/billing/topup-checkout'
+import { buyCreditPack, resumeCreditPurchase, PAYMENT_PENDING, PaymentClosedError } from '@/lib/billing/credit-purchase'
+import { findPendingCreditPurchase } from '@/lib/billing/operations'
+import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { resolveSavedCard } from '@/lib/billing/saved-card'
 import { defaultPackIndex, packViews } from '@/lib/billing/pack-display'
-import { grantCredits } from '@/lib/billing/credit-ledger'
-import { topupExpiresAt } from '@/lib/billing/credit-window'
 import { getAccessState } from '@/lib/billing/access-state'
 
 /**
@@ -87,8 +87,8 @@ export async function GET() {
   if (!ctx.ok) return ctx.response
   const { company } = ctx
 
-  const [cfg, access] = await Promise.all([getBillingConfig(), getAccessState(company.id)])
-  if (!eligible(company)) {
+  const [cfg, access, pending] = await Promise.all([getBillingConfig(), getAccessState(company.id), findPendingCreditPurchase(company.id)])
+  if (!eligible(company) && !pending) {
     return NextResponse.json({ eligible: false, reason: 'subscribe', balance: access.balance })
   }
   const currency = resolveBillingCurrency({ currency_code: company.currency_code }, cfg.brlPricingEnabled === true)
@@ -98,6 +98,7 @@ export async function GET() {
 
   return NextResponse.json({
     eligible: true,
+    pendingPurchase: pending ? { requestId: pending.request_key, packIndex: pending.request.packIndex, useOtherCard: pending.request.useOtherCard, returnTo: pending.request.returnTo } : null,
     balance: access.balance,
     expiryMonths: cfg.topupExpiryMonths,
     packs,
@@ -118,9 +119,18 @@ export async function POST(request: NextRequest) {
       { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 3600) } }
     )
   }
-  if (!eligible(company)) {
-    return NextResponse.json(TOPUP_REQUIRES_SUBSCRIPTION_BODY, { status: 403 })
+  const pending = await findPendingCreditPurchase(company.id)
+  if (pending) {
+    try {
+      const result = await resumeCreditPurchase(await getStripeClient(), pending)
+      const access = await getAccessState(company.id)
+      return NextResponse.json({ ...result, balance: access.balance }, { status: result.mode === 'pending' ? 202 : 200 })
+    } catch (err) {
+      if (err instanceof PaymentClosedError) return NextResponse.json({ error: err.message, code: err.code }, { status: 409 })
+      return NextResponse.json(PAYMENT_PENDING, { status: 202 })
+    }
   }
+  if (!eligible(company)) return NextResponse.json(TOPUP_REQUIRES_SUBSCRIPTION_BODY, { status: 403 })
 
   const body = (await request.json().catch(() => null)) as
     | { packIndex?: number; requestId?: string; returnTo?: string; useOtherCard?: boolean }
@@ -141,79 +151,25 @@ export async function POST(request: NextRequest) {
   )
   const stripe = await getStripeClient()
 
-  const checkout = async (reason: 'no_card' | 'other_card' | 'authentication_required' | 'declined') => {
-    const session = await createTopupCheckoutSession({
-      stripe,
-      companyId: company.id,
-      packIndex,
-      pack,
-      priceCents,
-      currency,
-      returnTo: body?.returnTo ?? null,
-      idempotencyKey: `buycredits-checkout:${company.id}:${requestId}`,
-    })
-    return NextResponse.json({ mode: 'checkout', url: session.url, reason })
-  }
-
-  if (body?.useOtherCard) return checkout('other_card')
-
   const card = await resolveSavedCard(stripe, company.stripe_customer_id, company.stripe_subscription_id)
-  if (!card || !company.stripe_customer_id) return checkout('no_card')
-
-  let paymentIntentId: string
   try {
-    const pi = await stripe.paymentIntents.create(
-      {
-        amount: priceCents,
-        currency,
-        customer: company.stripe_customer_id,
-        payment_method: card.id,
-        off_session: true,
-        confirm: true,
-        description: `${pack.credits} Xtimator credits`,
-        metadata: {
-          type: 'direct_topup',
-          companyId: company.id,
-          credits: String(pack.credits),
-          packIndex: String(packIndex),
-        },
+    const result = await buyCreditPack({
+      stripe, companyId: company.id, requestId,
+      request: {
+        packIndex, pack, priceCents, currency,
+        customerId: await ensureStripeCustomer(stripe, company.id),
+        cardId: card?.id ?? null,
+        card: card ? { brand: card.brand, last4: card.last4 } : null,
+        returnTo: typeof body?.returnTo === 'string' ? body.returnTo : null,
+        useOtherCard: body?.useOtherCard === true,
       },
-      { idempotencyKey: `directtopup:${company.id}:${requestId}` }
-    )
-    if (pi.status !== 'succeeded') {
-      // off_session never leaves a PI waiting for the customer; anything but
-      // succeeded (processing, requires_action) goes to Checkout. Cancel it so
-      // no half-done charge lingers.
-      await stripe.paymentIntents.cancel(pi.id).catch(() => undefined)
-      return checkout('authentication_required')
-    }
-    paymentIntentId = pi.id
+    })
+    const access = await getAccessState(company.id)
+    return NextResponse.json({ ...result, balance: access.balance }, { status: result.mode === 'pending' ? 202 : 200 })
   } catch (err) {
-    const code = (err as { code?: string })?.code
-    console.warn('[billing] buy-credits charge failed:', code ?? (err instanceof Error ? err.message : err))
-    return checkout(code === 'authentication_required' ? 'authentication_required' : 'declined')
+    if (err instanceof PaymentClosedError) return NextResponse.json({ error: err.message, code: err.code }, { status: 409 })
+    // A durable reservation may already exist, and Stripe's response may have
+    // been lost. Keep the purchase identity; never offer an unrelated charge.
+    return NextResponse.json(PAYMENT_PENDING, { status: 202 })
   }
-
-  const { applied } = await grantCredits({
-    companyId: company.id,
-    credits: pack.credits,
-    reason: 'topup',
-    source: 'topup',
-    expiresAt: topupExpiresAt(cfg.topupExpiryMonths),
-    refId: paymentIntentId,
-    idempotencyKey: `directtopup:${paymentIntentId}`,
-  }).catch((err) => {
-    // The webhook (payment_intent.succeeded, same key) is the backstop.
-    console.warn('[billing] buy-credits grant failed, webhook will retry:', err)
-    return { applied: false }
-  })
-
-  const access = await getAccessState(company.id)
-  return NextResponse.json({
-    mode: 'charged',
-    credits: pack.credits,
-    granted: applied,
-    balance: access.balance,
-    card: { brand: card.brand, last4: card.last4 },
-  })
 }

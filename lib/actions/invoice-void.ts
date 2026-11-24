@@ -77,14 +77,7 @@ export async function voidInvoice(invoiceId: string): Promise<VoidInvoiceResult>
   if (status === 'paid') return { error: 'A paid invoice cannot be voided. Refund it in Stripe instead.' }
   if (status === 'void' || status === 'uncollectible') return { success: true }
   if (status === 'draft' && !invoice.stripe_invoice_id) {
-    // Leftover of a failed issue: nothing exists in Stripe, so just drop the row.
-    const { error: deleteError } = await svc.from('invoices').delete().eq('id', invoice.id as string)
-    if (deleteError) {
-      console.error('[voidInvoice] Failed to delete leftover draft row', deleteError)
-      return { error: 'Could not void the invoice. Please try again.' }
-    }
-    await revalidateInvoicePages(supabase, invoice)
-    return { success: true }
+    return { error: 'This invoice is still being verified with Stripe. Retry issuing it to recover its status before voiding it.' }
   }
   if (status !== 'open' || !invoice.stripe_invoice_id) return { error: 'Could not void the invoice. Please try again.' }
 

@@ -23,6 +23,17 @@ vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn() }))
 vi.mock('@/lib/billing/saved-card', () => ({ resolveSavedCard: vi.fn() }))
 vi.mock('@/lib/billing/credit-ledger', () => ({ grantCredits: vi.fn() }))
 vi.mock('@/lib/billing/access-state', () => ({ getAccessState: vi.fn() }))
+vi.mock('@/lib/billing/operations', () => ({
+  findPendingCreditPurchase: vi.fn(async () => null),
+  reserveBillingOperation: vi.fn(async (company: string, _kind: string, key: string, request: object) => ({
+    id: 'op_fixture', company_id: company, request_key: key, request, status: 'pending',
+    stripe_object_id: null, created_at: new Date().toISOString(), result: {},
+  })),
+  claimBillingOperation: vi.fn(async () => 'lease'),
+  saveBillingOperation: vi.fn(async () => {}),
+  releaseBillingOperation: vi.fn(async () => {}),
+  canReplayStripeCreate: () => true,
+}))
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
@@ -92,8 +103,8 @@ beforeEach(() => {
   vi.mocked(grantCredits).mockResolvedValue({ applied: true })
   vi.mocked(getAccessState).mockResolvedValue({ state: 'active', tier: 'pro', balance: 2020, enforcement: true })
   piCreate.mockResolvedValue({ id: 'pi_1', status: 'succeeded' })
-  piCancel.mockResolvedValue({})
-  sessionCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/x' })
+  piCancel.mockResolvedValue({ status: 'canceled' })
+  sessionCreate.mockResolvedValue({ id: 'cs_fixture', url: 'https://checkout.stripe.com/pay/x' })
   vi.mocked(getStripeClient).mockResolvedValue({
     paymentIntents: { create: piCreate, cancel: piCancel },
     checkout: { sessions: { create: sessionCreate } },
@@ -140,9 +151,9 @@ describe('POST /api/billing/buy-credits', () => {
       payment_method: 'pm_1',
       off_session: true,
       confirm: true,
-      metadata: { type: 'direct_topup', companyId: 'co_1', credits: '1900', packIndex: '1' },
+      metadata: { type: 'direct_topup', companyId: 'co_1', credits: '1900', operationId: 'op_fixture' },
     })
-    expect(opts).toEqual({ idempotencyKey: `directtopup:co_1:${REQ}` })
+    expect(opts).toEqual({ idempotencyKey: 'purchase:op_fixture' })
     expect(grantCredits).toHaveBeenCalledWith(
       expect.objectContaining({ companyId: 'co_1', credits: 1900, source: 'topup', idempotencyKey: 'directtopup:pi_1' })
     )
@@ -158,16 +169,16 @@ describe('POST /api/billing/buy-credits', () => {
   })
 
   it('the bank wants a confirmation: falls back to Checkout, no credits granted', async () => {
-    piCreate.mockRejectedValue(Object.assign(new Error('auth'), { code: 'authentication_required' }))
+    piCreate.mockRejectedValue(Object.assign(new Error('auth'), { code: 'authentication_required', payment_intent: { id: 'pi_auth', status: 'requires_action' } }))
     const body = await (await post({ packIndex: 1, requestId: REQ })).json()
     expect(body).toMatchObject({ mode: 'checkout', reason: 'authentication_required' })
     expect(grantCredits).not.toHaveBeenCalled()
   })
 
   it('a declined card: falls back to Checkout, no credits granted', async () => {
-    piCreate.mockRejectedValue(Object.assign(new Error('declined'), { code: 'card_declined' }))
+    piCreate.mockRejectedValue(Object.assign(new Error('declined'), { code: 'card_declined', payment_intent: { id: 'pi_declined', status: 'requires_payment_method' } }))
     const body = await (await post({ packIndex: 1, requestId: REQ })).json()
-    expect(body).toMatchObject({ mode: 'checkout', reason: 'declined' })
+    expect(body).toMatchObject({ mode: 'checkout', reason: 'authentication_required' })
     expect(grantCredits).not.toHaveBeenCalled()
   })
 
@@ -188,7 +199,7 @@ describe('POST /api/billing/buy-credits', () => {
   it('a grant failure still reports the charge (the webhook grants with the same key)', async () => {
     vi.mocked(grantCredits).mockRejectedValue(new Error('rpc down'))
     const body = await (await post({ packIndex: 1, requestId: REQ })).json()
-    expect(body).toMatchObject({ mode: 'charged', granted: false })
+    expect(body).toMatchObject({ mode: 'pending', code: 'payment_pending' })
   })
 
   it.each([

@@ -19,6 +19,7 @@ export const integrationKeySchema = z.object({
     'openrouter',
     'meta_whatsapp',
     'stripe',
+    'stripe_test',
     'stripe_connect_client_id',
     'twilio',
     'xphere',

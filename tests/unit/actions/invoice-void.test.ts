@@ -224,11 +224,10 @@ describe('voidInvoice behavior', () => {
     expect(svcUpdate).not.toHaveBeenCalled()
   })
 
-  it('deletes a leftover draft without calling Stripe', async () => {
+  it('retains an unresolved draft until Stripe confirms its remote state', async () => {
     rlsInvoice.mockResolvedValue(row({ status: 'draft', stripe_invoice_id: null }))
-    expect(await run()).toEqual({ success: true })
-    expect(svcDelete).toHaveBeenCalled()
-    expect(svcDeleteEq).toHaveBeenCalledWith('id', ID)
-    expect(getStripeClient).not.toHaveBeenCalled()
+    expect(await run()).toHaveProperty('error')
+    expect(svcDelete).not.toHaveBeenCalled()
+    expect(voidInvoiceStripe).not.toHaveBeenCalled()
   })
 })

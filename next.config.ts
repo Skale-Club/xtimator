@@ -105,6 +105,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  // Admin Server Actions accept credentials. Next's development invocation
+  // logger includes their arguments, so keep that logger disabled.
+  logging: { serverFunctions: false },
   output: 'standalone',
   // Use the same production-source type boundary as the blocking CI check.
   // Test fixtures are checked separately by the existing advisory bare tsc step.

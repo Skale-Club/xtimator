@@ -123,9 +123,15 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     providers: [
       {
         id: 'stripe' as IntegrationProvider,
-        title: 'Stripe Secret Key',
+        title: 'Stripe Live Secret Key',
         description:
-          'sk_live_... (or sk_test_...) value from Stripe Dashboard → Developers → API keys. Powers checkout sessions, subscriptions, and webhook signature verification.',
+          'sk_live_... from Stripe Dashboard → Developers → API keys. Used only by the production application for real payments. Stored encrypted.',
+      },
+      {
+        id: 'stripe_test' as IntegrationProvider,
+        title: 'Stripe Sandbox Secret Key',
+        description:
+          'sk_test_... from your Stripe sandbox. Used automatically by development and tests. Never charges real money; production never uses this key. Stored encrypted.',
       },
       {
         id: 'stripe_connect_client_id' as IntegrationProvider,

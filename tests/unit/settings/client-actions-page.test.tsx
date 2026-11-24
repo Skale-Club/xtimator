@@ -91,7 +91,7 @@ beforeEach(() => {
   openInvoices = 0
   vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
   vi.mocked(getActiveCompanyId).mockResolvedValue('company_1')
-  vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
+  vi.mocked(getIntegrationKey).mockResolvedValue('ca_test123')
   vi.mocked(getPlatformFeatureState).mockResolvedValue({ connectPaymentsOpen: true })
   vi.mocked(requireCompanyOwner).mockResolvedValue({} as never)
   vi.mocked(getBillingConfig).mockResolvedValue({ estimateFeePct: 0.01 } as never)

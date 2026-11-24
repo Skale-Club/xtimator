@@ -66,10 +66,16 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 // ---- stripe-client mock -----------------------------------------------------
-const paymentIntentsCreate = vi.fn().mockResolvedValue({ id: 'pi_test' })
+const paymentIntentsCreate = vi.fn().mockResolvedValue({ id: 'pi_test', status: 'succeeded' })
 const customersRetrieve = vi.fn().mockResolvedValue({
   invoice_settings: { default_payment_method: { id: 'pm_test' } },
 })
+
+vi.mock('@/lib/billing/operations', async () => {
+  const { memoryBillingOperationBoundary } = await import('@/tests/fixtures/billing-operations-memory')
+  return memoryBillingOperationBoundary()
+})
+import { resetBillingOperationFixtures } from '@/tests/fixtures/billing-operations-memory'
 
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: async () => ({
@@ -90,6 +96,7 @@ vi.mock('@/lib/billing/billing-config', () => ({
 vi.mock('@/lib/observability/ops-alert', () => ({
   notifyOps: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/notifications/dispatch', () => ({ notify: vi.fn().mockResolvedValue({ ok: true }) }))
 
 // ---- import under test (after the mocks) -----------------------------------
 import {
@@ -101,6 +108,7 @@ import {
 const COMPANY = 'company-concurrency-test'
 
 beforeEach(() => {
+  resetBillingOperationFixtures()
   rpcCallCounts.clear()
   rpcShouldError = false
   rpcShouldReject = false
@@ -152,15 +160,22 @@ describe('releaseAutoTopupLock', () => {
 
 describe('lock release lifecycle', () => {
   it('after a successful charge, the lock is released so a LATER non-concurrent crossing can re-acquire it', async () => {
-    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
-    expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
-    expect(releaseCalls).toContain(COMPANY)
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-11-24T01:00:00Z'))
+      await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+      expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
+      expect(releaseCalls).toContain(COMPANY)
 
-    // Reset the RPC call counter to simulate time passing (a fresh, later
-    // threshold crossing) — the release call above cleared the lock.
-    rpcCallCounts.set(COMPANY, 0)
-    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
-    expect(paymentIntentsCreate).toHaveBeenCalledTimes(2)
+      // A completed purchase and a genuinely later authorized window may start
+      // a new one. A same-hour retry must reuse the original operation.
+      vi.setSystemTime(new Date('2026-11-24T03:00:00Z'))
+      rpcCallCounts.set(COMPANY, 0)
+      await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+      expect(paymentIntentsCreate).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('after a FAILED charge, the lock is STILL released (finally-equivalent)', async () => {

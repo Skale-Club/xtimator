@@ -54,8 +54,17 @@ export async function saveIntegrationKey(input: {
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
+  if (parsed.data.provider === 'stripe_connect_client_id' && !/^ca_[A-Za-z0-9]+$/.test(parsed.data.apiKey.trim())) {
+    return { ok: false, message: 'Enter the Stripe Connect Client ID beginning with ca_ from this platform account.' }
+  }
+  if (parsed.data.provider === 'stripe' && !/^(sk|rk)_live_[A-Za-z0-9]+$/.test(parsed.data.apiKey.trim())) {
+    return { ok: false, message: 'Enter a live Stripe secret key beginning with sk_live_ (or rk_live_).' }
+  }
+  if (parsed.data.provider === 'stripe_test' && !/^(sk|rk)_test_[A-Za-z0-9]+$/.test(parsed.data.apiKey.trim())) {
+    return { ok: false, message: 'Enter a sandbox Stripe secret key beginning with sk_test_ (or rk_test_).' }
+  }
 
-  const blob = encrypt(parsed.data.apiKey)
+  const blob = encrypt(parsed.data.apiKey.trim())
   const svc = requireServiceClient()
   // Supabase JS serialises Buffer values via JSON.stringify(), which corrupts
   // BYTEA round-trips. Send `\xHEX` strings — PostgREST stores those as raw
@@ -328,8 +337,10 @@ async function runTestIntegrationKey(
       // credential. Verification happens implicitly via the OAuth flow
       // (Settings → Payments → Connect).
       return {
-        ok: true,
-        message: 'Client ID stored. No test endpoint — verify via Settings → Payments OAuth flow.',
+        ok: /^ca_[A-Za-z0-9]+$/.test(key),
+        message: /^ca_[A-Za-z0-9]+$/.test(key)
+          ? 'Client ID format valid. Verify this account and redirect through the Client actions OAuth flow.'
+          : 'Invalid Stripe Connect Client ID. Use the ca_ identifier from this platform account.',
       }
     }
 
@@ -365,7 +376,9 @@ async function runTestIntegrationKey(
       }
     }
 
-    if (input.provider === 'stripe') {
+    if (input.provider === 'stripe' || input.provider === 'stripe_test') {
+      const expectedMode = input.provider === 'stripe' ? 'live' : 'test'
+      if (!new RegExp(`^(sk|rk)_${expectedMode}_[A-Za-z0-9]+$`).test(key)) return { ok: false, message: `This field requires a ${expectedMode === 'live' ? 'live' : 'sandbox'} Stripe secret key.` }
       const Stripe = (await import('stripe')).default
       const stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
       const balance = await stripe.balance.retrieve()

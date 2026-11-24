@@ -30,6 +30,7 @@ import { DEFAULT_BILLING_CONFIG, getBillingConfig } from '@/lib/billing/billing-
 import { aggregateAiCostByOperation, type OpCostStat } from '@/lib/billing/calibration'
 import { BillingConfigForm } from './billing-config-form'
 import { MeasuredCostCard } from './measured-cost-card'
+import { isLiveStripeEnvironment } from '@/lib/billing/stripe-environment'
 
 type IntegrationCategoryContentProps = {
   category: Category
@@ -171,7 +172,7 @@ export async function IntegrationCategoryContent({
 
   let priceResearch = {
     enabled: false,
-    source: 'openrouter_web' as 'openrouter_web',
+    source: 'openrouter_web' as const,
     engine: 'exa' as 'exa' | 'native',
   }
   if (category.showPriceResearchConfig) {
@@ -208,6 +209,16 @@ export async function IntegrationCategoryContent({
 
   return (
     <div className="flex flex-col gap-6">
+      {category.slug === 'stripe' && (
+        <div className="rounded-lg border bg-muted/30 p-4 text-sm" role="status">
+          <p className="font-medium">
+            {isLiveStripeEnvironment()
+              ? 'Active payment environment: Live'
+              : 'Active payment environment: Sandbox'}
+          </p>
+          <p className="mt-1 text-muted-foreground">The application selects the matching key automatically. Missing credentials stop payments; live and sandbox keys are never substituted for each other.</p>
+        </div>
+      )}
       {category.description && (
         <p className="text-sm text-muted-foreground max-w-3xl">
           <T text={category.description} />

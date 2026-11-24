@@ -46,6 +46,20 @@ const serviceFrom = vi.fn(() => {
   return query
 })
 
+vi.mock('@/lib/billing/subscription-checkout', () => ({
+  createSubscriptionCheckout: async (stripe: any, _company: string, params: unknown) =>
+    (await stripe.checkout.sessions.create(params, { idempotencyKey: 'subscription-checkout:fixture' })).url,
+}))
+
+vi.mock('@/lib/billing/operations', () => ({
+  findPendingCreditPurchase: vi.fn().mockResolvedValue(null),
+  reserveBillingOperation: vi.fn(async (company_id, _kind, request_key, request) => ({ id: 'purchase-original', company_id, request_key, request, status: 'pending', stripe_object_id: null, created_at: new Date().toISOString() })),
+  claimBillingOperation: vi.fn().mockResolvedValue('lease'),
+  saveBillingOperation: vi.fn().mockResolvedValue(undefined),
+  releaseBillingOperation: vi.fn().mockResolvedValue(undefined),
+  canReplayStripeCreate: vi.fn().mockReturnValue(true),
+}))
+vi.mock('@/lib/billing/connect-readiness', () => ({ checkConnectReadiness: vi.fn().mockResolvedValue({ ready: true, missing: [] }) }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getClaims },

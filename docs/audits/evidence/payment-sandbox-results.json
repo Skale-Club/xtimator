@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-23",
+  "environment": "Xtimator Stripe test mode and development Supabase",
+  "automaticScenarios": "6 passed after fixing premature Checkout lease release",
+  "browserScenario": "Subscription completed in Chrome; official invoice-before-Checkout fulfillment passed",
+  "checks": [
+    "Real test card charged once; strict grant and duplicate request converge at 900 credits",
+    "Official Stripe Event fulfilled/replayed through real inbox and ledger without duplicate credits",
+    "Injected real API response loss recovered with same Stripe key: one payment, one grant",
+    "Actual $1 then $9 test refunds reversed 90 then 810 credits; old event replay did not regress",
+    "Real 3DS-required card: original intent canceled before Checkout; expiration closed without grant",
+    "Real subscription Checkout reused across interval changes"
+  ],
+  "browserCheck": "Free tier repaired to Pro; 3000 monthly credits delivered exactly once",
+  "realMoneyMoved": false,
+  "productionChanged": false,
+  "testDataCleanup": "Subscriptions canceled, open Checkouts expired, synthetic SQL companies removed",
+  "outbound": "Notifications, CRM, marketing and Inngest mocked"
+}

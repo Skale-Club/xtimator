@@ -202,10 +202,15 @@ export default async function BillingPage() {
   const hasStripeCustomer = !!data.stripeCustomerId
 
   const isAnnual = data.stripeSubscriptionInterval === 'year'
+  // Business is hidden from new sales, but existing Business companies must
+  // see their own plan's catalog price rather than Pro's offer price.
+  const paidTier = data.tier === 'business' ? 'business' : 'pro'
+  const currentMonthCents = stripePrices[paidTier].monthCents ?? cfg.tiers[paidTier].subscriptionPriceCents
+  const currentYearCents = stripePrices[paidTier].yearCents ?? cfg.tiers[paidTier].subscriptionPriceAnnualCents
   const planPrice = isPaid && !isTwa
-    ? isAnnual && annualPrices.pro
-      ? { amount: formatUsd(annualPrices.pro), period: 'year' }
-      : { amount: formatUsd(monthlyPricesCents.pro), period: 'month' }
+    ? isAnnual && currentYearCents
+      ? { amount: formatUsd(currentYearCents), period: 'year' }
+      : { amount: formatUsd(currentMonthCents), period: 'month' }
     : null
 
   // One status per plan, in priority order: a failing payment beats a

@@ -6,7 +6,7 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { verifyOAuthState, exchangeCode } from '@/lib/billing/connect-oauth'
 import { getStripeClient } from '@/lib/billing/stripe-client'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { isLiveStripeEnvironment } from '@/lib/billing/stripe-environment'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
@@ -120,16 +120,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(settingsUrl)
     }
 
-    // A test account on a live platform (or the reverse) can never be charged.
-    // If the platform key's mode cannot be told, do not block.
-    const platformKey = await getIntegrationKey('stripe')
-    const platformLive =
-      platformKey?.startsWith('sk_live_') || platformKey?.startsWith('rk_live_')
-        ? true
-        : platformKey?.startsWith('sk_test_') || platformKey?.startsWith('rk_test_')
-          ? false
-          : null
-    if (platformLive !== null && platformLive !== livemode) {
+    // The OAuth code and all later API requests must use the same environment.
+    if (isLiveStripeEnvironment() !== livemode) {
       settingsUrl.searchParams.set('error', 'mode_mismatch')
       return NextResponse.redirect(settingsUrl)
     }

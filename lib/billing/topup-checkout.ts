@@ -24,12 +24,15 @@ export async function createTopupCheckoutSession(input: {
   /** Same-site path to come back to (default the billing page). */
   returnTo?: string | null
   idempotencyKey: string
+  customerId?: string
+  operationId?: string
 }): Promise<Stripe.Checkout.Session> {
   const { stripe, companyId, pack, priceCents, currency } = input
   const base = getCanonicalBaseUrl()
   const back = safeReturnPath(input.returnTo)
   const join = back.includes('?') ? '&' : '?'
-  const metadata = { type: 'credit_topup', companyId, credits: String(pack.credits) }
+  const metadata = { type: 'credit_topup', companyId, credits: String(pack.credits),
+    ...(input.operationId ? { operationId: input.operationId } : {}) }
 
   return stripe.checkout.sessions.create(
     {
@@ -44,7 +47,7 @@ export async function createTopupCheckoutSession(input: {
           },
         },
       ],
-      customer: await ensureStripeCustomer(stripe, companyId),
+      customer: input.customerId ?? await ensureStripeCustomer(stripe, companyId),
       success_url: `${base}${back}${join}topup=1`,
       cancel_url: `${base}${back}${join}topup=cancelled`,
       metadata,

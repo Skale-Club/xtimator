@@ -55,6 +55,7 @@ type PackView = {
 
 type Offer =
   | { status: 'loading' }
+  | { status: 'pending' }
   | { status: 'error'; message: string }
   | { status: 'owner_required' }
   | { status: 'subscribe'; balance: number }
@@ -80,18 +81,42 @@ export function useBuyCreditsOffer(active: boolean) {
   const [offer, setOffer] = useState<Offer>({ status: 'loading' })
   const [buying, setBuying] = useState(false)
   const requestId = useRef(newRequestId())
+  const pendingPurchase = useRef<{
+    packIndex: number
+    opts: { useOtherCard?: boolean; returnTo?: string }
+  } | null>(null)
+  const requestInFlight = useRef(false)
   // Read through a ref: loading must run once per open, not again whenever the
   // translate function changes identity (that re-fetched in a loop).
   const tRef = useRef(t)
   tRef.current = t
 
   const load = useCallback(async () => {
+    if (pendingPurchase.current) {
+      setOffer({ status: 'pending' })
+      return
+    }
     setOffer({ status: 'loading' })
     try {
       const res = await fetch('/api/billing/buy-credits', { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.status === 403 && data?.code === 'owner_required') return setOffer({ status: 'owner_required' })
       if (!res.ok) return setOffer({ status: 'error', message: tRef.current('Could not load the credit packs. Try again.') })
+      if (data.pendingPurchase) {
+        const pending = data.pendingPurchase
+        if (typeof pending.requestId === 'string' && Number.isInteger(pending.packIndex) && pending.packIndex >= 0) {
+          requestId.current = pending.requestId
+          pendingPurchase.current = {
+            packIndex: pending.packIndex,
+            opts: {
+              useOtherCard: pending.useOtherCard === true,
+              returnTo: typeof pending.returnTo === 'string' ? pending.returnTo : undefined,
+            },
+          }
+        }
+        setOffer({ status: 'pending' })
+        return
+      }
       if (!data.eligible) return setOffer({ status: 'subscribe', balance: Number(data.balance) || 0 })
       setOffer({ status: 'ready', ...data })
     } catch {
@@ -105,20 +130,46 @@ export function useBuyCreditsOffer(active: boolean) {
 
   const buy = useCallback(
     async (packIndex: number, opts: { useOtherCard?: boolean; returnTo?: string } = {}) => {
+      if (requestInFlight.current) return false
+      requestInFlight.current = true
+      // A retry checks the original purchase, never a newly selected pack/card.
+      const purchase = pendingPurchase.current ?? {
+        packIndex,
+        opts: {
+          ...opts,
+          returnTo: opts.returnTo ?? (typeof window !== 'undefined' ? window.location.pathname : undefined),
+        },
+      }
+      pendingPurchase.current = purchase
       setBuying(true)
       try {
         const res = await fetch('/api/billing/buy-credits', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            packIndex,
+            packIndex: purchase.packIndex,
             requestId: requestId.current,
-            returnTo: opts.returnTo ?? (typeof window !== 'undefined' ? window.location.pathname : undefined),
-            useOtherCard: opts.useOtherCard === true,
+            returnTo: purchase.opts.returnTo,
+            useOtherCard: purchase.opts.useOtherCard === true,
           }),
         })
         const data = await res.json().catch(() => ({}))
+        if (res.status === 409 && data.code === 'payment_closed') {
+          // The server has proved the original payment can no longer succeed.
+          // Only this definitive outcome permits abandoning a pending identity.
+          pendingPurchase.current = null
+          requestId.current = newRequestId()
+          toast.error(t('This payment session has ended. Choose a pack to start again.'))
+          void load()
+          return false
+        }
+        if (data.mode === 'pending' || data.code === 'payment_pending' ||
+            (data.mode === 'charged' && data.granted !== true) || res.status >= 500) {
+          setOffer({ status: 'pending' })
+          return false
+        }
         if (!res.ok) {
+          pendingPurchase.current = null
           toast.error(data?.error ? t(data.error) : t('Could not start top-up. Please try again.'))
           return false
         }
@@ -128,10 +179,16 @@ export function useBuyCreditsOffer(active: boolean) {
           } else if (data.reason === 'declined') {
             toast(t('The card was declined. Try another card on the secure payment page.'))
           }
+          setOffer({ status: 'pending' })
           window.location.href = data.url
           return false
         }
-        // Charged: a new click must be a new charge.
+        if (data.mode !== 'charged' || data.granted !== true) {
+          setOffer({ status: 'pending' })
+          return false
+        }
+        // Only confirmed credit delivery permits a new purchase identity.
+        pendingPurchase.current = null
         requestId.current = newRequestId()
         const detail: CreditsPurchasedDetail = { credits: Number(data.credits), balance: Number(data.balance) }
         toast.success(t('{credits} credits added').replace('{credits}', formatCredits(detail.credits)), {
@@ -139,18 +196,29 @@ export function useBuyCreditsOffer(active: boolean) {
         })
         window.dispatchEvent(new CustomEvent<CreditsPurchasedDetail>(CREDITS_PURCHASED_EVENT, { detail }))
         router.refresh()
+        // Inline pickers remain mounted after fulfillment; restore their offer
+        // instead of leaving the completed purchase on the pending screen.
+        void load()
         return true
       } catch {
-        toast.error(t('Could not start top-up. Please try again.'))
+        // A lost response does not prove the card was not charged. Keep the
+        // original identity and let the owner check it safely.
+        setOffer({ status: 'pending' })
         return false
       } finally {
+        requestInFlight.current = false
         setBuying(false)
       }
     },
-    [router, t]
+    [router, t, load]
   )
 
-  return { offer, buying, buy, reload: load }
+  const reload = useCallback(() => {
+    const pending = pendingPurchase.current
+    return pending ? buy(pending.packIndex, pending.opts) : load()
+  }, [buy, load])
+
+  return { offer, buying, buy, reload }
 }
 
 /** Pack list + card + buy button. `compact` drops the header copy (inline use). */
@@ -175,14 +243,23 @@ export function BuyCreditsPicker({
   const { t } = useTranslation()
   const [selected, setSelected] = useState<number | null>(initialIndex ?? null)
 
-  useEffect(() => {
-    if (offer.status === 'ready' && selected === null) setSelected(offer.defaultIndex)
-  }, [offer, selected])
-
   if (offer.status === 'loading') {
     return (
       <div className="flex min-h-40 items-center justify-center" data-testid="buy-credits-loading">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
+      </div>
+    )
+  }
+  if (offer.status === 'pending') {
+    return (
+      <div className="space-y-3 py-6 text-center" data-testid="buy-credits-pending">
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('Your payment is being confirmed. Your credits will appear once it is complete.')}
+        </p>
+        <Button variant="outline" size="sm" disabled={buying} onClick={onRetry}>
+          {buying && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
+          {t('Check payment status')}
+        </Button>
       </div>
     )
   }

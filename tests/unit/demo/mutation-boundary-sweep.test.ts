@@ -257,6 +257,19 @@ function calledIdentifiers(node: ts.Node): Set<string> {
     if (ts.isCallExpression(current) && ts.isIdentifier(current.expression)) {
       calls.add(current.expression.text)
     }
+    // Inngest invokes the named callback passed to step.run. Follow that exact
+    // executable edge as well as direct calls; arbitrary references do not count.
+    if (
+      ts.isCallExpression(current) &&
+      ts.isPropertyAccessExpression(current.expression) &&
+      ts.isIdentifier(current.expression.expression) &&
+      current.expression.expression.text === 'step' &&
+      current.expression.name.text === 'run' &&
+      current.arguments.length === 2
+    ) {
+      const callback = current.arguments[1]
+      if (callback && ts.isIdentifier(callback)) calls.add(callback.text)
+    }
     ts.forEachChild(current, visit)
   }
 
@@ -708,7 +721,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('app/api/track/estimate/route.ts', 'assertCompanyWritable', ['POST']),
   ...guarded('app/api/transcribe/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/translate/route.ts', 'demoGuardResponse', ['POST']),
-  ...guarded('app/api/webhooks/stripe/route.ts', 'assertCompanyWritable', ['POST']),
+  ...guarded('app/api/webhooks/stripe/route.ts', 'assertCompanyWritable', ['POST'], [
+    { path: 'lib/billing/stripe-event-processing.ts', symbol: 'processVerifiedStripeEvent' },
+  ]),
   ...guarded('app/api/webhooks/twilio/route.ts', 'assertCompanyWritable', ['POST']),
   ...excepted(
     'app/api/webhooks/whatsapp/route.ts',
@@ -1065,6 +1080,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ),
   ...guarded('lib/inngest/functions/generate-estimate.ts', 'assertCompanyWritable', [
     'generateEstimateJob',
+  ]),
+  ...guarded('lib/inngest/functions/payment-recovery.ts', 'assertCompanyWritable', [
+    'paymentRecoveryJob',
   ]),
   ...excepted(
     'lib/inngest/functions/monthly-credit-grant.ts',

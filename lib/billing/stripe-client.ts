@@ -1,6 +1,6 @@
 import 'server-only'
 import Stripe from 'stripe'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { getStripeSecretKey } from '@/lib/billing/stripe-environment'
 import { STRIPE_PRODUCT_IMAGE_URL } from '@/lib/billing/stripe-product-image'
 
 /**
@@ -9,10 +9,7 @@ import { STRIPE_PRODUCT_IMAGE_URL } from '@/lib/billing/stripe-product-image'
  * Never call new Stripe() at module level — the key is not available at import time.
  */
 export async function getStripeClient(): Promise<Stripe> {
-  const key = await getIntegrationKey('stripe')
-  if (!key) {
-    throw new Error('[Stripe] Secret key not configured. Add via /admin/integrations.')
-  }
+  const key = await getStripeSecretKey()
   // timeout/maxNetworkRetries: the SDK default has no timeout (Node's own
   // socket default, effectively unbounded) and no retries — a slow/flaky
   // Stripe call could hang a request indefinitely. 20s is generous for any

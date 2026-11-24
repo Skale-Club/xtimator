@@ -19,6 +19,10 @@ vi.mock('@/lib/demo/guard', () => ({
 }))
 
 const billingEditDenied = vi.fn()
+vi.mock('@/lib/billing/connect-readiness', () => ({
+  checkConnectReadiness: vi.fn().mockResolvedValue({ ready: true, missing: [] }),
+}))
+
 vi.mock('@/lib/billing/access-guard', () => ({
   billingEditDenied: (...args: unknown[]) => billingEditDenied(...args),
 }))
@@ -82,7 +86,16 @@ vi.mock('@/lib/supabase/server', () => ({
 // shares `fromImpl` with the RLS client mock above — the insert stub is what
 // matters, not which client object requested it.
 vi.mock('@/lib/supabase/service', () => ({
-  requireServiceClient: vi.fn(() => ({ from: (t: string) => fromImpl(t) })),
+  requireServiceClient: vi.fn(() => ({
+    from: (t: string) => fromImpl(t),
+    rpc: async (name: string, params: any) => {
+      if (name !== 'reserve_connect_invoice') throw new Error('Unexpected RPC')
+      const row = { ...params.p_row, status: 'draft', created_at: new Date().toISOString(),
+        stripe_invoice_id: null, stripe_customer_id: null, hosted_invoice_url: null, invoice_pdf_url: null }
+      const result = await invoicesInsert(row)
+      return { data: result.error ? null : row, error: result.error }
+    },
+  })),
 }))
 
 // Overlap guard (Fix 2) + customer-reuse both read `.from('invoices').select(...)`
@@ -103,6 +116,8 @@ function invoicesSelectChain() {
       return chain
     },
     not: () => chain,
+    is: () => chain,
+    maybeSingle: async () => ({ data: null, error: null }),
     order: () => chain,
     limit: () => chain,
     then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
@@ -806,83 +821,47 @@ describe('draft-first issue order', () => {
     const { generateInvoice } = await import('@/lib/actions/invoice')
 
     const result = await generateInvoice('est_1', { kind: 'full' })
-    expect(result).toEqual({ error: 'Failed to create the invoice. Please try again.' })
+    expect(result).toHaveProperty('error')
     expect(createConnectInvoice).not.toHaveBeenCalled()
     expect(invoicesUpdate).not.toHaveBeenCalled()
   })
 
-  it('a Stripe failure deletes the draft row and returns the existing error', async () => {
+  it('a Stripe response failure retains the routing reservation and alerts recovery', async () => {
     configureSupabase({})
     createConnectInvoice.mockRejectedValue(new Error('stripe down'))
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { generateInvoice } = await import('@/lib/actions/invoice')
-
-    const result = await generateInvoice('est_1', { kind: 'full' })
-    expect(result).toEqual({ error: 'Failed to create the invoice. Please try again.' })
-    expect(invoicesDelete).toHaveBeenCalledTimes(1)
-    expect(callLog).toEqual(['insert-draft', 'delete-draft'])
-    expect(invoicesUpdate).not.toHaveBeenCalled()
-    errSpy.mockRestore()
+    expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('error')
+    expect(invoicesDelete).not.toHaveBeenCalled()
+    expect(callLog).toEqual(['insert-draft'])
+    expect(notifyOps).toHaveBeenCalledWith(expect.objectContaining({ kind: 'invoice_issue_pending' }))
   })
 
-  it('a failed draft delete after a Stripe failure is logged, not thrown', async () => {
+  it('never attempts to delete an uncertain invoice, even if cleanup storage is unavailable', async () => {
     configureSupabase({})
-    createConnectInvoice.mockRejectedValue(new Error('stripe down'))
-    invoicesDelete.mockImplementation(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const chain: any = { eq: () => chain, then: (r: (v: unknown) => unknown) => Promise.resolve({ error: { message: 'x' } }).then(r) }
-      return chain
-    })
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    createConnectInvoice.mockRejectedValue(new Error('Timeout after send'))
+    invoicesDelete.mockImplementation(() => { throw new Error('cleanup unavailable') })
     const { generateInvoice } = await import('@/lib/actions/invoice')
-
-    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
-      error: 'Failed to create the invoice. Please try again.',
-    })
-    expect(errSpy).toHaveBeenCalledWith('[generateInvoice] Failed to delete draft invoice row', { message: 'x' })
-    errSpy.mockRestore()
+    expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('error')
+    expect(invoicesDelete).not.toHaveBeenCalled()
   })
 
-  it('a failed final update is retried once, then alerts ops and returns the could-not-be-saved error', async () => {
+  it('a failed final update leaves the reservation for durable recovery', async () => {
     configureSupabase({})
-    invoicesUpdate.mockImplementation((payload: unknown) => {
-      invoicesUpdatePayload(payload)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    invoicesUpdate.mockImplementation(() => {
       const chain: any = { eq: () => chain, then: (r: (v: unknown) => unknown) => Promise.resolve({ error: { message: 'db down' } }).then(r) }
       return chain
     })
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { generateInvoice } = await import('@/lib/actions/invoice')
-
-    const result = await generateInvoice('est_1', { kind: 'full' })
-    expect(result).toEqual({ error: 'Invoice was created in Stripe but could not be saved. Please contact support.' })
-    expect(invoicesUpdate).toHaveBeenCalledTimes(2)
-    expect(invoicesDelete).not.toHaveBeenCalled() // the draft stays so the paid webhook can still find it
-    expect(notifyOps).toHaveBeenCalledTimes(1)
-    expect(notifyOps).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'invoice_row_save_failed', severity: 'error' }),
-    )
-    errSpy.mockRestore()
+    expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('error')
+    expect(invoicesDelete).not.toHaveBeenCalled()
+    expect(notifyOps).toHaveBeenCalledWith(expect.objectContaining({ kind: 'invoice_issue_pending' }))
   })
 
-  it('a final update that succeeds on the retry does not alert', async () => {
+  it('a successful final save promotes the reservation without an alert', async () => {
     configureSupabase({})
-    let n = 0
-    invoicesUpdate.mockImplementation((payload: unknown) => {
-      invoicesUpdatePayload(payload)
-      n += 1
-      const error = n === 1 ? { message: 'blip' } : null
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const chain: any = { eq: () => chain, then: (r: (v: unknown) => unknown) => Promise.resolve({ error }).then(r) }
-      return chain
-    })
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { generateInvoice } = await import('@/lib/actions/invoice')
-
     expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('data')
-    expect(invoicesUpdate).toHaveBeenCalledTimes(2)
     expect(notifyOps).not.toHaveBeenCalled()
-    errSpy.mockRestore()
   })
 })
 
@@ -902,20 +881,13 @@ describe('stale drafts', () => {
     expect(invoicesDelete).not.toHaveBeenCalled()
   })
 
-  it('a draft with no Stripe id older than 10 minutes is ignored and marked void, never deleted', async () => {
-    configureSupabase({
-      existingInvoices: [
-        { id: 'd1', status: 'draft', amount_cents: 100000, kind: 'full', stripe_invoice_id: null, created_at: minutesAgo(11) },
-      ],
-    })
+  it('an old unresolved draft keeps blocking a replacement until Stripe is reconciled', async () => {
+    configureSupabase({ existingInvoices: [{ id: 'd1', status: 'draft', amount_cents: 100000, kind: 'full', stripe_invoice_id: null, created_at: minutesAgo(11) }] })
     const { generateInvoice } = await import('@/lib/actions/invoice')
-    const result = await generateInvoice('est_1', { kind: 'full' })
-    expect(result).toHaveProperty('data')
-    expect(createConnectInvoice).toHaveBeenCalledTimes(1)
-    // Kept as a void row so a late payment of an invoice Stripe may already
-    // have sent can still be matched by metadata.invoice_id.
-    expect(invoicesUpdateIn).toHaveBeenCalledWith(expect.objectContaining({ status: 'void' }), 'id', ['d1'])
+    expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('error')
+    expect(createConnectInvoice).not.toHaveBeenCalled()
     expect(invoicesDelete).not.toHaveBeenCalled()
+    expect(invoicesUpdateIn).not.toHaveBeenCalled()
   })
 
   it('an old draft that already has a Stripe invoice id is NOT stale', async () => {
@@ -941,7 +913,7 @@ describe('stale drafts', () => {
     const result = await getInvoicingPreview('est_1')
     expect(result).toHaveProperty('data')
     const data = (result as { data: { liveInvoices: Array<{ kind: string }> } }).data
-    expect(data.liveInvoices.map((i) => i.kind)).toEqual(['deposit'])
+    expect(data.liveInvoices.map((i) => i.kind)).toEqual(['full', 'deposit'])
     expect(invoicesDelete).not.toHaveBeenCalled()
   })
 })

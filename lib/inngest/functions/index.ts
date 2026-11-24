@@ -30,6 +30,7 @@ export { retentionCleanupJob } from './retention-cleanup'
 // Pre-launch audit follow-up (FIX 3) — daily read-only billing health sweep
 // (credit-balance drift, paid-tier-without-subscription, stale open invoices).
 export { billingReconciliationJob } from './billing-reconciliation'
+export { paymentRecoveryJob } from './payment-recovery'
 // Phase 193-01 — first-view owner-notification email, moved off the public
 // share-page request path (see lib/inngest/events.ts's doc comment).
 export { estimateViewedNotificationJob } from './estimate-viewed-notification'

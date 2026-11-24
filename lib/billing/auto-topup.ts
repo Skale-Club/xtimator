@@ -2,8 +2,7 @@ import 'server-only'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
-import { grantCredits } from '@/lib/billing/credit-ledger'
-import { topupExpiresAt } from '@/lib/billing/credit-window'
+import { buyCreditPack, CreditDeliveryPendingError } from '@/lib/billing/credit-purchase'
 import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { notifyOps } from '@/lib/observability/ops-alert'
@@ -265,73 +264,41 @@ async function chargeAutoTopup(input: {
       chargeCurrency = resolved.currency
     }
 
-    // Deterministic per-hour idempotency key: dedupes retried Stripe API calls
-    // within the same attempt window, while the cooldown above already caps
-    // real attempts to at most one per hour anyway.
-    const hourBucket = new Date().toISOString().slice(0, 13) // YYYY-MM-DDTHH
-    const paymentIntent = await stripe.paymentIntents.create(
-      {
-        amount: pack.priceCents,
-        currency: chargeCurrency,
-        customer: input.stripeCustomerId,
-        payment_method: paymentMethodId,
-        off_session: true,
-        confirm: true,
-        error_on_requires_action: true,
-        metadata: {
-          type: 'auto_topup',
-          companyId: input.companyId,
-          credits: String(pack.credits),
-        },
-      },
-      { idempotencyKey: `autotopup:${input.companyId}:${hourBucket}` }
-    )
-
-    // Grant credits synchronously — the card has already been charged
-    // (confirm:true + error_on_requires_action:true means paymentIntents.create
-    // only resolves without throwing once Stripe confirms the charge). The
-    // webhook's payment_intent.succeeded handler grants the SAME idempotency
-    // key as a durable backstop in case this process crashes before returning,
-    // so the two paths dedupe against each other rather than double-granting.
-    //
-    // Pre-launch audit follow-up: grantCredits is itself never-throw and
-    // no-ops on an existing key, so a resolved promise here does NOT prove
-    // the credits landed. Check the returned `applied` flag (grantCredits'
-    // own verification via the RPC's applied/error contract) — only clear
-    // the failure flag when credits actually moved. A charge that succeeded
-    // but whose grant did NOT apply is a money-affecting state: the tenant
-    // was billed and received nothing — alert it rather than silently
-    // clearing (or silently leaving stale) the failure flag.
-    const grantResult = await grantCredits({
-      companyId: input.companyId,
-      credits: pack.credits,
-      reason: 'topup',
-      source: 'topup',
-      expiresAt: topupExpiresAt(expiryCfg.topupExpiryMonths),
-      refId: paymentIntent.id,
-      idempotencyKey: `autotopup:${paymentIntent.id}`,
+    // Share the durable company-wide purchase reservation with manual buys.
+    // A lost response cannot become another charge in the next hour.
+    const result = await buyCreditPack({ stripe, companyId: input.companyId,
+      requestId: `autotopup-${new Date().toISOString().slice(0, 13)}`,
+      request: { packIndex: input.packIndex, pack, priceCents: pack.priceCents,
+        currency: chargeCurrency, customerId: input.stripeCustomerId,
+        cardId: paymentMethodId, card: card ? { brand: card.brand, last4: card.last4 } : null,
+        returnTo: null, useOtherCard: false, purchaseType: 'auto_topup' },
     })
-
-    if (grantResult.applied) {
-      // Success — clear any prior failure flag so the tenant-facing banner clears.
-      await svc.from('companies').update({ auto_topup_last_failed_at: null }).eq('id', input.companyId)
-      // Credits plan 2026-11-20: the owner hears about every automatic charge.
-      void notifyOwnerAutoTopup(input.companyId, {
-        ok: true,
-        credits: pack.credits,
-        amount: formatBillingAmount(pack.priceCents, chargeCurrency),
-        card: savedCardLabel(card),
-      })
-    } else {
-      void notifyOps({
-        kind: 'auto_topup_charged_without_grant',
-        severity: 'error',
-        title: 'Auto top-up charged the card but the credit grant did not land',
-        message: `${input.companyId}: paymentIntent ${paymentIntent.id} charged ${pack.priceCents}c but grantCredits reported applied:false`,
-        dedupeKey: `auto_topup_charged_without_grant:${input.companyId}:${paymentIntent.id}`,
-      })
+    if (result.mode !== 'charged') {
+      await notifyOps({ kind: 'auto_topup_payment_pending', severity: 'warning',
+        title: 'Automatic payment is being verified',
+        message: `Company ${input.companyId}: an existing purchase is unresolved; no replacement payment was started.`,
+        dedupeKey: `auto-topup-pending:${input.companyId}:${new Date().toISOString().slice(0, 13)}` })
+      return
     }
+    // A concurrent manual purchase may own the company reservation. Its
+    // fulfillment is not an automatic charge and must not get that receipt.
+    if (!result.automatic) return
+
+    // An already-applied strict grant is also a confirmed delivery.
+    await svc.from('companies').update({ auto_topup_last_failed_at: null }).eq('id', input.companyId)
+    void notifyOwnerAutoTopup(input.companyId, {
+      ok: true, credits: result.credits,
+      amount: formatBillingAmount(result.amountCents!, result.currency!),
+      card: result.card ? savedCardLabel({ ...result.card, id: paymentMethodId }) : null,
+    })
   } catch (err) {
+    if (err instanceof CreditDeliveryPendingError) {
+      await notifyOps({ kind: 'auto_topup_charged_without_grant', severity: 'error',
+        title: 'Automatic payment needs credit delivery',
+        message: `Company ${input.companyId}: payment succeeded; durable recovery will retry credit delivery.`,
+        dedupeKey: `auto-topup-delivery:${input.companyId}:${new Date().toISOString().slice(0, 13)}` })
+      return
+    }
     // Failure handling (research decision #7): NEVER retry silently. Record
     // the failure timestamp so the tenant sees "auto-top-up failed" on their
     // next low-balance view; systemic-rate alerting is Plan 03's concern.

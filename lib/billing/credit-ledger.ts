@@ -431,6 +431,8 @@ export async function grantCredits(input: {
   periodKey?: string | null
   refId?: string | null
   idempotencyKey?: string | null
+  /** Money has already moved: fail the caller so durable fulfillment retries. */
+  throwOnError?: boolean
 }): Promise<{ applied: boolean }> {
   try {
     if (!(input.credits > 0)) return { applied: false }
@@ -456,12 +458,14 @@ export async function grantCredits(input: {
     const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
       | { applied?: boolean }
       | undefined
+    if (typeof result?.applied !== 'boolean') throw new Error('Credit grant returned no durable result')
     const applied = Boolean(result?.applied)
     if (applied) announceCreditsGranted(input.companyId, input.credits, input.source)
     return { applied }
   } catch (err) {
     console.warn('[grantCredits] swallowed write failure:', err)
     notifyCreditLedgerWriteFailed(input.companyId, 'grantCredits', err)
+    if (input.throwOnError) throw err
     return { applied: false }
   }
 }

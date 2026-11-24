@@ -31,6 +31,14 @@ vi.mock('@/lib/billing/stripe-customer', () => ({ ensureStripeCustomer: vi.fn() 
 // FIX 3 — rate limit mock. Default allowed:true so every existing test keeps
 // reaching Stripe; the dedicated 429 test below overrides it per-case.
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn() }))
+vi.mock('@/lib/billing/operations', () => ({
+  findPendingCreditPurchase: vi.fn().mockResolvedValue(null),
+  reserveBillingOperation: vi.fn(async (company_id, _kind, request_key, request) => ({ id: 'purchase-original', company_id, request_key, request, status: 'pending', stripe_object_id: null, created_at: new Date().toISOString() })),
+  claimBillingOperation: vi.fn().mockResolvedValue('lease'),
+  saveBillingOperation: vi.fn().mockResolvedValue(undefined),
+  releaseBillingOperation: vi.fn().mockResolvedValue(undefined),
+  canReplayStripeCreate: vi.fn().mockReturnValue(true),
+}))
 
 // NEXT_PUBLIC_APP_URL is intentionally left unstubbed — the route now builds
 // success_url/cancel_url via getCanonicalBaseUrl() (lib/utils/site-url.ts),

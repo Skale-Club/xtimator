@@ -36,6 +36,13 @@ vi.mock('@/lib/features/platform-feature-state', () => ({
     throw new Error('cleanup paths must not read the platform state')
   },
 }))
+vi.mock('@/lib/billing/connect-readiness', () => ({
+  checkConnectReadiness: (...args: unknown[]) => {
+    gateReads('checkConnectReadiness', ...args)
+    return Promise.resolve({ ready: true, missing: [] })
+  },
+}))
+
 vi.mock('@/lib/billing/billing-config', () => ({
   getBillingConfig: vi.fn().mockResolvedValue({ connectPaymentsOpen: false }),
 }))

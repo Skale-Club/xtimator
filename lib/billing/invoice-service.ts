@@ -46,6 +46,9 @@ export async function createConnectInvoice(opts: {
   daysUntilDue: number
   idempotencyBase: string
   applicationFeeCents: number // FEE-01: platform fee in cents; 0 means omit (Stripe rejects $0)
+  existingInvoiceId?: string | null
+  createdAt?: string
+  onProgress?: (progress: { stripeInvoiceId: string; stripeCustomerId: string }) => Promise<void>
 }): Promise<{
   stripeInvoiceId: string
   stripeCustomerId: string
@@ -56,10 +59,21 @@ export async function createConnectInvoice(opts: {
 }> {
   const stripe = await getStripeClient()
   const reqOpt = { stripeAccount: opts.stripeAccountId } // Direct Charges (D-11)
+  const replaySafe = !opts.createdAt || Date.now() - Date.parse(opts.createdAt) < 23 * 60 * 60 * 1000
+  if (!opts.existingInvoiceId && !replaySafe) {
+    // Creation's idempotency window has elapsed. Search only; never create a
+    // replacement while the first remote invoice's existence is uncertain.
+    const found = await stripe.invoices.search({ query: `metadata['invoice_id']:'${opts.metadata.invoice_id}'`, limit: 100 }, reqOpt)
+    if (found.data.length !== 1) throw new Error('The original invoice needs support verification before retrying.')
+    opts = { ...opts, existingInvoiceId: found.data[0].id }
+  }
+  const previous = opts.existingInvoiceId
+    ? await stripe.invoices.retrieve(opts.existingInvoiceId, {}, reqOpt)
+    : null
 
   // 1. Customer on the connected account — reuse when possible (D-14).
   const customerId =
-    opts.existingCustomerId ??
+    (previous ? (typeof previous.customer === 'string' ? previous.customer : previous.customer?.id) : null) ?? opts.existingCustomerId ??
     (
       await stripe.customers.create(
         { email: opts.customerEmail ?? undefined, name: opts.customerName ?? undefined },
@@ -72,7 +86,7 @@ export async function createConnectInvoice(opts: {
   //    means nothing floating on the customer (e.g. an orphaned item from a
   //    prior failed attempt) can get swept into THIS invoice — the InvoiceItem
   //    below is attached to it explicitly by id instead.
-  const invoice = await stripe.invoices.create(
+  const invoice = previous ?? await stripe.invoices.create(
     {
       customer: customerId,
       collection_method: 'send_invoice',
@@ -87,24 +101,45 @@ export async function createConnectInvoice(opts: {
     },
     { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_inv` },
   )
+  await opts.onProgress?.({ stripeInvoiceId: invoice.id, stripeCustomerId: customerId })
+
+  const output = (current: typeof invoice) => ({
+    stripeInvoiceId: current.id, stripeCustomerId: customerId,
+    hostedInvoiceUrl: current.hosted_invoice_url ?? null, invoicePdfUrl: current.invoice_pdf ?? null,
+    status: current.status ?? 'open', number: current.number ?? null,
+  })
+  if (invoice.status === 'paid' || invoice.status === 'open' || invoice.status === 'void' || invoice.status === 'uncollectible') return output(invoice)
 
   // 3. InvoiceItem (amount-based; no Price object), attached to the invoice
   //    just created (Fix 2) — never any platform fee field.
-  await stripe.invoiceItems.create(
+  let itemExists = false
+  if (!replaySafe) {
+    for await (const line of stripe.invoices.listLineItems(invoice.id, { limit: 100 }, reqOpt)) {
+      if (line.metadata?.invoice_row_id === opts.metadata.invoice_id) {
+        if (line.amount !== opts.amountCents) throw new Error('Invoice item amount needs verification')
+        itemExists = true
+      }
+    }
+  }
+  if (!itemExists) await stripe.invoiceItems.create(
     {
       customer: customerId,
       invoice: invoice.id,
       amount: opts.amountCents,
       currency: opts.currencyCode.toLowerCase(),
       description: opts.description,
+      metadata: { invoice_row_id: opts.metadata.invoice_id },
     },
     { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_item` },
   )
 
-  // 4. Send — finalizes AND emails the hosted invoice in one step. The Stripe
+  // 4. Explicitly finalize, then send the hosted invoice. The Stripe
   //    SDK signature is sendInvoice(id, params?, options?) so the connected-account
   //    request option ({ stripeAccount }) is the THIRD arg. Now also carries its
   //    own idempotencyKey (Fix 2 — it previously had none).
+  await stripe.invoices.finalizeInvoice(invoice.id, { auto_advance: false }, {
+    ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_finalize`,
+  })
   const sent = await stripe.invoices.sendInvoice(invoice.id, {}, {
     ...reqOpt,
     idempotencyKey: `${opts.idempotencyBase}_send`,
