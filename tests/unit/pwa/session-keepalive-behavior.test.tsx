@@ -104,36 +104,52 @@ describe('PWA session recovery', () => {
     }
   })
 
-  it('resumes normal checks on the next foreground event after a failed logout', async () => {
-    render(<SessionKeepalive />)
-    await waitFor(() => expect(mocks.router.refresh).toHaveBeenCalledOnce())
+  it.each(['failed logout', 'BFCache restore'])('starts a fresh check after %s while the cancelled check is still pending', async recovery => {
+    let resolveOld!: (response: Response) => void
+    let resolveNew!: (response: Response) => void
+    fetchMock
+      .mockImplementationOnce(() => new Promise<Response>(done => { resolveOld = done }))
+      .mockImplementationOnce(() => new Promise<Response>(done => { resolveNew = done }))
+    const authChange = vi.fn()
+    window.addEventListener('xtimator:auth', authChange)
 
-    await act(async () => {
-      window.dispatchEvent(new Event(OWNED_SIGN_OUT_STARTED))
-      window.dispatchEvent(new Event(OWNED_SIGN_OUT_FAILED))
-    })
-    expect(fetchMock).toHaveBeenCalledOnce()
+    try {
+      render(<SessionKeepalive />)
+      const oldSignal = fetchMock.mock.calls[0][1].signal as AbortSignal
+      act(() => window.dispatchEvent(new Event(OWNED_SIGN_OUT_STARTED)))
+      expect(oldSignal.aborted).toBe(true)
 
-    await act(async () => { window.dispatchEvent(new Event('focus')) })
+      if (recovery === 'failed logout') {
+        act(() => window.dispatchEvent(new Event(OWNED_SIGN_OUT_FAILED)))
+        expect(fetchMock).toHaveBeenCalledOnce()
+        act(() => window.dispatchEvent(new Event('focus')))
+      } else {
+        act(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })))
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenLastCalledWith('/api/auth/keepalive', expect.objectContaining({ method: 'GET' }))
+      const newSignal = fetchMock.mock.calls[1][1].signal as AbortSignal
+      expect(newSignal).not.toBe(oldSignal)
+      expect(newSignal.aborted).toBe(false)
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(mocks.invalidate).toHaveBeenCalledTimes(2)
-    expect(mocks.router.refresh).toHaveBeenCalledTimes(2)
-  })
+      // Simulate a transport that returned the old response despite the abort.
+      await act(async () => { resolveOld(Response.json({ ok: true, loggedIn: true })) })
+      expect(mocks.invalidate).not.toHaveBeenCalled()
+      expect(authChange).not.toHaveBeenCalled()
+      expect(mocks.router.refresh).not.toHaveBeenCalled()
 
-  it('revalidates the session when the browser restores a page paused during logout', async () => {
-    render(<SessionKeepalive />)
-    await waitFor(() => expect(mocks.router.refresh).toHaveBeenCalledOnce())
+      // Online bypasses the time throttle, so only the in-flight guard prevents a third request.
+      act(() => window.dispatchEvent(new Event('online')))
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(newSignal.aborted).toBe(false)
 
-    act(() => window.dispatchEvent(new Event(OWNED_SIGN_OUT_STARTED)))
-    fetchMock.mockResolvedValueOnce(Response.json({ ok: true, loggedIn: false }))
-    await act(async () => {
-      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
-    })
-
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock).toHaveBeenLastCalledWith('/api/auth/keepalive', expect.objectContaining({ method: 'GET' }))
-    expect(mocks.invalidate).toHaveBeenCalledTimes(2)
-    expect(mocks.router.refresh).toHaveBeenCalledTimes(2)
+      await act(async () => { resolveNew(Response.json({ ok: true, loggedIn: false })) })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(mocks.invalidate).toHaveBeenCalledOnce()
+      expect(authChange).toHaveBeenCalledOnce()
+      expect(mocks.router.refresh).toHaveBeenCalledOnce()
+    } finally {
+      window.removeEventListener('xtimator:auth', authChange)
+    }
   })
 })

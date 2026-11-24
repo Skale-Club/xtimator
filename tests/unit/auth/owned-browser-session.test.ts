@@ -138,6 +138,26 @@ describe('owned browser session consistency', () => {
     }
   })
 
+  it('bounds an unanswered logout request and preserves identity for retry', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockResolvedValueOnce(Response.json(snapshot('current')))
+    const client = createOwnedBrowserClient()
+    await client.auth.getUser()
+    fetchMock.mockImplementationOnce((_url, options) => new Promise<Response>((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+    }))
+
+    const pending = expect(client.auth.signOut()).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.advanceTimersByTimeAsync(15_000)
+    await pending
+
+    expect((await client.auth.getUser()).data.user?.id).toBe('current')
+    expect(await readDataToken()).toBe('test-token-current')
+    expect(postBroadcastMessage).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it.each(['xtimator:auth', 'focus', 'broadcast'])('refreshes the authoritative anonymous cache on a later %s event', async eventName => {
     const client = createOwnedBrowserClient()
     fetchMock.mockResolvedValueOnce(Response.json({ success: true }))

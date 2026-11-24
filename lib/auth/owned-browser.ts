@@ -58,7 +58,12 @@ export function createOwnedBrowserClient(): SupabaseClient {
       return { data: { subscription: { unsubscribe: () => { listeners.delete(listener) } } } }
     },
     signOut: async () => {
-      const response = await fetch('/api/auth/session', { method: 'DELETE', credentials: 'same-origin' })
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 15_000)
+      let response: Response
+      try {
+        response = await fetch('/api/auth/session', { method: 'DELETE', credentials: 'same-origin', signal: controller.signal })
+      } finally { clearTimeout(timer) }
       if (!response.ok) return { error: { message: 'Sign out failed' } }
       // The confirmed revocation is authoritative. Do not launch another read
       // immediately before the caller replaces this document.

@@ -58,8 +58,9 @@ export function SessionKeepalive() {
           if (value?.ok !== true || typeof value.loggedIn !== 'boolean') throw new Error('Invalid session check')
           return value as { ok: true; loggedIn: boolean }
         })
+      let requestTimeout: ReturnType<typeof setTimeout> | undefined
       const deadline = new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => { controller.abort(); reject(new Error('Session check timed out')) }, 15_000)
+        timeout = requestTimeout = setTimeout(() => { controller.abort(); reject(new Error('Session check timed out')) }, 15_000)
       })
       void Promise.race([request, deadline])
         .then(() => {
@@ -74,7 +75,9 @@ export function SessionKeepalive() {
         })
         .catch(() => {})
         .finally(() => {
-          clearTimeout(timeout)
+          clearTimeout(requestTimeout)
+          if (active !== controller) return
+          timeout = undefined
           active = undefined
           inFlight = false
         })
@@ -95,6 +98,10 @@ export function SessionKeepalive() {
     const onSignOutStarted = () => {
       signingOut = true
       active?.abort()
+      clearTimeout(timeout)
+      timeout = undefined
+      active = undefined
+      inFlight = false
     }
     const onSignOutFailed = () => {
       signingOut = false
