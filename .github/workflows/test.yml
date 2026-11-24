@@ -147,10 +147,10 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 24
-      - name: Resolve the reviewed manifest and transitive proxy fix
+      - name: Resolve the reviewed manifest and compatible transitive fixes
         run: |
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          npm update proxy-addr --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm update proxy-addr @grpc/grpc-js body-parser brace-expansion fast-uri form-data hono ip-address protobufjs source-map-js @opentelemetry/auto-instrumentations-node --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Assess the candidate without treating audit exit one as a pass
         run: |
           set +e
