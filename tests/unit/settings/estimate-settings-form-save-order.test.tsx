@@ -3,7 +3,7 @@
 // owner's explicit block switches (updateDocumentBlocks) are written LAST —
 // in parallel the last writer would win at random.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, fireEvent, waitFor } from '@testing-library/react'
+import { render, fireEvent, waitFor, within } from '@testing-library/react'
 
 const calls: string[] = []
 const deferred = (name: string) =>
@@ -52,6 +52,24 @@ describe('EstimateSettingsForm save order', () => {
   beforeEach(() => {
     calls.length = 0
     vi.clearAllMocks()
+  })
+
+  it('associates tax and validity labels and descriptions with their numeric inputs', () => {
+    const { container } = render(<EstimateSettingsForm company={company} />)
+    const form = within(container)
+    for (const { name, description, value } of [
+      { name: 'Tax rate', description: 'Filled in from your state during setup. Change it if your local rules differ.', value: '6' },
+      { name: 'Valid for', description: 'How long the client has to accept after you create it.', value: '30' },
+    ]) {
+      const input = form.getByRole<HTMLInputElement>('spinbutton', { name, description })
+      const label = input.labels?.item(0)
+      expect(input.value).toBe(value)
+      expect(input.id).not.toBe('')
+      expect(label?.htmlFor).toBe(input.id)
+      expect(label?.control).toBe(input)
+      const descriptionId = input.getAttribute('aria-describedby')
+      expect(document.getElementById(descriptionId ?? '')?.textContent).toBe(description)
+    }
   })
 
   it('writes the explicit document blocks after every action that syncs block flags', async () => {

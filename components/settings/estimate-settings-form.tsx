@@ -178,12 +178,12 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('Tax rate')}</FormLabel>
-                    <FormControl>
-                      <div className="relative">
+                    <div className="relative">
+                      <FormControl>
                         <Input type="number" inputMode="decimal" step="0.01" min="0" max="100" placeholder="0" className="pr-8" {...field} />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                    </div>
                     <FormDescription>{t('Filled in from your state during setup. Change it if your local rules differ.')}</FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -195,12 +195,12 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('Valid for')}</FormLabel>
-                    <FormControl>
-                      <div className="relative">
+                    <div className="relative">
+                      <FormControl>
                         <Input type="number" inputMode="numeric" min="1" placeholder="30" className="pr-14" {...field} />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{t('days')}</span>
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{t('days')}</span>
+                    </div>
                     <FormDescription>{t('How long the client has to accept after you create it.')}</FormDescription>
                     <FormMessage />
                   </FormItem>

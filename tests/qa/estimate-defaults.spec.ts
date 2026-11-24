@@ -33,8 +33,8 @@ test('[QA:ESTIMATE-DEFAULTS-APPLY] changed workspace defaults apply to a new man
     expect(original).toMatchObject({ id: fixture.estimateId, version: 1, total: fixture.total })
 
     expect((await page.goto('/settings/estimates'))?.status()).toBe(200)
-    const tax = page.locator('input[name="defaultTaxRate"]')
-    const validity = page.locator('input[name="defaultValidityDays"]')
+    const tax = page.getByRole('spinbutton', { name: 'Tax rate', exact: true })
+    const validity = page.getByRole('spinbutton', { name: 'Valid for', exact: true })
     const payment = page.getByRole('switch', { name: /^Payment terms\b/ })
     const validUntil = page.getByRole('switch', { name: /^Valid until\b/ })
     const terms = page.getByRole('textbox', { name: 'Payment terms', exact: true })

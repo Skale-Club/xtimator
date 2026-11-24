@@ -132,7 +132,7 @@ jobs:
       - name: Verify campaign fixes on a feature branch
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && inputs.unit_scope == 'qa-foundations' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
         run: |
-          npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts tests/unit/pdf/pdf-logo-resolution.test.ts tests/unit/admin/branding-editor-labels.test.tsx tests/unit/admin/admin-alias-handlers.test.ts tests/unit/demo/mutation-boundary-sweep.test.ts tests/unit/components/project-title-loading.test.tsx tests/unit/estimate/document-totals-editor.test.tsx
+          npx vitest run tests/unit/components/dedicated-generation.test.tsx tests/unit/components/progress.test.tsx tests/unit/admin/pipeline-attempts-error-search.test.ts tests/unit/pdf/pdf-logo-resolution.test.ts tests/unit/admin/branding-editor-labels.test.tsx tests/unit/admin/admin-alias-handlers.test.ts tests/unit/demo/mutation-boundary-sweep.test.ts tests/unit/components/project-title-loading.test.tsx tests/unit/estimate/document-totals-editor.test.tsx tests/unit/settings/estimate-settings-form-save-order.test.tsx
           npm run qa:loader
 
   dependency-lock:
