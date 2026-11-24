@@ -6,12 +6,13 @@ const checkoutOrigin = 'https://checkout.stripe.com'
 const successUrl = 'https://example.com/?xtimator_sandbox_complete=1'
 const stripeHosts = new Set(['stripe.com', 'stripe.network'])
 // Exact static asset hosts requested by the verified Stripe-hosted Checkout.
-const stripeAssetHosts = new Set(['b.stripecdn.com', 'stripe-camo.global.ssl.fastly.net'])
+const stripeAssetHosts = new Set(['b.stripecdn.com', 'stripe-camo.global.ssl.fastly.net', 'pay.google.com', 'applepay.cdn-apple.com'])
 const challengePattern = /hcaptcha|recaptcha|captcha|arkoselabs|turnstile/i
 const blockedHosts = new Set()
 
 function isStripeHost(host) {
-  return stripeAssetHosts.has(host) || [...stripeHosts].some(domain => host === domain || host.endsWith(`.${domain}`))
+  return stripeAssetHosts.has(host) || host === 'hcaptcha.com' || host.endsWith('.hcaptcha.com')
+    || [...stripeHosts].some(domain => host === domain || host.endsWith(`.${domain}`))
 }
 
 async function readCheckout() {
@@ -85,8 +86,34 @@ async function visibleChallenge() {
 }
 
 async function fillOptional(selector, value) {
-  const control = page.locator(selector)
-  if (await control.isVisible()) await control.fill(value)
+  for (const frame of page.frames()) {
+    const control = frame.locator(selector)
+    if (await control.count() === 1 && await control.isVisible()) {
+      await control.fill(value)
+      return
+    }
+  }
+}
+
+async function cardControl(selector) {
+  const deadline = Date.now() + 15_000
+  let cardChosen = false
+  do {
+    for (const frame of page.frames()) {
+      const control = frame.locator(selector)
+      if (await control.count() === 1 && await control.isVisible()) return control
+      if (!cardChosen) {
+        const card = frame.getByRole('button', { name: 'Card', exact: true })
+          .or(frame.getByRole('radio', { name: 'Card', exact: true }))
+        if (await card.count() === 1 && await card.isVisible()) {
+          await card.click()
+          cardChosen = true
+        }
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 200))
+  } while (Date.now() < deadline)
+  throw new Error('Required card control unavailable')
 }
 
 // All values below are synthetic. Use the card in the real hosted UI per
@@ -122,17 +149,10 @@ async function checkout() {
   if (new URL(page.url()).origin !== checkoutOrigin) throw new Error('Checkout navigation failed')
 
   phase = 'card'
-  const cardNumber = page.locator('#cardNumber, input[autocomplete="cc-number"]')
-  if (!await cardNumber.isVisible()) {
-    const card = page.getByRole('button', { name: 'Card', exact: true })
-      .or(page.getByRole('radio', { name: 'Card', exact: true }))
-    const initialControl = cardNumber.or(card)
-    await initialControl.first().waitFor({ state: 'visible' })
-    if (!await cardNumber.isVisible()) await card.click()
-  }
+  const cardNumber = await cardControl('#cardNumber, input[autocomplete="cc-number"], input[name="cardnumber"], input[name="number"]')
   await cardNumber.fill('4242424242424242')
-  await page.locator('#cardExpiry, input[autocomplete="cc-exp"]').fill('1234')
-  await page.locator('#cardCvc, input[autocomplete="cc-csc"]').fill('123')
+  await (await cardControl('#cardExpiry, input[autocomplete="cc-exp"], input[name="exp-date"], input[name="expiry"]')).fill('1234')
+  await (await cardControl('#cardCvc, input[autocomplete="cc-csc"], input[name="cvc"]')).fill('123')
   await fillOptional('#billingName, input[autocomplete="cc-name"]', 'Xtimator Sandbox')
   await fillOptional('#billingPostalCode, input[autocomplete="postal-code"]', '10001')
 
@@ -162,7 +182,7 @@ try {
 } catch (error) {
   process.exitCode = await visibleChallenge() ? 3 : failureCodes[phase]
   const frames = []
-  for (const frame of page?.frames().slice(0, 8) ?? []) {
+  for (const frame of page?.frames().slice(0, 24) ?? []) {
     frames.push({
       cardFields: await frame.locator('#cardNumber, input[autocomplete="cc-number"]').count().catch(() => -1),
       emailFields: await frame.locator('input[type="email"]').count().catch(() => -1),
@@ -171,6 +191,7 @@ try {
   }
   process.stdout.write(JSON.stringify({
     timeout: error?.name === 'TimeoutError',
+    frameCount: page?.frames().length ?? 0,
     strictSelector: typeof error?.message === 'string' && error.message.includes('strict mode violation'),
     frames, blockedHosts: [...blockedHosts].slice(0, 12),
   }))
