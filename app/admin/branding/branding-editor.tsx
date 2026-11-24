@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -44,6 +44,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const { t } = useTranslation()
+  const logoDescriptionId = useId()
 
   // Lifted state for live preview + logo file (kept outside RHF so the
   // uploader's local objectURL flow can drive the preview before submit).
@@ -137,7 +138,6 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
                 <FormLabel>{t('Application name')}</FormLabel>
                 <FormControl>
                   <Input
-                    id="appName"
                     placeholder="Xtimator"
                     autoComplete="off"
                     {...field}
@@ -152,20 +152,18 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
             )}
           />
 
-          <FormItem>
-            <FormLabel>{t('Logo')}</FormLabel>
-            <FormControl>
-              <LogoUploader
-                preview={logoPreview}
-                companyInitial={companyInitial}
-                onFileSelect={handleLogoSelect}
-                onRemove={handleLogoRemove}
-              />
-            </FormControl>
-            <FormDescription>
+          <fieldset aria-describedby={logoDescriptionId} className="space-y-1.5">
+            <legend className="mb-1.5 text-sm font-medium leading-none">{t('Logo')}</legend>
+            <LogoUploader
+              preview={logoPreview}
+              companyInitial={companyInitial}
+              onFileSelect={handleLogoSelect}
+              onRemove={handleLogoRemove}
+            />
+            <p id={logoDescriptionId} className="text-xs leading-relaxed text-muted-foreground">
               {t('Square PNG or JPG, under 2MB. Shown above the sign-in form and in the admin header.')}
-            </FormDescription>
-          </FormItem>
+            </p>
+          </fieldset>
 
           <FormItem>
             <FormLabel>{t('Favicon')}</FormLabel>
@@ -200,20 +198,20 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
               <FormItem>
                 <FormLabel>{t('Primary color')}</FormLabel>
                 <div className="flex items-center gap-3">
+                  <ColorPickerPopover
+                    value={field.value || DEFAULT_COLOR}
+                    onChange={field.onChange}
+                  />
                   <FormControl>
-                    <ColorPickerPopover
-                      value={field.value || DEFAULT_COLOR}
-                      onChange={field.onChange}
+                    <Input
+                      type="text"
+                      className="w-32 font-mono"
+                      placeholder={DEFAULT_COLOR}
+                      autoComplete="off"
+                      {...field}
+                      value={field.value ?? ''}
                     />
                   </FormControl>
-                  <Input
-                    type="text"
-                    className="w-32 font-mono"
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    placeholder={DEFAULT_COLOR}
-                    autoComplete="off"
-                  />
                 </div>
                 <FormDescription>
                   {t('Accents buttons and focus rings on auth pages and admin tools.')}

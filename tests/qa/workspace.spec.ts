@@ -60,7 +60,10 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
     })
 
     await test.step('Delete the new project from its list entry', async () => {
-      await page.goto('/projects')
+      await page.getByTestId('app-sidebar').or(page.getByTestId('bottom-nav')).filter({ visible: true })
+        .getByRole('link', { name: 'Projects', exact: true }).click()
+      await expect(page).toHaveURL(/\/projects$/)
+      await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
       const link = page.locator(`a[href="/projects/${projectId}"][aria-hidden="true"]`)
       const actions = page.getByRole('button', { name: 'Actions', exact: true })
       const entry = info.project.name === 'chromium'
