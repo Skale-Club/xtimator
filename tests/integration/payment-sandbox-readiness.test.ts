@@ -61,6 +61,7 @@ const evidence = {
     canonicalPrefix: boolean; testToken: boolean; startsSession: boolean; extraLength: number; inputWithinLimit: boolean; routePrefix: string } | null,
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
+  subscriptionCanceled: false,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
   cleanupFailures: [] as string[],
 }
@@ -249,14 +250,22 @@ async function cleanStripe() {
     }
     if (subscriptionSession) {
       const session = await assertOwnedCheckout(subscriptionSession, true)
-      if (subscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+      const linkedSubscription = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
+      if (subscriptionId && subscriptionId !== linkedSubscription) {
+        throw new SandboxGuardError('The reserved Checkout subscription changed before cleanup')
+      }
+      if (linkedSubscription) {
+        const subscription = await stripe.subscriptions.retrieve(linkedSubscription)
         const customer = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id
-        if (subscription.id !== subscriptionId || subscription.livemode !== false || customer !== customerId
+        if (subscription.id !== linkedSubscription || subscription.livemode !== false || customer !== customerId
           || subscription.metadata.companyId !== companyId || subscription.metadata.qa_run_id !== runMarker) {
           throw new SandboxGuardError('Refused to cancel an unmarked Stripe test subscription')
         }
-        if (subscription.status !== 'canceled') await stripe.subscriptions.cancel(subscriptionId)
+        const canceled = subscription.status === 'canceled' ? subscription : await stripe.subscriptions.cancel(linkedSubscription)
+        if (canceled.id !== linkedSubscription || canceled.status !== 'canceled') {
+          throw new SandboxGuardError('Stripe did not confirm cancellation of the test subscription')
+        }
+        evidence.subscriptionCanceled = true
       } else if (session.status === 'open') {
         await stripe.checkout.sessions.expire(subscriptionSession)
       }

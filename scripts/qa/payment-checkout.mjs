@@ -145,8 +145,8 @@ async function close() {
   await browser?.close()
 }
 
-// Exit codes are the only information returned to the test runner. Never emit
-// a Playwright error, page URL, provider response or checkout artifact.
+// Return only fixed exit codes and structural diagnostics. Never emit a
+// Playwright error, page URL, provider response or checkout artifact.
 const watchdog = setTimeout(() => process.kill(process.pid, 'SIGTERM'), 110_000)
 process.once('SIGTERM', async () => {
   const forceExit = setTimeout(() => process.exit(4), 5_000)
