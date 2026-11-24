@@ -339,6 +339,42 @@
       "titleToken": "[QA:PHOTOS-GENERATE]",
       "requiredForExecution": true,
       "requiredForLaunch": true
+    },
+    {
+      "id": "ACADEMY-PROGRESS",
+      "titleToken": "[QA:ACADEMY-PROGRESS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/academy", "/academy/[courseId]", "/academy/[courseId]/[lessonId]"],
+      "hypothesis": "A learner can complete a text lesson and see the resulting course progress after reload.",
+      "expectedEvidence": "The built-in text-only lesson generates actual tracked open and manual completion responses. The synthetic user's completion row and single completion event persist, and the course displays 1/3 completed and 33% after reload."
+    },
+    {
+      "id": "KNOWLEDGE-OWNER",
+      "titleToken": "[QA:KNOWLEDGE-OWNER]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/settings/knowledge", "/settings/knowledge/[id]"],
+      "hypothesis": "A tenant owner can edit provenance and delete an indexed knowledge entry while another tenant cannot read it.",
+      "expectedEvidence": "A seeded synthetic vector is indexed. A real source-only edit persists without changing text or vector. A distinct authenticated tenant sees no row and the direct URL shows not found. The owner confirms deletion and the scoped database row is absent."
+    },
+    {
+      "id": "ADMIN-EVENT-DETAIL",
+      "titleToken": "[QA:ADMIN-EVENT-DETAIL]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin/events", "/admin/events/[attemptId]"],
+      "hypothesis": "A platform admin can find a specific failed attempt and see the actual failed step in chronological context.",
+      "expectedEvidence": "An exact synthetic attempt filter returns one row. Its details show the linked project, three ordered step and status pairs, and the expected synthetic failure code and message. Captures are disabled and the admin session makes no privileged UI writes."
+    },
+    {
+      "id": "IDENTITY-DENIAL",
+      "titleToken": "[QA:IDENTITY-DENIAL]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/oauth/authorize", "/oauth/authorize/error", "/invite/accept", "/onboarding", "/update-password"],
+      "hypothesis": "Invalid OAuth requests and unavailable invite paths fail locally, and owned users with a company land safely from onboarding and legacy password routes.",
+      "expectedEvidence": "Inline noindex OAuth and invite error states stay on the app origin. Disabled invite returns no token in its content and leaves membership unchanged. An existing owned account redirects from onboarding to dashboard and from update-password to account settings."
     }
   ],
   "capabilities": [
@@ -361,7 +397,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/settings/payments", "/settings/integrations/stripe", "/settings/billing", "/estimate/[token]"],
-      "reason": "A Stripe sandbox payment, signed webhook, reconciliation and refund need end-to-end evidence. Seeded invoice presentation cannot establish payment processing."
+      "reason": "Six isolated real Stripe TEST API/ledger cases pass, covering charges, duplicate/replay recovery, cumulative refunds, 3DS cancellation and subscription Checkout reuse. Hosted browser completion is under test. Signed callback delivery to the app HTTP endpoint and a complete browser-to-ledger journey still need fresh evidence; seeded invoice presentation cannot establish processing."
     },
     {
       "id": "AI-LIVE",
@@ -389,7 +425,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
-      "reason": "Scoped admin denial and read-only browser cases are implemented and need evidence. Administrative grant/revoke interactions, global configuration writes, support mode, audit records and the remaining admin surfaces still require isolated acceptance."
+      "reason": "Scoped read-only admin pages pass all three browser projects; post-denial login is under retest after a canonical-origin fix. Administrative grant/revoke interactions, global configuration writes, support mode, audit records and the remaining admin surfaces still require isolated acceptance."
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",

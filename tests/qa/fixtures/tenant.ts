@@ -47,6 +47,8 @@ export function createQaFixture(baseURL: string, {
   const estimateId = randomUUID()
   const sectionId = randomUUID()
   const itemId = randomUUID()
+  const knowledgeEntryId = randomUUID()
+  const adminAttemptId = randomUUID()
   const shareToken = randomUUID()
   const sessionId = randomUUID()
   const sessionToken = randomBytes(32).toString('base64url')
@@ -64,6 +66,8 @@ export function createQaFixture(baseURL: string, {
   const summary = 'Replace and paint the porch railing.'
   const sectionTitle = 'Porch restoration'
   const lineDescription = 'Install painted cedar railing'
+  const knowledgeTitle = `${prefix}installation guidelines`
+  const knowledgeBody = 'Inspect cedar railings before preparing a synthetic estimate.'
   const total = 1000
   let seedWork: Promise<void> | undefined
   let cleanupWork: Promise<void> | undefined
@@ -175,6 +179,66 @@ export function createQaFixture(baseURL: string, {
     const row = await db.from(table).select('*').eq('company_id', companyId).eq('id', id).maybeSingle()
     check(`read the fixture ${table} row`, row.error)
     return row.data
+  }
+
+  async function assertMarkedTenant() {
+    if (!cookieExpiry || closing || !(await hasMarkedAccount())) {
+      throw new Error('QA fixture requires an active marked tenant')
+    }
+    const company = await db.from('companies').select('id').eq('id', companyId)
+      .eq('user_id', userId).eq('name', companyName).maybeSingle()
+    check('verify the marked tenant for the scenario seed', company.error)
+    if (!company.data) throw new Error('QA fixture refused to seed rows outside the marked tenant')
+  }
+
+  async function seedKnowledgeEntry() {
+    await assertMarkedTenant()
+    const embedding = Array.from({ length: 1536 }, (_, index) => index === 0 ? 1 : 0)
+    check('insert the synthetic company knowledge entry', (await db.from('knowledge_entries').insert({
+      id: knowledgeEntryId, scope: 'company', company_id: companyId, industry_id: null,
+      title: knowledgeTitle, body: knowledgeBody, source: 'QA initial source', embedding: JSON.stringify(embedding),
+    })).error)
+  }
+
+  async function readKnowledgeEntry() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its knowledge entry')
+    const row = await db.from('knowledge_entries').select('title, body, source, embedding')
+      .eq('id', knowledgeEntryId).eq('company_id', companyId).eq('scope', 'company').maybeSingle()
+    check('read the synthetic company knowledge entry', row.error)
+    return row.data
+  }
+
+  async function readAcademyProgress(lessonId: string) {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its academy progress')
+    const scope = { user_id: userId, company_id: companyId, lesson_id: lessonId }
+    const [progress, events] = await Promise.all([
+      db.from('academy_lesson_progress').select('course_id, completed_at, open_count').match(scope).maybeSingle(),
+      db.from('academy_events').select('type, payload').match(scope).order('created_at', { ascending: true }),
+    ])
+    check('read the synthetic user academy progress', progress.error)
+    check('read the synthetic user academy events', events.error)
+    return { progress: progress.data, events: events.data ?? [] }
+  }
+
+  async function readMemberships() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its memberships')
+    const result = await db.from('company_members').select('company_id, role').eq('user_id', userId).order('company_id')
+    check('read the synthetic owner memberships', result.error)
+    return result.data ?? []
+  }
+
+  async function seedAdminAttempt() {
+    if (!platformAdmin) throw new Error('QA snapshot of the event timeline requires a marked platform admin')
+    await assertMarkedTenant()
+    const common = { attempt_id: adminAttemptId, company_id: companyId, user_id: userId,
+      project_id: projectId, estimate_id: estimateId, input_type: 'recording' }
+    const now = Date.now()
+    check('insert the synthetic admin timeline', (await db.from('pipeline_events').insert([
+      { ...common, step: 'save_recording', status: 'succeeded', created_at: new Date(now - 2_000).toISOString() },
+      { ...common, step: 'transcribe', status: 'started', created_at: new Date(now - 1_000).toISOString() },
+      { ...common, step: 'transcribe', status: 'failed', created_at: new Date(now).toISOString(),
+        error_code: 'QA_SYNTHETIC_FAILURE', error_message: 'Synthetic transcription timeout' },
+    ])).error)
   }
 
   async function readCompany() {
@@ -344,6 +408,8 @@ export function createQaFixture(baseURL: string, {
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total, userEmail: email,
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
     readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,
+    knowledgeEntryId, knowledgeTitle, knowledgeBody, seedKnowledgeEntry, readKnowledgeEntry,
+    readAcademyProgress, readMemberships, adminAttemptId, seedAdminAttempt,
     readClient: (id: string = clientId) => readOwn('clients', id),
     readProject: (id: string = projectId) => readOwn('projects', id),
     readEstimate: (id: string = estimateId) => readOwn('estimates', id),
