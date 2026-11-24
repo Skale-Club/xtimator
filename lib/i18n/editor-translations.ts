@@ -44,6 +44,11 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     '{count} AI questions to answer': '{count} perguntas da IA para responder',
     'Width': 'Largura',
     'Page': 'Página',
+    'Full width view': 'Largura total',
+    'Page view': 'Visualização de página',
+    'Reorder item': 'Reordenar item',
+    'Reorder section': 'Reordenar seção',
+    'Section title': 'Título da seção',
     // Status sheet
     'Estimate status': 'Situação do orçamento',
     'Created': 'Criado',
@@ -143,6 +148,11 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     '{count} AI questions to answer': '{count} preguntas de la IA por responder',
     'Width': 'Ancho',
     'Page': 'Página',
+    'Full width view': 'Ancho completo',
+    'Page view': 'Vista de página',
+    'Reorder item': 'Reordenar elemento',
+    'Reorder section': 'Reordenar sección',
+    'Section title': 'Título de la sección',
     // Status sheet
     'Estimate status': 'Estado del presupuesto',
     'Created': 'Creado',

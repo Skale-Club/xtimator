@@ -4,6 +4,11 @@ const maxFailures = Number(process.env.QA_MAX_FAILURES || '0')
 if (!Number.isInteger(maxFailures) || maxFailures < 0 || maxFailures > 100) throw new Error('Invalid QA_MAX_FAILURES')
 
 export default defineConfig({
+  metadata: {
+    testedRevision: process.env.GITHUB_SHA ?? 'local-working-tree',
+    githubRunId: process.env.GITHUB_RUN_ID ?? null,
+    providerMode: 'synthetic', dataEnvironment: 'development',
+  },
   testDir: './tests/qa', testMatch: '**/*.spec.ts',
   globalSetup: './tests/qa/setup.ts', maxFailures,
   timeout: 180_000, expect: { timeout: 20_000 },

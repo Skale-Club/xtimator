@@ -11,6 +11,16 @@ const PHOTO_DESCRIPTION = 'Cedar fence location on level ground'
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 
 type ProviderCall = { kind: string; tool?: string | null }
+type MicrophoneDiagnostics = {
+  installed: boolean
+  calls: number
+  phase: string
+  phases: string[]
+  contextState: AudioContextState | null
+  userActivation: { isActive: boolean; hasBeenActive: boolean } | null
+  errorName?: string
+  failedDuring?: string
+}
 
 async function providerHistory(page: Page): Promise<ProviderCall[]> {
   const response = await page.request.get(`${SIMULATED_PROVIDER}/history`, { timeout: 8_000 })
@@ -21,37 +31,84 @@ async function providerHistory(page: Page): Promise<ProviderCall[]> {
 
 async function installSyntheticMicrophone(page: Page) {
   await page.addInitScript(() => {
+    const diagnostics: MicrophoneDiagnostics = {
+      installed: false, calls: 0, phase: 'checking-media-devices', phases: ['checking-media-devices'],
+      contextState: null, userActivation: null,
+    }
+    function setPhase(phase: string) {
+      diagnostics.phase = phase
+      if (diagnostics.phases.length < 24) diagnostics.phases.push(phase)
+    }
+    Object.assign(window, { __qaSyntheticMicrophone: diagnostics })
     if (!navigator.mediaDevices) return
     // Supply synthetic PCM as a native browser MediaStream. The product still
     // owns the MediaRecorder, container choice, timing, upload and dispatch.
     Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
       configurable: true,
       value: async (constraints: MediaStreamConstraints) => {
-        if (!constraints.audio || constraints.video) throw new DOMException('QA microphone supports audio only', 'NotAllowedError')
-        const audio = new AudioContext()
-        const destination = audio.createMediaStreamDestination()
-        const oscillator = audio.createOscillator()
-        const gain = audio.createGain()
-        oscillator.frequency.value = 440
-        gain.gain.value = 0.05
-        oscillator.connect(gain)
-        gain.connect(destination)
-        oscillator.start()
-        const [track] = destination.stream.getAudioTracks()
-        const stop = track.stop.bind(track)
-        Object.defineProperty(track, 'stop', {
-          value: () => {
-            if (track.readyState === 'ended') return
-            stop()
-            oscillator.stop()
-            void audio.close().catch(() => undefined)
-          },
-        })
-        if (audio.state === 'suspended') await audio.resume()
-        return destination.stream
+        diagnostics.calls++
+        setPhase('validating-constraints')
+        const activation = navigator.userActivation
+        diagnostics.userActivation = activation ? { isActive: activation.isActive, hasBeenActive: activation.hasBeenActive } : null
+        try {
+          if (!constraints.audio || constraints.video) throw new DOMException('QA microphone supports audio only', 'NotAllowedError')
+          setPhase('creating-audio-context')
+          const audio = new AudioContext()
+          diagnostics.contextState = audio.state
+          audio.addEventListener('statechange', () => { diagnostics.contextState = audio.state })
+          setPhase('created-audio-context')
+          const destination = audio.createMediaStreamDestination()
+          const oscillator = audio.createOscillator()
+          const gain = audio.createGain()
+          oscillator.frequency.value = 440
+          gain.gain.value = 0.05
+          oscillator.connect(gain)
+          gain.connect(destination)
+          oscillator.start()
+          const [track] = destination.stream.getAudioTracks()
+          const stop = track.stop.bind(track)
+          Object.defineProperty(track, 'stop', {
+            value: () => {
+              if (track.readyState === 'ended') return
+              stop()
+              oscillator.stop()
+              void audio.close().catch(() => undefined)
+            },
+          })
+          if (audio.state === 'suspended') {
+            setPhase('awaiting-audio-context-resume')
+            await audio.resume()
+            setPhase('resumed-audio-context')
+          }
+          diagnostics.contextState = audio.state
+          setPhase('returning-media-stream')
+          const stream = destination.stream
+          setPhase('returned-media-stream')
+          return stream
+        } catch (error) {
+          diagnostics.failedDuring = diagnostics.phase
+          setPhase('failed')
+          diagnostics.errorName = error instanceof Error ? error.name : 'UnknownError'
+          throw error
+        }
       },
     })
+    diagnostics.installed = true
+    setPhase('installed')
   })
+}
+
+async function readMicrophoneDiagnostics(page: Page) {
+  return page.evaluate(() => {
+    const microphone = document.querySelector<HTMLButtonElement>('[data-testid="capture-mic"]')
+    return {
+      fixture: (window as Window & { __qaSyntheticMicrophone?: MicrophoneDiagnostics }).__qaSyntheticMicrophone ?? null,
+      documentReadyState: document.readyState,
+      microphoneLabel: microphone?.getAttribute('aria-label') ?? null,
+      microphoneDisabled: microphone?.disabled ?? null,
+      timer: document.querySelector('[data-testid="capture-timer"]')?.textContent ?? null,
+    }
+  }).catch(() => null)
 }
 
 async function uploadSyntheticPhoto(page: Page) {
@@ -82,6 +139,8 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
   const fixture = createQaFixture(baseURL!, { captureStorage: true })
   const objectDirectory = `${fixture.companyId}/${fixture.projectId}/`
   const projectPath = `/projects/${fixture.projectId}`
+  let recordingDiagnostics: Awaited<ReturnType<typeof readMicrophoneDiagnostics>> = null
+  let failed = false
 
   try {
     await fixture.seed()
@@ -110,6 +169,7 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
       await microphone.click()
       await expect(microphone).toHaveAccessibleName('Stop recording')
       await expect(page.getByTestId('capture-timer')).toHaveText(/^(?!00:0[01]$)\d{2}:\d{2}$/, { timeout: 15_000 })
+      recordingDiagnostics = await readMicrophoneDiagnostics(page)
 
       const uploadPromise = page.waitForResponse(response => new URL(response.url()).pathname
         .startsWith(`/storage/v1/object/upload/sign/audio/${objectDirectory}`)
@@ -184,15 +244,30 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
       expect(pdfText).toContain('1,000.00')
       await info.attach('generated-estimate.pdf', { body: pdf, contentType: 'application/pdf' })
 
+      await page.goto('about:blank')
       await page.context().clearCookies()
       expect((await page.goto(`/estimate/${generated.shareToken}`))?.status()).toBe(200)
       for (const line of ESTIMATE_LINES) await expect(page.getByText(line, { exact: true }).filter({ visible: true })).toBeVisible()
       await expect(page.getByText('$1,000.00', { exact: true }).filter({ visible: true }).first()).toBeVisible()
       await info.attach('generated-public-estimate.png', { body: await page.screenshot(), contentType: 'image/png' })
     })
+  } catch (error) {
+    failed = true
+    throw error
   } finally {
     // Cancel in-flight browser requests before revoking the session and removing
     // any exact-prefix storage objects created by a partial capture.
-    try { await page.close() } finally { await fixture.cleanup() }
+    try {
+      await info.attach('synthetic-microphone-diagnostics.json', {
+        body: JSON.stringify({ duringRecording: recordingDiagnostics, beforePageClose: await readMicrophoneDiagnostics(page) }),
+        contentType: 'application/json',
+      })
+      if (failed) {
+        const screenshot = await page.screenshot({ scale: 'css', timeout: 3_000 }).catch(() => null)
+        if (screenshot) await info.attach('capture-before-cleanup.png', { body: screenshot, contentType: 'image/png' })
+      }
+    } finally {
+      try { await page.close() } finally { await fixture.cleanup() }
+    }
   }
 })

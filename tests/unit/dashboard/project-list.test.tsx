@@ -93,8 +93,9 @@ describe('ProjectList', () => {
 
   it('status filter shows only matching projects', () => {
     render(<ProjectList projects={sampleProjects} />)
-    const estimateReadyFilterTab = screen.getByRole('tab', { name: 'Accepted' })
-    fireEvent.click(estimateReadyFilterTab)
+    const acceptedFilter = screen.getByRole('radio', { name: 'Accepted' })
+    fireEvent.click(acceptedFilter)
+    expect(acceptedFilter.getAttribute('aria-checked')).toBe('true')
 
     // Deck Build is accepted
     expect(screen.getAllByText('Deck Build').length).toBeGreaterThanOrEqual(1)

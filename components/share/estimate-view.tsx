@@ -734,7 +734,7 @@ function EstimateViewInner({
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                className="bg-green-600 text-white hover:bg-green-700"
+                className="bg-green-700 text-white hover:bg-green-800"
                 onClick={handleSignAndAccept}
                 disabled={isSubmittingSignature || responding || !signerName.trim() || !signatureData}
               >
@@ -816,7 +816,7 @@ function EstimateViewInner({
           </div>
           <Button
             size="lg"
-            className="shrink-0 whitespace-nowrap bg-green-600 text-white hover:bg-green-700"
+            className="shrink-0 whitespace-nowrap bg-green-700 text-white hover:bg-green-800"
             onClick={openSignature}
           >
             <CheckCircle className="mr-2 h-4 w-4" />

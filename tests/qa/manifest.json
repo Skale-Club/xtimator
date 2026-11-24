@@ -200,6 +200,24 @@
       "routes": [],
       "hypothesis": "Unsigned and forged Stripe, WhatsApp, Twilio and Telegram callbacks reject before business payload parsing, including malformed bodies.",
       "expectedEvidence": "Each missing, forged and malformed unsigned callback returns 400/401 with a generic response. An invalid WhatsApp verification handshake returns 403 without reflecting the challenge. Payloads contain no real event or resource identifiers. This establishes rejection only; verified provider delivery and signed positive/idempotency tests remain separate gates."
+    },
+    {
+      "id": "CO-APPROVE-CONTRACT",
+      "titleToken": "[QA:CO-APPROVE-CONTRACT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/estimate/[token]", "/projects/[id]", "/projects/[id]/change-orders/[coId]", "/change-order/[token]"],
+      "hypothesis": "An owner can amend an accepted estimate with additional work and a credit; anonymous signed approval changes the contract total while preserving the original signed document.",
+      "expectedEvidence": "Actual original signing, owner draft creation/edit/persistence, owner-preview sharing, anonymous approval, frozen snapshot digest, public contract total 1225, unchanged base estimate/signature and semantic signed PDF. Approved editor fields are locked. No payment or outbound delivery is exercised."
+    },
+    {
+      "id": "CO-DECLINE-CONTRACT",
+      "titleToken": "[QA:CO-DECLINE-CONTRACT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/estimate/[token]", "/projects/[id]", "/projects/[id]/change-orders/[coId]", "/change-order/[token]"],
+      "hypothesis": "An anonymous customer can decline a shared change order without changing the accepted base contract or its signature.",
+      "expectedEvidence": "Actual original signing, owner draft/save/share and anonymous confirmed decline. Persisted change-order response is declined with no signature; public contract and project remain at 1000 and the original signature hash is unchanged. Owner sees the declined revision control."
     }
   ],
   "capabilities": [
@@ -254,10 +272,11 @@
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",
-      "state": "unimplemented",
+      "state": "evidence-required",
+      "scenarioIds": ["CO-APPROVE-CONTRACT", "CO-DECLINE-CONTRACT"],
       "requiredForLaunch": true,
       "routes": ["/projects/[id]/change-orders/[coId]", "/change-order/[token]"],
-      "reason": "The campaign needs seller creation, customer approval and updated contract/PDF evidence in the required browser projects."
+      "reason": "Seller creation, customer signed approval/decline and updated contract/PDF need clean evidence in all required browser projects. Invoicing and real payments remain separate."
     },
     {
       "id": "RELEASE-SMOKE",

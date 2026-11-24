@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
+import type { MouseEventHandler } from 'react'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -18,7 +19,7 @@ interface EmptyStateProps {
   /** External href — renders the action as a Link button. */
   actionHref?: string
   /** Click handler — renders the action as a button. Ignored if actionHref is set. */
-  onAction?: () => void
+  onAction?: MouseEventHandler<HTMLButtonElement>
   /** Optional secondary "Clear filters" button. */
   onClearFilter?: () => void
   /** Alias for actionHref — kept for parity with new call-sites in 09-08. */

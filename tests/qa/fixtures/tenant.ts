@@ -23,6 +23,11 @@ function check(operation: string, error: { code?: string } | null) {
 /** Per-run data only. Pair every call to seed() with cleanup() in a finally block. */
 export function createQaFixture(baseURL: string, { captureStorage = false } = {}) {
   const { localApp, supabaseOrigin, serviceKey } = requireQaDevelopment(baseURL)
+  const campaignId = process.env.GITHUB_RUN_ID
+  const campaignAttempt = process.env.GITHUB_RUN_ATTEMPT
+  if (campaignId !== undefined && (!/^[0-9]{1,20}$/.test(campaignId) || !campaignAttempt || !/^[0-9]{1,20}$/.test(campaignAttempt))) {
+    throw new Error('QA fixture needs a valid GitHub run ID and attempt when a run ID is set')
+  }
   const db = createClient(supabaseOrigin, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { fetch: (input, options) => fetch(input, { ...options, redirect: 'error' }) },
@@ -65,7 +70,12 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
         id: userId,
         email,
         email_confirmed_at: timestamp,
-        raw_user_meta_data: { full_name: 'QA Owner', language: 'en', qa_run_id: runId },
+        raw_user_meta_data: {
+          full_name: 'QA Owner', language: 'en', qa_run_id: runId,
+          ...(campaignId === undefined ? {} : {
+            qa_campaign_id: campaignId, qa_campaign_attempt: campaignAttempt, qa_company_id: companyId, qa_project_id: projectId,
+          }),
+        },
       })
     ).error)
     check('insert the tenant. Check that its user foreign key references xtimator_accounts', (
@@ -136,6 +146,29 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
       .eq('id', companyId).eq('user_id', userId).maybeSingle()
     check('read the fixture company settings', row.error)
     return row.data
+  }
+
+  async function readOwnChangeOrder(id: string) {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its change order')
+    const row = await db.from('change_orders')
+      .select('id,company_id,project_id,estimate_id,number,title,reason,status,client_response,sent_at,responded_at,total,share_token')
+      .eq('id', id).eq('company_id', companyId).eq('estimate_id', estimateId).eq('project_id', projectId).maybeSingle()
+    check('read the fixture change order', row.error)
+    return row.data
+  }
+
+  async function readOwnChangeOrderEvidence(id: string) {
+    const order = await readOwnChangeOrder(id)
+    if (!order) return null
+    const [items, signature] = await Promise.all([
+      db.from('change_order_items').select('id,description,quantity,unit_price,total')
+        .eq('change_order_id', id).eq('company_id', companyId).order('sort_order'),
+      db.from('change_order_signatures').select('signer_name,signed_at,signed_total,signed_content,snapshot_sha256')
+        .eq('change_order_id', id).eq('company_id', companyId).maybeSingle(),
+    ])
+    check('read the fixture change order items', items.error)
+    check('read the fixture change order signature', signature.error)
+    return { order, items: items.data ?? [], signature: signature.data }
   }
 
   async function readPriceBook(kind: 'item' | 'category', match: { id: string } | { name: string }) {
@@ -252,7 +285,7 @@ export function createQaFixture(baseURL: string, { captureStorage = false } = {}
     companyId, clientId, projectId, estimateId, userId, sectionId, itemId, shareToken,
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total,
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
-    readGenerationEvidence, cleanup,
+    readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, cleanup,
     readClient: (id = clientId) => readOwn('clients', id),
     readProject: (id = projectId) => readOwn('projects', id),
     readEstimate: (id: string = estimateId) => readOwn('estimates', id),

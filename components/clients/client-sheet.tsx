@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -42,6 +42,7 @@ interface ClientSheetProps {
   client: ClientDetail | null
   companyId: string
   onCreated?: (clientId: string) => void | Promise<void>
+  returnFocus?: RefObject<HTMLButtonElement | null>
 }
 
 const LANGUAGE_NOT_SET_VALUE = '__language_not_set__'
@@ -59,7 +60,7 @@ export function ClientSheet(props: ClientSheetProps) {
   return props.open ? <ClientSheetForm key={props.client?.id ?? 'new'} {...props} /> : null
 }
 
-function ClientSheetForm({ open, onOpenChange, client, onCreated }: ClientSheetProps) {
+function ClientSheetForm({ open, onOpenChange, client, onCreated, returnFocus }: ClientSheetProps) {
   const router = useRouter()
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
@@ -154,11 +155,17 @@ function ClientSheetForm({ open, onOpenChange, client, onCreated }: ClientSheetP
     >
       <BottomSheetContent
         desktopClassName="sm:w-[min(760px,calc(100vw-2rem))] sm:max-w-[760px] sm:max-h-[min(820px,calc(var(--app-vvh,100dvh)-2rem))]"
-        className="min-h-0"
+        className="min-h-0 [&_[data-slot=form-label][data-error=true]]:text-[hsl(var(--destructive-text))]"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           if (window.matchMedia?.('(pointer: coarse)').matches) titleRef.current?.focus()
           else form.setFocus('name')
+        }}
+        onCloseAutoFocus={(event) => {
+          const opener = returnFocus?.current
+          if (!opener?.isConnected) return
+          event.preventDefault()
+          opener.focus()
         }}
       >
         <DialogHeader
@@ -299,7 +306,7 @@ function ClientSheetForm({ open, onOpenChange, client, onCreated }: ClientSheetP
               <Button type="button" variant="outline" className="h-11" disabled={isPending} onClick={() => onOpenChange(false)}>
                 {t('Cancel')}
               </Button>
-              <Button type="submit" form="client-form" className="h-11" disabled={isPending || (isEditing && !form.formState.isDirty)}>
+              <Button type="submit" form="client-form" className="h-11 bg-blue-700 hover:bg-blue-800" disabled={isPending || (isEditing && !form.formState.isDirty)}>
                 {isPending
                   ? isEditing ? t('Updating...') : t('Creating...')
                   : isEditing ? t('Update Client') : t('Add Client')}

@@ -134,9 +134,9 @@ export function ItemSummaryRow({
           type="button"
           onClick={onOpen}
           disabled={!onOpen}
-          aria-label={`${t('Edit item')}: ${description || t('New item')}`}
           className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-6 py-3 text-left transition-colors active:bg-muted/40 disabled:cursor-default [touch-action:pan-y] select-none"
         >
+          <span className="sr-only">{t('Edit item')}: </span>
           {descEl}
           <span className="row-span-2 self-center">{total}</span>
           {metaEl}
@@ -160,9 +160,9 @@ export function ItemSummaryRow({
         type="button"
         onClick={onOpen}
         disabled={!onOpen}
-        aria-label={`${t('Edit item')}: ${description || t('New item')}`}
         className="flex min-w-0 flex-1 flex-col gap-y-0.5 py-3 pl-6 pr-3 text-left transition-colors active:bg-muted/40 disabled:cursor-default [touch-action:pan-y] select-none"
       >
+        <span className="sr-only">{t('Edit item')}: </span>
         {descEl}
         {metaEl}
       </button>

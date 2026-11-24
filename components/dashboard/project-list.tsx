@@ -29,7 +29,7 @@ export function ProjectList({ projects }: ProjectListProps) {
       projects={projects}
       title={<h2 className="text-xl font-semibold tracking-[-0.015em] sm:text-2xl"><T>Recent projects</T></h2>}
       headerRight={projects.length > 0 ? (
-        <Link href="/projects" className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10">
+        <Link href="/projects" className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-foreground transition-colors hover:bg-primary/10">
           <T>View all</T>
           <ArrowRight className="size-4" aria-hidden />
         </Link>

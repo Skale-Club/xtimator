@@ -1,25 +1,70 @@
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, TestInfo } from '@playwright/test'
 import { test, expect } from './test'
 import { createQaFixture } from './fixtures/tenant'
 
 type Tenant = ReturnType<typeof createQaFixture>
 const SIMULATED_PROVIDER = 'http://127.0.0.1:9651'
+const REGENERATION_INPUT = 'Replace 20 linear feet of cedar rail, add two stainless brackets, and seal the wood. Labor is 400 dollars and materials are 600 dollars.'
+type DenialDiagnostics = {
+  installed: boolean
+  calls: number
+  phase: string
+  userActivation: { isActive: boolean; hasBeenActive: boolean } | null
+  errorName: string | null
+}
 
-async function withTenant(page: Page, baseURL: string, run: (fixture: Tenant) => Promise<void>, captureStorage = false) {
+async function withTenant(
+  page: Page,
+  baseURL: string,
+  run: (fixture: Tenant) => Promise<void>,
+  { captureStorage = false, beforeClose }: { captureStorage?: boolean; beforeClose?: (failed: boolean) => Promise<void> } = {},
+) {
   const fixture = createQaFixture(baseURL, { captureStorage })
+  let completed = false
   try {
     await fixture.seed()
     await run(fixture)
+    completed = true
   } finally {
-    try { await page.close() } finally { await fixture.cleanup() }
+    try { await beforeClose?.(!completed) } finally {
+      try { await page.close() } finally { await fixture.cleanup() }
+    }
   }
 }
 
-test('[QA:REGENERATION-OUTAGE] exhausted provider retries preserve the current estimate and offer manual recovery', async ({ page, baseURL }) => {
+function readCaptureDiagnostics(page: Page, expectedDescription: string | null = null) {
+  return page.evaluate((expected) => {
+    const microphone = document.querySelector<HTMLButtonElement>('[data-testid="capture-mic"]')
+    const description = document.querySelector<HTMLTextAreaElement>('[data-testid="capture-description"]')
+    const generate = document.querySelector<HTMLButtonElement>('[data-testid="generate-estimate-btn"]')
+    return {
+      fixture: (window as Window & { __qaDeniedMicrophone?: DenialDiagnostics }).__qaDeniedMicrophone ?? null,
+      documentReadyState: document.readyState,
+      microphoneLabel: microphone?.getAttribute('aria-label') ?? null,
+      microphoneDisabled: microphone?.disabled ?? null,
+      descriptionLength: description?.value.length ?? null,
+      descriptionMatchesFixture: description && expected !== null ? description.value === expected : null,
+      generateDisabled: generate?.disabled ?? null,
+    }
+  }, expectedDescription).catch(() => null)
+}
+
+async function attachCaptureDiagnostics(page: Page, info: TestInfo, name: string, failed: boolean, observed: unknown, expectedDescription: string | null = null) {
+  await info.attach(`${name}-diagnostics.json`, {
+    body: JSON.stringify({ observed, beforePageClose: await readCaptureDiagnostics(page, expectedDescription) }),
+    contentType: 'application/json',
+  })
+  if (failed) {
+    const screenshot = await page.screenshot({ scale: 'css', timeout: 3_000 }).catch(() => null)
+    if (screenshot) await info.attach(`${name}-before-cleanup.png`, { body: screenshot, contentType: 'image/png' })
+  }
+}
+
+test('[QA:REGENERATION-OUTAGE] exhausted provider retries preserve the current estimate and offer manual recovery', async ({ page, baseURL }, info) => {
   test.setTimeout(300_000)
+  let afterDescriptionFill: Awaited<ReturnType<typeof readCaptureDiagnostics>> = null
   await withTenant(page, baseURL!, async fixture => {
     const faultScope = { scope: fixture.projectName }
-    const description = 'Replace 20 linear feet of cedar rail, add two stainless brackets, and seal the wood. Labor is 400 dollars and materials are 600 dollars.'
     const projectPath = `/projects/${fixture.projectId}`
     const fault = (method: 'POST' | 'DELETE') => fetch(`${SIMULATED_PROVIDER}/fault`, {
       method,
@@ -31,7 +76,8 @@ test('[QA:REGENERATION-OUTAGE] exhausted provider retries preserve the current e
     await page.context().addCookies(fixture.cookies())
     expect((await page.goto(`${projectPath}/capture`))?.status()).toBe(200)
     const capture = page.getByTestId('capture-screen')
-    await capture.getByTestId('capture-description').fill(description)
+    await capture.getByTestId('capture-description').fill(REGENERATION_INPUT)
+    afterDescriptionFill = await readCaptureDiagnostics(page, REGENERATION_INPUT)
     const generate = capture.getByTestId('generate-estimate-btn')
     await expect(generate).toBeEnabled()
     expect(await fixture.readEstimate()).toMatchObject({ version: 1, is_current: true, summary: fixture.summary })
@@ -62,7 +108,7 @@ test('[QA:REGENERATION-OUTAGE] exhausted provider retries preserve the current e
       expect(await fixture.readOwn('estimate_items', fixture.itemId)).toMatchObject({ description: fixture.lineDescription })
       const { recordings } = await fixture.readCapture()
       expect(recordings).toHaveLength(1)
-      expect(recordings[0]).toMatchObject({ storage_path: null, transcript: description, duration_seconds: 0 })
+      expect(recordings[0]).toMatchObject({ storage_path: null, transcript: REGENERATION_INPUT, duration_seconds: 0 })
 
       await failed.getByTestId('capture-edit-manually').click()
       await expect(page).toHaveURL(url => url.pathname === projectPath)
@@ -72,20 +118,36 @@ test('[QA:REGENERATION-OUTAGE] exhausted provider retries preserve the current e
       const cleared = await fault('DELETE')
       expect(cleared.ok).toBe(true)
     }
+  }, {
+    beforeClose: failed => attachCaptureDiagnostics(page, info, 'regeneration', failed, afterDescriptionFill, REGENERATION_INPUT),
   })
 })
 
-test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture storage intact', async ({ page, baseURL }) => {
+test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture storage intact', async ({ page, baseURL }, info) => {
+  let afterDenial: Awaited<ReturnType<typeof readCaptureDiagnostics>> = null
   await withTenant(page, baseURL!, async fixture => {
     await page.context().addCookies(fixture.cookies())
     // Simulate the platform refusing the microphone. The app still receives the
     // native error type from its normal browser API and handles the result.
     await page.addInitScript(() => {
+      const diagnostics: DenialDiagnostics = {
+        installed: false, calls: 0, phase: 'checking-media-devices', userActivation: null, errorName: null,
+      }
+      Object.assign(window, { __qaDeniedMicrophone: diagnostics })
       if (!navigator.mediaDevices) throw new Error('No browser mediaDevices API in the QA profile')
       Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
         configurable: true,
-        value: async () => { throw new DOMException('QA denied microphone access', 'NotAllowedError') },
+        value: async () => {
+          diagnostics.calls++
+          const activation = navigator.userActivation
+          diagnostics.userActivation = activation ? { isActive: activation.isActive, hasBeenActive: activation.hasBeenActive } : null
+          diagnostics.phase = 'throwing-permission-denial'
+          diagnostics.errorName = 'NotAllowedError'
+          throw new DOMException('QA denied microphone access', 'NotAllowedError')
+        },
       })
+      diagnostics.installed = true
+      diagnostics.phase = 'installed'
     })
     const uploads: string[] = []
     page.on('request', request => {
@@ -101,6 +163,7 @@ test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture 
     await expect(mic).toHaveAccessibleName('Start recording')
     await expect(mic).toBeEnabled()
     await expect(page.getByTestId('capture-timer')).toHaveText('00:00')
+    afterDenial = await readCaptureDiagnostics(page)
     await page.getByTestId('skip-recording').click()
     await expect(page).toHaveURL(url => url.pathname === projectPath)
     await expect(page.getByRole('heading', { name: fixture.projectName, exact: true })).toBeVisible()
@@ -109,7 +172,10 @@ test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture 
     expect(await fixture.readCapture()).toEqual({ recordings: [], photos: [] })
     expect(await fixture.readEstimate()).toMatchObject({ version: 1, is_current: true, summary: fixture.summary, total: fixture.total })
     expect(await fixture.readOwn('estimate_items', fixture.itemId)).toMatchObject({ description: fixture.lineDescription })
-  }, true)
+  }, {
+    captureStorage: true,
+    beforeClose: failed => attachCaptureDiagnostics(page, info, 'microphone-denied', failed, afterDenial),
+  })
 })
 
 async function drawSignature(page: Page, dialog: Locator) {

@@ -10,6 +10,7 @@ import {
   DndContext,
   closestCenter,
   type DragEndEvent,
+  KeyboardSensor,
   MouseSensor,
   PointerSensor,
   TouchSensor,
@@ -19,6 +20,7 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
   useSortable,
   arrayMove,
 } from '@dnd-kit/sortable'
@@ -373,7 +375,7 @@ function SortableDocumentItemRow({
   onAddDiscountDraft: (itemId: string) => void
   onRemoveDiscountDraft: (itemId: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
   const { t: tUi } = useTranslation()
   const style = {
@@ -405,7 +407,6 @@ function SortableDocumentItemRow({
     <tr
       ref={setNodeRef}
       style={style}
-      {...attributes}
       data-page-block-id={`${sectionId}-rows-${item.id}`}
       data-item-id={item.id}
       className="border-b border-border/50 group even:bg-muted/40"
@@ -434,12 +435,16 @@ function SortableDocumentItemRow({
         {/* Handle and menu show on row hover (mouse) or keyboard focus; on
             touch screens, which cannot hover, they stay visible. */}
         <div className="flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
-          <span
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
             className="cursor-grab inline-flex items-center text-muted-foreground/30 group-hover:text-muted-foreground/60"
+            {...attributes}
             {...listeners}
+            aria-label={tUi('Reorder item')}
           >
-            <GripVertical className="h-3.5 w-3.5" />
-          </span>
+            <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -525,6 +530,7 @@ function SortableDocumentItemRow({
           inputMode="decimal"
           step="any"
           min="0"
+          aria-label={L.qty}
           value={item.quantity}
           onChange={(e) =>
             dispatch({
@@ -555,7 +561,7 @@ function SortableDocumentItemRow({
           }
         >
           {/* Centred under its centred header; the chevron stays quiet. */}
-          <SelectTrigger className={`${EDIT_FIELD_CLS} data-[size=default]:h-8 justify-center gap-1 shadow-none [&_svg]:opacity-40`}>
+          <SelectTrigger aria-label={L.unit} className={`${EDIT_FIELD_CLS} data-[size=default]:h-8 justify-center gap-1 shadow-none [&_svg]:opacity-40`}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -670,7 +676,7 @@ function SortableItemSummaryRow({
   onConfirmPrice: () => void
   lang: EstimateLanguage
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const { listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -689,7 +695,7 @@ function SortableItemSummaryRow({
       reviewMarks
       onConfirmPrice={onConfirmPrice}
       lang={lang}
-      dragProps={{ ...attributes, ...listeners }}
+      dragProps={listeners}
       sortableRef={setNodeRef}
       style={style}
     />
@@ -763,7 +769,7 @@ function DocumentSectionBlock({
   currencyCode: string
   L: DocLabels
   lang: EstimateLanguage
-  dragHandleProps?: Record<string, unknown>
+  dragHandleProps?: React.ComponentPropsWithRef<'button'>
   priceBookItems?: PriceBookItem[]
   /** False in read-only view when this is the only visible section (its subtotal
    *  would just repeat the Subtotal row right below). Edit mode always shows it. */
@@ -773,9 +779,11 @@ function DocumentSectionBlock({
   /** Edit mode, desktop: the Tax column renders only when the estimate charges tax. */
   showTaxCol?: boolean
 }) {
+  const { t } = useTranslation()
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   // Mobile summary rows carry the drag listeners on the whole row, so only a
@@ -847,12 +855,14 @@ function DocumentSectionBlock({
         style={{ backgroundColor: brandColor }}
       >
         {isEditable && (
-          <span
+          <button
+            type="button"
             className="order-1 cursor-grab text-white/40 group-hover/header:text-white/70 flex-shrink-0 transition-colors absolute inset-y-0 left-0 flex w-6 items-center justify-center touch-none sm:static sm:w-auto sm:touch-auto"
             {...dragHandleProps}
+            aria-label={t('Reorder section')}
           >
-            <GripVertical className="h-3.5 w-3.5" />
-          </span>
+            <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         )}
 
         {isEditable && dispatch ? (
@@ -860,6 +870,7 @@ function DocumentSectionBlock({
           // section title is fully visible on a phone instead of cut off at one line.
           <textarea
             rows={1}
+            aria-label={t('Section title')}
             value={section.title}
             onChange={(e) =>
               dispatch({
@@ -1129,7 +1140,7 @@ function SortableDocumentSection({
   onOpenItem?: OpenItemEditor
   showTaxCol?: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1138,7 +1149,7 @@ function SortableDocumentSection({
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style}>
       <DocumentSectionBlock
         section={section}
         dispatch={dispatch}
@@ -1148,7 +1159,7 @@ function SortableDocumentSection({
         currencyCode={currencyCode}
         L={L}
         lang={lang}
-        dragHandleProps={listeners}
+        dragHandleProps={{ ...attributes, ...listeners, ref: setActivatorNodeRef }}
         priceBookItems={priceBookItems}
         onOpenItem={onOpenItem}
         showTaxCol={showTaxCol}
@@ -1340,7 +1351,7 @@ function EditableTotals({
                   {L.resetToDefault}
                 </button>
               ) : (
-                <span className="text-muted-foreground/80">{L.usingDefault}</span>
+                <span className="text-muted-foreground">{L.usingDefault}</span>
               )}
             </span>
           )}
@@ -1636,6 +1647,7 @@ function TermsBlock({
       {isEditable && dispatch ? (
         <textarea
           value={value ?? ''}
+          aria-label={label}
           onChange={(e) =>
             dispatch({ type: 'UPDATE_FIELD', field, value: e.target.value || null })
           }
@@ -1944,7 +1956,8 @@ export function EstimateDocument({
 
   const sectionSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   function handleSectionDragEnd(event: DragEndEvent) {
@@ -2237,6 +2250,7 @@ export function EstimateDocument({
               <span className="shrink-0 select-none whitespace-pre">{L.estimateNum}</span>
               <input
                 value={data.estimate_number ?? defaultEstimateNumber}
+                aria-label={L.estimateNum}
                 onChange={(e) =>
                   dispatch({ type: 'UPDATE_FIELD', field: 'estimate_number', value: e.target.value || null })
                 }
@@ -2303,6 +2317,7 @@ export function EstimateDocument({
           {isEditable && dispatch ? (
             <textarea
               value={data.summary ?? ''}
+              aria-label={L.summary}
               onChange={(e) =>
                 dispatch({
                   type: 'UPDATE_FIELD',

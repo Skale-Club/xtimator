@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import {
@@ -117,9 +118,13 @@ export function MoneyInput({
     placeholder,
     disabled,
     onFocus: () => {
-      setFocused(true)
-      // Seed from the current value so editing works; 0 -> empty (placeholder shows).
-      setDraft(valueToDraft(value, minorUnit, localeDecimalSeparator(currency.locale)))
+      // Commit the editable representation before the browser selects text.
+      // A deferred value replacement can collapse that selection and append a
+      // new amount to the old one instead of replacing it.
+      flushSync(() => {
+        setFocused(true)
+        setDraft(valueToDraft(value, minorUnit, localeDecimalSeparator(currency.locale)))
+      })
     },
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
       const next = sanitizeMoneyDraft(event.target.value, minorUnit)

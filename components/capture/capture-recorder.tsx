@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
+import { useClientReady } from '@/hooks/use-client-ready'
 import Link from 'next/link'
 import { X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -2494,6 +2495,7 @@ function PopupBody({
 // Stacked layout — single-mode popup (audio | text | photos) or legacy fullscreen route
 function StackedBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, refineMode = false, estimateLanguage, setEstimateLanguage, mode }: RecorderBodyProps) {
   const { t } = useTranslation()
+  const clientReady = useClientReady()
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
       {/* PRIMARY ACTION: glass card with waveform + timer + ring-wrapped mic */}
@@ -2529,6 +2531,7 @@ function StackedBody({ analyser, isRecording, elapsedMs, ringColorClass, progres
           <textarea
             value={descriptionText}
             onChange={e => setDescriptionText(e.target.value)}
+            disabled={!clientReady}
             placeholder={t('Or describe the job here...')}
             className="w-full min-h-[80px] rounded-md border border-field-border bg-field px-3 py-2 text-sm hover:border-field-border-hover placeholder:text-field-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
             data-testid="capture-description"

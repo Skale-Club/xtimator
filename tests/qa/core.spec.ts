@@ -35,10 +35,11 @@ test('[QA:SESSION-OWNED] current owned session authenticates the synthetic tenan
   expect((await page.goto('/dashboard'))?.status()).toBe(200)
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByText(fixture.projectName, { exact: true }).filter({ visible: true }).first()).toBeVisible()
+  await page.goto('about:blank')
   await page.context().clearCookies()
   const absent = await page.request.get('/api/auth/session')
   expect((await absent.json()).user).toBeNull()
-  await page.goto('/dashboard')
+  await page.goto('/dashboard', { waitUntil: 'commit' })
   await expect(page).not.toHaveURL(/\/dashboard(?:[?#]|$)/)
 })
 
@@ -103,13 +104,14 @@ test('[QA:ESTIMATE-EDIT] line edits persist, preserve totals and render in edito
   await expect.poll(async () => (await fixture.readOwn('estimate_items', fixture.itemId))?.description).toBe(description)
   expect(Number((await fixture.readEstimate())?.total)).toBe(fixture.total)
   if (info.project.name === 'chromium') {
-    await page.getByRole('button', { name: 'Paginated view', exact: true }).click()
+    await page.getByRole('button', { name: 'Page view', exact: true }).click()
     await expect(page.getByText(description, { exact: true }).first()).toBeVisible()
     await screenshot(page, info, 'paginated-editor')
     await page.getByRole('button', { name: 'Full width view', exact: true }).click()
   }
   await page.reload()
   await expect.poll(async () => (await fixture.readOwn('estimate_items', fixture.itemId))?.description).toBe(description)
+  await page.goto('about:blank')
   await page.context().clearCookies()
   await page.goto(`/estimate/${fixture.shareToken}`)
   await expect(page.getByText(description, { exact: true }).filter({ visible: true })).toBeVisible()
@@ -125,9 +127,16 @@ test('[QA:PUBLIC-SHARE] anonymous document shows persisted content and rejects a
   await expect(page.getByText('$1,000.00', { exact: true }).filter({ visible: true }).first()).toBeVisible()
   await noOverflow(page)
   await screenshot(page, info, 'anonymous-estimate')
-  const missing = await page.goto(`/estimate/${randomUUID()}`)
-  expect(missing?.status()).toBe(404)
+  const missingToken = randomUUID()
+  const missing = await page.goto(`/estimate/${missingToken}`)
+  // Next streams its notFound UI with HTTP 200 once headers have been sent.
+  expect([200, 404]).toContain(missing?.status())
+  await expect(page.getByRole('heading', { name: '404', exact: true })).toBeVisible()
+  await expect(page.locator('meta[name="robots"][content*="noindex"]')).toHaveCount(1)
   await expect(page.getByText(fixture.companyName, { exact: true })).toHaveCount(0)
+  const denied = await page.request.get(`/api/estimates/${fixture.estimateId}/pdf?token=${missingToken}`)
+  expect(denied.status()).toBe(404)
+  expect(denied.headers()['cache-control']).toContain('no-store')
 })
 
 test('[QA:SIGNATURE-PDF] public signing persists frozen evidence and produces a semantic signed PDF', async ({ page }, info) => {

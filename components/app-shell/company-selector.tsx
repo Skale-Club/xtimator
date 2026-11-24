@@ -191,7 +191,7 @@ export function CompanySelector({
             aria-label="Switch company"
             className="hidden sm:flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring transition-colors"
           >
-            <Avatar className="h-7 w-7 shrink-0">
+            <Avatar aria-hidden="true" className="h-7 w-7 shrink-0">
               {active?.logo_url && (
                 <AvatarImage src={active.logo_url} alt={active.name} />
               )}
@@ -203,10 +203,10 @@ export function CompanySelector({
         ) : (
           <button
             type="button"
-            aria-label="Switch company"
+            aria-label={`${active?.name ?? t('Select company')} · ${t('Switch company')}`}
             className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring transition-colors"
           >
-            <Avatar className="h-6 w-6 shrink-0">
+            <Avatar aria-hidden="true" className="h-6 w-6 shrink-0">
               {active?.logo_url && (
                 <AvatarImage src={active.logo_url} alt={active.name} />
               )}
@@ -215,7 +215,7 @@ export function CompanySelector({
               </AvatarFallback>
             </Avatar>
             <span className="max-w-[160px] truncate">
-              {active?.name ?? 'Select company'}
+              {active?.name ?? t('Select company')}
             </span>
             <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </button>

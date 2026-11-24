@@ -1,6 +1,6 @@
 # Xtimator acceptance campaign
 
-The first campaign checks seven critical journeys against the Xtimator app and its existing isolated Supabase development project. The launch decision also requires evidence beyond those journeys. The [manifest](../../tests/qa/manifest.json) records both sets of requirements.
+The campaign exercises Xtimator against its existing Supabase development project, using isolated synthetic tenants. It expands through explicit hypotheses and observed failures; the manifest defines the current required scenarios, browser matrix and separate launch capabilities. Added scenarios still need passing browser evidence. The [manifest](../../tests/qa/manifest.json) is the acceptance contract.
 
 ## Scope and evidence
 
@@ -26,6 +26,8 @@ The isolated acceptance job runs automatically on pushes to `dev` and pull reque
 
 The CI job uses `--execution-only`: green means the implemented mandatory scenarios passed in their complete browser matrix. The report still blocks public launch until the separate real-provider, identity, device and release-environment capabilities have evidence. This job is not itself a production release or a claim of complete product coverage.
 
+Normal fixture teardown removes each generated tenant. A separate dependent cleanup job recovers leftovers after the acceptance workers stop, even when their job fails. It uses the acceptance job's recorded run attempt, so rerunning cleanup cannot select another active attempt. Foreign markers, ownership, memberships and unknown storage objects abort recovery. Cleanup failure remains a CI failure; it does not turn a failed acceptance run green. Fixtures created before campaign markers were added are excluded.
+
 Use the campaign runner from the repository root on a machine with enough memory to run Next.js, Inngest and a browser together. It requires the repository dependencies, Playwright browsers, Python 3 with `pypdf`, and the designated development credentials. Use the approved development environment and keep credentials outside tracked files. The browser profiles exercise emulated viewports and browser engines. Real-device capture has a separate gate.
 
 The runner requires `XTIMATOR_QA_DEV=1`, `DATA_API_MODE=supabase`, `NEXT_PUBLIC_AUTH_MODE=owned`, the development Supabase URL in `NEXT_PUBLIC_SUPABASE_URL`, and credentials in `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and `XTIMATOR_DATA_JWT_SECRET`. When `DATA_API_UPSTREAM_URL` is set, it must point to the same development origin.
@@ -50,6 +52,8 @@ The evaluator reads `qa-results/playwright.json` by default. `--report <path>` s
 The public-launch command exits successfully only when all mandatory scenario and capability evidence is satisfied. The execution-only command exits successfully when the required initial scenarios pass and keeps the public-launch verdict blocked. Missing, skipped, unexpected, flaky, retried, empty and duplicate evidence cannot count as a pass. A test needs one clean first attempt in every required project. A test title must contain one `[QA:ID]` token matching the manifest entry.
 
 ## Hypothesis, evidence and retest
+
+The expanded scenarios cover native capture with synthetic media/provider output, project/settings/price-book persistence, exhausted generation retries, microphone refusal, stale document signing, editor hydration, automated accessibility rules, client keyboard interaction, public/workspace screen rendering, rejection of forged provider callbacks and change-order approval/decline. A rendered screen does not prove all of its controls or states. A synthetic provider result does not establish live provider quality or delivery.
 
 1. Record the user-visible behavior in the manifest and identify the pages it exercises. Write the expected UI, API or persisted result before changing the scenario.
 2. Use the matching `[QA:ID]` title in the test. Assert the observable behavior and retain the smallest useful evidence, such as a screenshot, signed document or persisted-state check.

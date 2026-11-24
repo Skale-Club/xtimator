@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { Users, Plus, Phone, Mail, Search, ArrowUpDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,12 @@ export function ClientList({ clients, companyId, currencyCode = DEFAULT_CURRENCY
   }
   const [visible, setVisible] = useState(PAGE_SIZE)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const addClientTrigger = useRef<HTMLButtonElement>(null)
+
+  function openAddClient(event: MouseEvent<HTMLButtonElement>) {
+    addClientTrigger.current = event.currentTarget
+    setSheetOpen(true)
+  }
 
   const sortOptions: Array<{ value: SortKey; label: string }> = [
     { value: 'recent', label: t('Recent activity') },
@@ -136,7 +142,7 @@ export function ClientList({ clients, companyId, currencyCode = DEFAULT_CURRENCY
     new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, notation: 'compact', maximumFractionDigits: 1 }).format(value)
 
   const sheet = (
-    <ClientSheet open={sheetOpen} onOpenChange={setSheetOpen} client={null} companyId={companyId} />
+    <ClientSheet open={sheetOpen} onOpenChange={setSheetOpen} client={null} companyId={companyId} returnFocus={addClientTrigger} />
   )
 
   if (clients.length === 0) {
@@ -147,7 +153,7 @@ export function ClientList({ clients, companyId, currencyCode = DEFAULT_CURRENCY
           title={t('No clients yet')}
           description={t('Add your first client to get started')}
           actionLabel={t('Add Client')}
-          onAction={() => setSheetOpen(true)}
+          onAction={openAddClient}
         />
         {sheet}
       </>
@@ -197,7 +203,7 @@ export function ClientList({ clients, companyId, currencyCode = DEFAULT_CURRENCY
             </DropdownMenu>
           </div>
 
-          <Button variant="primary" size="sm" className="size-9 shrink-0 rounded-full p-0 sm:h-9 sm:w-auto sm:rounded-lg sm:px-3" onClick={() => setSheetOpen(true)}>
+          <Button variant="primary" size="sm" className="size-9 shrink-0 rounded-full p-0 sm:h-9 sm:w-auto sm:rounded-lg sm:px-3" onClick={openAddClient}>
             <Plus className="h-4 w-4" />
             <span className="sr-only sm:not-sr-only">{t('Add Client')}</span>
           </Button>

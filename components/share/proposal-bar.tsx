@@ -132,7 +132,7 @@ export function ProposalBar({
         {showAccept && (
           <Button
             size="sm"
-            className="shrink-0 bg-green-600 text-white hover:bg-green-700"
+            className="shrink-0 bg-green-700 text-white hover:bg-green-800"
             onClick={onAccept}
           >
             <CheckCircle className="mr-1.5 h-4 w-4" />

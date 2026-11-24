@@ -45,15 +45,16 @@ export function CreditChip({
   )
 
   if (percentUsed === null) {
+    const formattedBalance = formatCredits(balance ?? 0)
     return (
       <Link
         href="/settings/billing"
         className={linkClass}
         title={t('Credits')}
-        aria-label={t('Credits')}
+        aria-label={`${formattedBalance} ${t('credits')}`}
       >
         <Coins className="h-4 w-4 shrink-0" />
-        <span className="font-mono font-medium tabular-nums">{formatCredits(balance ?? 0)}</span>
+        <span className="font-mono font-medium tabular-nums">{formattedBalance}</span>
         <span className="hidden text-xs lg:inline">{t('credits')}</span>
       </Link>
     )
@@ -64,7 +65,7 @@ export function CreditChip({
       href="/settings/billing"
       className={linkClass}
       title={t('Usage')}
-      aria-label={t('Usage')}
+      aria-label={`${percentUsed}% ${t('used')} · ${t('Credits')}`}
     >
       <Coins className="h-4 w-4 shrink-0" />
       <Progress

@@ -126,7 +126,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
             data-tour={dataTour}
             data-active={isActive || undefined}
             aria-current={isActive ? 'page' : undefined}
-            aria-label={t(item.label)}
+            aria-label={item.shortLabel ? `${t(item.shortLabel)} · ${t(item.label)}` : t(item.label)}
             className={itemClass}
           >
             {iconEl}

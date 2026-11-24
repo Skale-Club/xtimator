@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowUpDown, Check, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { RadioGroup } from 'radix-ui'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -48,28 +48,32 @@ export interface ActiveFilter {
   onRemove: () => void
 }
 
-/** Segmented status tabs. Keeps role="tab" (Radix) and reacts to a plain click. */
-export function ListTabs({ options, value, onChange, className }: {
+/** Segmented filters update the same results list and support arrow-key navigation. */
+export function ListTabs({ options, value, onChange, label, className }: {
   options: readonly ListOption[]
   value: string
   onChange: (value: string) => void
+  label: string
   className?: string
 }) {
   return (
-    <Tabs value={value} onValueChange={onChange} className={className}>
-      <TabsList className="h-9 gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5">
-        {options.map((option) => (
-          <TabsTrigger
-            key={option.value}
-            value={option.value}
-            onClick={() => onChange(option.value)}
-            className="h-7 rounded-md px-3 text-sm font-normal text-muted-foreground data-[state=active]:bg-background data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-          >
-            {option.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+    <RadioGroup.Root
+      orientation="horizontal"
+      aria-label={label}
+      value={value}
+      onValueChange={onChange}
+      className={cn('inline-flex h-9 items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5', className)}
+    >
+      {options.map((option) => (
+        <RadioGroup.Item
+          key={option.value}
+          value={option.value}
+          className="h-7 whitespace-nowrap rounded-md px-3 text-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring data-[state=checked]:bg-background data-[state=checked]:font-medium data-[state=checked]:text-foreground data-[state=checked]:shadow-sm"
+        >
+          {option.label}
+        </RadioGroup.Item>
+      ))}
+    </RadioGroup.Root>
   )
 }
 

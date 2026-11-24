@@ -30,6 +30,7 @@ Object.assign(env, {
   NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:9650', APP_ORIGIN: 'http://127.0.0.1:9650',
   GOOGLE_AUTH_PROJECT_ID: 'skaleclub', FIREBASE_API_KEY: 'qa-no-external-auth', FIREBASE_AUTH_DOMAIN: 'qa.invalid',
   OPENROUTER_API_KEY: 'qa-synthetic-never-a-real-key', STORAGE_PROVIDER: 'supabase',
+  ACADEMY_FIXTURES: '1',
   INNGEST_DEV: '1', INNGEST_BASE_URL: 'http://127.0.0.1:8288',
   NEXT_TELEMETRY_DISABLED: '1', QA_NETWORK_LOG: resolve('qa-results/network.jsonl'),
   NODE_OPTIONS: `--max-old-space-size=3072 --require ${JSON.stringify(resolve('scripts/qa/network-guard.cjs'))}`,

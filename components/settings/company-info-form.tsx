@@ -23,6 +23,7 @@ import { EstimateTemplatePicker } from '@/components/settings/estimate-template-
 import { IndustrySelector } from '@/components/onboarding/industry-selector'
 import { ColorPickerPopover } from '@/components/ui/color-picker-popover'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useClientReady } from '@/hooks/use-client-ready'
 
 import { DEFAULT_CURRENCY_CODE, SUPPORTED_CURRENCIES } from '@/lib/money/currency'
 
@@ -59,6 +60,7 @@ interface CompanyInfoFormProps {
 
 export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormProps) {
   const { t } = useTranslation()
+  const clientReady = useClientReady()
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
@@ -192,7 +194,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
+        <fieldset disabled={readOnly || !clientReady} className="m-0 min-w-0 border-0 p-0">
           <SettingsStack>
             <SettingsCard
               title={t('Brand')}

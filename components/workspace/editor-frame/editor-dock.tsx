@@ -142,10 +142,10 @@ export function EditorDock({
         className="hidden gap-0.5 rounded-full bg-muted p-[3px] lg:inline-flex"
       >
         <TooltipProvider delayDuration={150}>
-          {modeButton('width', t('Width'), 'Full width view')}
+          {modeButton('width', t('Width'), t('Full width view'))}
           {/* Modern template: the editable width view is drawn in the standard
               layout; the dot says Page view shows what the client sees. */}
-          {modeButton('page', t('Page'), 'Paginated view', viewMode === 'width' ? pageHint : undefined)}
+          {modeButton('page', t('Page'), t('Page view'), viewMode === 'width' ? pageHint : undefined)}
         </TooltipProvider>
       </div>
 
@@ -187,7 +187,7 @@ export function EditorDock({
             disabled={primary.busy}
             data-testid={primary.testId}
             // Phones: the label may wrap to two lines and the icon steps aside.
-            className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 whitespace-normal rounded-full px-3 text-[15px] font-semibold max-sm:text-[13px] max-sm:leading-tight md:h-[42px] md:flex-none md:px-5 md:text-sm"
+            className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 whitespace-normal rounded-full bg-blue-700 px-3 text-[15px] font-semibold hover:bg-blue-800 max-sm:text-[13px] max-sm:leading-tight md:h-[42px] md:flex-none md:px-5 md:text-sm"
           >
             <span aria-hidden className="max-sm:hidden">
               {primary.busy ? <Loader2 size={18} className="animate-spin" /> : primary.icon}
@@ -200,7 +200,7 @@ export function EditorDock({
         <Button
           onClick={onShare}
           disabled={saving}
-          className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full px-3 text-[15px] font-semibold md:h-[42px] md:flex-none md:px-5 md:text-sm"
+          className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full bg-blue-700 px-3 text-[15px] font-semibold hover:bg-blue-800 md:h-[42px] md:flex-none md:px-5 md:text-sm"
         >
           <Share2 size={18} aria-hidden />
           {t('Share')}

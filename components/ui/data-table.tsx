@@ -428,7 +428,7 @@ export function DataTable<T>({
   const toolbar = !singleRow && hasControls ? (
     <div className="flex items-center gap-2">
       {hasTabs && (
-        <ListTabs className="hidden shrink-0 lg:flex" options={tabOptions} value={activeFilter} onChange={updateFilter} />
+        <ListTabs className="hidden shrink-0 lg:flex" label={filterTabsLabel ?? t('Filters')} options={tabOptions} value={activeFilter} onChange={updateFilter} />
       )}
       {filters && <div className="hidden shrink-0 items-center gap-2 lg:flex">{filters('toolbar')}</div>}
       {searchAndSort}

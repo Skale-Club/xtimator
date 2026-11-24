@@ -110,6 +110,8 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' || github.event_name == 'push' && github.ref == 'refs/heads/dev' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    outputs:
+      fixture_attempt: ${{ steps.campaign.outputs.attempt }}
     concurrency:
       group: xtimator-development-qa
       cancel-in-progress: false
@@ -125,6 +127,9 @@ jobs:
       XTIMATOR_DATA_JWT_SECRET: ${{ secrets.QA_DEV_DATA_JWT_SECRET }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
+      - name: Identify this acceptance attempt
+        id: campaign
+        run: echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
@@ -149,3 +154,27 @@ jobs:
           path: qa-results/
           retention-days: 7
           if-no-files-found: warn
+
+  cleanup:
+    name: Recover synthetic acceptance fixtures
+    needs: acceptance
+    if: ${{ always() && needs.acceptance.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # A cleanup-only rerun must retain the originating acceptance attempt.
+    # Another attempt of this run can be active; its markers must not match.
+    env:
+      XTIMATOR_QA_DEV: '1'
+      DATA_API_MODE: supabase
+      NEXT_PUBLIC_AUTH_MODE: owned
+      NEXT_PUBLIC_SUPABASE_URL: https://prmqgcrnpuvpzruyzvuv.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QA_DEV_SERVICE_ROLE_KEY }}
+      QA_CAMPAIGN_ATTEMPT: ${{ needs.acceptance.outputs.fixture_attempt }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --omit=dev --ignore-scripts --no-audit --no-fund
+      - run: node scripts/qa/cleanup.mjs

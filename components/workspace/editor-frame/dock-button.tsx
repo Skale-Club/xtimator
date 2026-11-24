@@ -24,7 +24,7 @@ export const DockButton = forwardRef<HTMLButtonElement, DockButtonProps>(functio
       type="button"
       className={cn(
         'flex h-[52px] min-w-[54px] flex-none flex-col items-center justify-center gap-1 rounded-[14px] text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40 md:h-[42px] md:flex-row md:gap-2 md:rounded-full md:bg-muted md:px-3.5 md:text-[13.5px] md:text-foreground',
-        tone === 'ai' && 'text-primary md:bg-primary/10 md:text-primary',
+        tone === 'ai' && 'text-foreground md:bg-primary/10 [&_svg]:text-primary',
         className,
       )}
       {...rest}

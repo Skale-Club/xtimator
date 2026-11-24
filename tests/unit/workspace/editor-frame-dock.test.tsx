@@ -71,7 +71,7 @@ describe('EditorDock', () => {
   // Notices review stage 1, part 2: the Modern template note is a dot on "Page".
   it('Page carries a hint dot only with pageHint, and only in width view', () => {
     renderDock({ pageHint: 'Clients see the Modern template.' })
-    const page = screen.getByRole('button', { name: 'Paginated view' })
+    const page = screen.getByRole('button', { name: 'Page view' })
     expect(page.querySelector('[data-testid="page-view-hint-dot"]')).toBeTruthy()
     expect(page.getAttribute('aria-description')).toBe('Clients see the Modern template.')
     cleanup()
@@ -129,7 +129,7 @@ describe('EditorDock', () => {
   it('view-mode buttons call onViewModeChange and reflect aria-pressed', () => {
     const props = renderDock({ viewMode: 'width' })
     const width = screen.getByRole('button', { name: 'Full width view' })
-    const page = screen.getByRole('button', { name: 'Paginated view' })
+    const page = screen.getByRole('button', { name: 'Page view' })
     expect(width.getAttribute('aria-pressed')).toBe('true')
     expect(page.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(page)

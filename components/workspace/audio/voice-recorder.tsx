@@ -16,6 +16,7 @@ import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visual
 import { CircularProgressRing } from '@/components/capture/circular-progress-ring'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useClientReady } from '@/hooks/use-client-ready'
 
 export interface VoiceRecorderProps {
   // Required visual state — owned by parent
@@ -56,6 +57,7 @@ function fmt(ms: number): string {
 }
 
 export function VoiceRecorder(props: VoiceRecorderProps) {
+  const clientReady = useClientReady()
   const {
     analyser,
     isRecording,
@@ -101,7 +103,7 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
     <button
       type="button"
       onClick={onToggle}
-      disabled={disabled}
+      disabled={disabled || !clientReady}
       className={cn(micBase, micSizeClass, micState)}
       aria-label={isRecording ? t('Stop recording') : t('Start recording')}
       data-testid={micTestId}
