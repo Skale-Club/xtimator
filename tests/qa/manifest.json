@@ -48,6 +48,33 @@
       "expectedEvidence": "The anonymous document shows the seeded scope, line and total. Invalid-link handling produces the expected denial or not-found state."
     },
     {
+      "id": "ESTIMATE-OWNER-CONFLICT",
+      "titleToken": "[QA:ESTIMATE-OWNER-CONFLICT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/estimate/[token]"],
+      "hypothesis": "Two owner tabs cannot silently overwrite each other's saved estimate changes.",
+      "expectedEvidence": "A stale second-tab save is rejected without changing the first tab's persisted work. Reload latest restores that work, and a later independent edit preserves both changes in the database and public document."
+    },
+    {
+      "id": "PROJECT-CLIENT-RELINK",
+      "titleToken": "[QA:PROJECT-CLIENT-RELINK]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]", "/clients", "/estimate/[token]"],
+      "hypothesis": "Changing a project's linked client updates the estimate recipient on every unsigned document surface.",
+      "expectedEvidence": "The Projects client controls unlink the original client and link a different owned client. The project row, reloaded editor in width/page views, public Bill To and owner PDF agree on the replacement recipient while both client records remain intact and foreign picker options remain absent."
+    },
+    {
+      "id": "ESTIMATE-DEFAULTS-APPLY",
+      "titleToken": "[QA:ESTIMATE-DEFAULTS-APPLY]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/settings/estimates", "/projects", "/projects/[id]"],
+      "hypothesis": "Saved estimate defaults apply to newly created manual estimates without changing existing documents.",
+      "expectedEvidence": "The settings form saves tax, validity and payment defaults and survives reload. New Xtimate creates a document with the expected stored defaults and visible terms while the original estimate remains unchanged."
+    },
+    {
       "id": "SIGNATURE-PDF",
       "titleToken": "[QA:SIGNATURE-PDF]",
       "requiredForExecution": true,

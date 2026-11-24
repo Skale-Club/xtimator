@@ -275,7 +275,8 @@ export function createQaFixture(baseURL: string, {
 
   async function readCompany() {
     if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its rows')
-    const row = await db.from('companies').select('id, name, address, city, state, zip')
+    const row = await db.from('companies')
+      .select('id, name, address, city, state, zip, default_tax_rate, default_validity_days, default_payment_terms, document_blocks')
       .eq('id', companyId).eq('user_id', userId).maybeSingle()
     check('read the fixture company settings', row.error)
     return row.data
