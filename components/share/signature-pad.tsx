@@ -71,9 +71,9 @@ export function SignaturePad({
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isEmpty, setIsEmpty] = useState(true)
-  // Strokes are kept in logical CSS-pixel coordinates of the CURRENT displayed
-  // canvas box. They are the source of truth: the bitmap can be rebuilt from
-  // them at any size/DPR, and the exported PNG is rendered from them.
+  // Completed and active strokes share the current canvas's CSS coordinates.
+  // Keep the active stroke separate until pointer-up so a resize can transform
+  // it independently, including the first point before any movement.
   const strokesRef = useRef<Stroke[]>([])
   const activeStroke = useRef<Stroke | null>(null)
   const activePointerId = useRef<number | null>(null)
@@ -105,6 +105,7 @@ export function SignaturePad({
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       for (const stroke of strokesRef.current) paintStroke(ctx, stroke)
+      if (activeStroke.current) paintStroke(ctx, activeStroke.current)
     },
     [paintStroke]
   )
@@ -132,11 +133,13 @@ export function SignaturePad({
       const sizeChanged = prev.width !== width || prev.height !== height
       if (!sizeChanged && canvas.width === bitmap.width && canvas.height === bitmap.height) return
 
-      if (sizeChanged && prev.width > 0 && strokesRef.current.length > 0) {
-        strokesRef.current = transformStrokes(
-          strokesRef.current,
-          fitTransform(prev, { width, height })
-        )
+      if (sizeChanged && prev.width > 0) {
+        const transform = fitTransform(prev, { width, height })
+        strokesRef.current = transformStrokes(strokesRef.current, transform)
+        if (activeStroke.current) {
+          const [resizedStroke] = transformStrokes([activeStroke.current], transform)
+          activeStroke.current = resizedStroke
+        }
       }
       sizeRef.current = { width, height }
       canvas.width = bitmap.width
@@ -191,10 +194,10 @@ export function SignaturePad({
     const point = pointFromEvent(canvas, e)
     const last = stroke[stroke.length - 1]
     stroke.push(point)
-    // Register the stroke on its first segment so a bare tap leaves no mark.
+    // Withhold the prior export while an additional stroke is in progress.
     if (stroke.length === 2) {
-      strokesRef.current.push(stroke)
       setIsEmpty(false)
+      if (strokesRef.current.length > 0) onSignatureChangeRef.current(null)
     }
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -211,6 +214,7 @@ export function SignaturePad({
     activePointerId.current = null
     activeStroke.current = null
     if (!canvas || !stroke || stroke.length < 2) return
+    strokesRef.current.push(stroke)
     onSignatureChangeRef.current(exportSignature(strokesRef.current))
   }
 
@@ -232,6 +236,7 @@ export function SignaturePad({
           id="signer-name"
           placeholder="John Smith"
           autoComplete="name"
+          maxLength={200}
           autoCapitalize="words"
           enterKeyHint="next"
           onKeyDown={(e) => {

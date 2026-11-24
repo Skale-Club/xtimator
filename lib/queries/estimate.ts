@@ -4,7 +4,8 @@ import { getEstimatePhotos } from './estimate-photo'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
-import { applySignedCompanyTermsValue } from '@/lib/estimate/signed-snapshot'
+import { applySignedCompanyTermsValue, applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
+import { SIGNING_PROJECT_COLUMNS, type SignedDocumentIdentity } from '@/lib/estimate/signing-identity'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
 import type { OwnerEstimateReview } from '@/lib/estimate/owner-review'
 
@@ -129,6 +130,8 @@ export interface EstimateWithSections extends Estimate {
    *  must travel with the estimate for that surface to override them. null =
    *  unsigned or v1/legacy snapshot: render live company terms, today's behavior. */
   signedCompanyTerms?: { enabled: boolean; text: string | null } | null
+  /** Frozen document parties and project. Earlier signatures did not record these. */
+  signedIdentity?: SignedDocumentIdentity | null
 }
 
 export async function getProjectEstimates(
@@ -158,19 +161,24 @@ export async function getCurrentEstimate(
 
   if (!estimate || estimate.generation_staged === true) return null
 
-  return fetchEstimateWithSections(supabase, estimate as Estimate)
+  return (await fetchEstimateWithSections(supabase, estimate as Estimate)).estimate
 }
 
 export async function getEstimateById(
   supabase: SupabaseClient,
   estimateId: string
 ): Promise<EstimateWithSections | null> {
-  const { data: estimate } = await supabase
+  return (await loadEstimateById(supabase, estimateId))?.estimate ?? null
+}
+
+async function loadEstimateById(supabase: SupabaseClient, estimateId: string) {
+  const { data: estimate, error } = await supabase
     .from('estimates')
     .select('*')
     .eq('id', estimateId)
     .single()
 
+  if (error && error.code !== 'PGRST116') throw new Error('Could not load the estimate', { cause: error })
   if (!estimate || estimate.generation_staged === true) return null
 
   return fetchEstimateWithSections(supabase, estimate as Estimate)
@@ -180,16 +188,15 @@ export async function getEstimateWithContext(
   supabase: SupabaseClient,
   estimateId: string
 ) {
-  const estimate = await getEstimateById(supabase, estimateId)
-  if (!estimate) return null
+  const loaded = await loadEstimateById(supabase, estimateId)
+  if (!loaded) return null
+  const { estimate, signatureRow } = loaded
 
   // The project and company selects are independent — fetch them in parallel.
-  const [{ data: project }, { data: company }] = await Promise.all([
+  const [{ data: project, error: projectError }, { data: company, error: companyError }] = await Promise.all([
     supabase
       .from('projects')
-      .select(
-        'name, project_type, client:clients(name, email, phone, address, city, state, zip)'
-      )
+      .select(SIGNING_PROJECT_COLUMNS)
       .eq('id', estimate.project_id)
       .single(),
     supabase
@@ -200,32 +207,24 @@ export async function getEstimateWithContext(
       .eq('id', estimate.company_id)
       .single(),
   ])
-
-  // TRUST-01 v2 (security-hardening S1): freeze the company Terms & Conditions
-  // block for a v2-signed estimate the same way applySignedSnapshot already
-  // freezes estimate content.
-  //
-  // Fix-pack F1 (finding #6): this used to issue its OWN, second, sequential
-  // loadLatestSignedSnapshot call here just to reach the nested
-  // signed_content.company_terms field — re-fetching the same big
-  // signed_content + signature_data columns that getEstimateById (via
-  // fetchEstimateWithSections, above) had ALREADY loaded concurrently and
-  // surfaced as estimate.signedCompanyTerms. Overlay from that already-loaded
-  // value instead — same REPLACE-not-merge semantics as applySignedCompanyTerms
-  // (applySignedCompanyTermsValue is its sibling that takes the extracted
-  // value directly), zero extra queries. A v1/no signature is
-  // signedCompanyTerms == null: no-op, renders live terms (today's behavior).
+  if (projectError) throw new Error('Could not load the estimate project', { cause: projectError })
+  if (companyError) throw new Error('Could not load the estimate contractor', { cause: companyError })
+  const identity = estimate.signedIdentity
   const frozenCompany = company
-    ? applySignedCompanyTermsValue(company, estimate.signedCompanyTerms)
+    ? applySignedCompanyTermsValue({ ...company, ...identity?.company }, estimate.signedCompanyTerms)
     : company
+  // A signed client can intentionally be absent. Preserve that state as well.
+  const frozenProject = identity
+    ? { ...identity.project, client: identity.client }
+    : project
 
-  return { estimate, project, company: frozenCompany }
+  return { estimate, project: frozenProject, company: frozenCompany, signatureRow }
 }
 
 async function fetchEstimateWithSections(
   supabase: SupabaseClient,
   estimate: Estimate
-): Promise<EstimateWithSections> {
+) {
   // Single query: fetch every section with its items embedded via the
   // estimate_items.section_id FK, replacing the prior N+1 (one items query per
   // section). Both levels are ordered by sort_order.
@@ -239,7 +238,7 @@ async function fetchEstimateWithSections(
   // getCurrentEstimate gets both hasSignature and the full signature-display
   // fields for free, matching the "one shared query, no duplicated logic"
   // discipline Plan 01 established for the signed-content overlay.
-  const [{ data: sectionsData }, attachedPhotos, signatureSnapshotRow] = await Promise.all([
+  const [{ data: sectionsData, error: sectionsError }, attachedPhotos, signatureRow] = await Promise.all([
     supabase
       .from('estimate_sections')
       .select('*, items:estimate_items(*)')
@@ -252,27 +251,30 @@ async function fetchEstimateWithSections(
     // render-estimate-pdf.ts's exact pattern for the same query.
     loadLatestSignedSnapshot(requireServiceClient(), estimate.id),
   ])
+  if (sectionsError) throw new Error('Could not load the estimate sections', { cause: sectionsError })
 
   const sections = (sectionsData ?? []) as unknown as (EstimateSection & {
     items: EstimateItem[] | null
   })[]
 
-  return {
+  const document: EstimateWithSections = {
     ...estimate,
     sections: sections.map((section) => ({
       ...section,
       items: (section.items ?? []) as EstimateItem[],
     })),
     attachedPhotos,
-    hasSignature: signatureSnapshotRow != null,
+    hasSignature: signatureRow != null,
     signature:
-      signatureSnapshotRow?.signer_name && signatureSnapshotRow?.signature_data
+      signatureRow?.signer_name && signatureRow?.signature_data
         ? {
-            signerName: signatureSnapshotRow.signer_name,
-            signedAt: signatureSnapshotRow.signed_at,
-            signatureDataUrl: signatureSnapshotRow.signature_data,
+            signerName: signatureRow.signer_name,
+            signedAt: signatureRow.signed_at,
+            signatureDataUrl: signatureRow.signature_data,
           }
         : null,
-    signedCompanyTerms: signatureSnapshotRow?.signed_content?.company_terms ?? null,
+    signedCompanyTerms: signatureRow?.signed_content?.company_terms ?? null,
+    signedIdentity: signatureRow?.signed_content?.identity ?? null,
   }
+  return { estimate: applySignedSnapshot(document, signatureRow?.signed_content), signatureRow }
 }

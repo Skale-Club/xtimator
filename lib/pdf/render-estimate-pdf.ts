@@ -25,8 +25,8 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEstimateWithContext, type EstimateWithSections } from '@/lib/queries/estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { loadLatestSignedSnapshot, loadSignatureEvidence } from '@/lib/queries/estimate-signature'
-import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
+import { loadSignatureEvidence } from '@/lib/queries/estimate-signature'
+import { loadSigningPreparedBy } from '@/lib/estimate/signing-identity'
 import { serverStorage } from '@/lib/storage/server'
 import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
 import { resolvePdfPhotos } from '@/lib/pdf/resolve-pdf-photos'
@@ -64,6 +64,8 @@ export interface EstimatePdfContext {
   templateId: EstimateTemplateId
   estimateLanguage: EstimateLanguage
   contentKey: string
+  /** Older signatures can lack the stored document snapshot. */
+  hasSignedSnapshot: boolean
   /** Live row with the TRUST-01 signed-snapshot overlay already applied. */
   estimate: EstimateWithSections
   /** PDFPAR-02 — signature-display data (signer name, signed date, signature
@@ -101,37 +103,13 @@ export async function resolveEstimatePdfContext(
 ): Promise<EstimatePdfContext | null> {
   const result = await getEstimateWithContext(supabase, estimateId)
   if (!result || !result.company) return null
-  const { estimate: liveEstimate, project, company } = result
-
-  // TRUST-01: once a signature with a non-null snapshot exists, render from
-  // the frozen content — never live rows. Same shared query/overlay
-  // functions as lib/queries/share.ts's public share lookups — no second
-  // implementation (Pitfall 12).
-  const signatureServiceClient = requireServiceClient()
-  const signedSnapshotRow = await loadLatestSignedSnapshot(signatureServiceClient, liveEstimate.id)
-  const signedContent = signedSnapshotRow?.signed_content ?? null
-  const estimate = applySignedSnapshot(liveEstimate, signedContent)
-
-  // PDFPAR-02 — both signer_name/signature_data are NOT NULL on the table, so
-  // any existing signature row always has them; the `&&` guard here only
-  // ever trips to null when signedSnapshotRow itself is null (no signature).
-  const signature: DocumentSignature | null =
-    signedSnapshotRow?.signer_name && signedSnapshotRow?.signature_data
-      ? {
-          signerName: signedSnapshotRow.signer_name,
-          signedAt: signedSnapshotRow.signed_at,
-          signatureDataUrl: signedSnapshotRow.signature_data,
-        }
-      : null
-  // Certificate page: loaded only when a signature row exists, from the same service
-  // client. A failed read degrades to "no certificate page", never to a failed PDF.
-  let signatureEvidence: SignatureEvidence | null = null
-  if (signedSnapshotRow) {
-    try {
-      signatureEvidence = await loadSignatureEvidence(signatureServiceClient, liveEstimate.id)
-    } catch {
-      signatureEvidence = null
-    }
+  const { estimate, project, company, signatureRow } = result
+  const signature = estimate.signature ?? null
+  const signatureEvidence = signatureRow
+    ? await loadSignatureEvidence(requireServiceClient(), estimate.id, signatureRow.id)
+    : null
+  if (signatureRow && (!signature || !signatureEvidence || signatureEvidence.integrity === 'mismatch')) {
+    throw new Error('Could not verify the estimate signature evidence for the PDF')
   }
 
   const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
@@ -142,8 +120,8 @@ export async function resolveEstimatePdfContext(
   // Content version + the render inputs updated_at cannot see: company branding, attached
   // photos and the build (a deploy can change the PDF layout).
   const baseKey =
-    signedSnapshotRow && signedSnapshotRow.signed_content
-      ? `sig-${signedSnapshotRow.id}-${signedSnapshotRow.signed_at}`
+    signatureRow && signatureRow.signed_content
+      ? `sig-${signatureRow.id}-${signatureRow.signed_at}`
       : `est-${estimate.id}-${estimate.updated_at}`
   const contentKey = `${baseKey}-${pdfRenderKeySuffix(company, estimate.attachedPhotos)}`
 
@@ -151,6 +129,7 @@ export async function resolveEstimatePdfContext(
     templateId,
     estimateLanguage,
     contentKey,
+    hasSignedSnapshot: !!signatureRow?.signed_content,
     estimate,
     signature,
     signatureEvidence,
@@ -180,23 +159,11 @@ export async function renderEstimatePdf(
   const client = Array.isArray(clientRaw) ? (clientRaw[0] ?? null) : (clientRaw ?? null)
   const projectType = project?.project_type ?? null
 
-  // Resolve "Prepared by" — staff member who created the estimate, or company
-  // owner name. Mirrors app/api/estimates/[id]/pdf/route.ts exactly.
-  let preparedBy: string | null = company.owner_name ?? null
-  if (estimate.created_by_user_id) {
-    try {
-      const svc = requireServiceClient()
-      const { data: member } = await svc
-        .from('company_members')
-        .select('display_name')
-        .eq('user_id', estimate.created_by_user_id)
-        .eq('company_id', estimate.company_id)
-        .single()
-      if (member?.display_name) preparedBy = member.display_name
-    } catch {
-      // non-fatal: fall back to owner_name already set above
-    }
-  }
+  const preparedBy = estimate.signedIdentity
+    ? estimate.signedIdentity.preparedBy
+    : estimate.created_by_user_id
+      ? await loadSigningPreparedBy(requireServiceClient(), estimate.company_id, estimate.created_by_user_id, company.owner_name ?? null)
+      : company.owner_name ?? null
 
   // Resolve attached photos server-side BEFORE constructing the element tree
   // (Pitfall 9 — pre-resolve-then-render).
@@ -319,6 +286,7 @@ export async function renderEstimatePdf(
   // and re-render, reporting every drift to Sentry (no PII).
   const guarded = await renderWithPageGuard({
     computePages,
+    additionalPageCount: signatureEvidence ? 1 : 0,
     render: async (pages) => {
       const element = createElement(PDFComponent, {
         estimate,

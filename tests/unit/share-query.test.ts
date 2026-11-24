@@ -17,6 +17,7 @@ vi.mock('@/lib/supabase/service', () => ({
 
 import { getEstimateByShareToken, getShareLinkState } from '@/lib/queries/share'
 import { computeContentFingerprint } from '@/lib/estimate/content-fingerprint'
+import { loadSigningIdentity } from '@/lib/estimate/signing-identity'
 
 type AnyRow = Record<string, unknown>
 
@@ -184,8 +185,9 @@ describe('getEstimateByShareToken: content fingerprint', () => {
     const result = await getEstimateByShareToken('tok-SECRET')
     expect(result!.estimate.contentFingerprint).toMatch(/^[0-9a-f]{64}$/)
     // The route reads the full estimates row and sections with nested items.
+    const identity = await loadSigningIdentity(serviceClientMock as never, validEstimate as never)
     expect(result!.estimate.contentFingerprint).toBe(
-      computeContentFingerprint(validEstimate as never, [{ ...section, items: [] }] as never, company)
+      computeContentFingerprint(validEstimate as never, [{ ...section, items: [] }] as never, company, identity)
     )
   })
 

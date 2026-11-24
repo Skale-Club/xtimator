@@ -24,7 +24,7 @@ vi.mock('react', async (importOriginal) => {
 vi.mock('@/components/pdf/estimate-pdf', () => ({ default: vi.fn(() => null) }))
 vi.mock('@/components/pdf/estimate-pdf-modern', () => ({ default: vi.fn(() => null) }))
 vi.mock('@/lib/queries/estimate', () => ({ getEstimateWithContext: vi.fn() }))
-vi.mock('@/lib/queries/estimate-signature', () => ({ loadLatestSignedSnapshot: vi.fn() }))
+vi.mock('@/lib/queries/estimate-signature', () => ({ loadSignatureEvidence: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
@@ -40,13 +40,14 @@ import sharp from 'sharp'
 import { resolveEstimatePdfContext, renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
 import { willPdfRenderPhoto } from '@/lib/pdf/pdf-image-support'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
-import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
+import { loadSignatureEvidence } from '@/lib/queries/estimate-signature'
+import { buildSigningIdentity } from '@/lib/estimate/signing-identity'
 import { renderToBuffer } from '@react-pdf/renderer'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 
 const mockGetEstimate = vi.mocked(getEstimateWithContext)
-const mockLoadSnapshot = vi.mocked(loadLatestSignedSnapshot)
+const mockLoadEvidence = vi.mocked(loadSignatureEvidence)
 const mockCreateElement = vi.mocked(createElement)
 const mockRenderToBuffer = vi.mocked(renderToBuffer)
 
@@ -98,6 +99,26 @@ function baseContext(overrides: { templateStyle?: string } = {}) {
     estimate: BASE_ESTIMATE,
     project: { name: 'Kitchen Reno', project_type: null, client: null },
     company: { id: 'co-1', owner_name: 'Owner Name', estimate_template_style: overrides.templateStyle ?? 'classic' },
+    signatureRow: null,
+  }
+}
+
+const SIGNATURE = { signerName: 'Jane Client', signedAt: '2026-02-01T00:00:00Z', signatureDataUrl: 'data:image/png;base64,AAA' }
+
+const EVIDENCE = {
+  ...SIGNATURE, integrity: 'unavailable', sha256: null, consentStatement: null,
+  signerEmail: null, ipAddress: null, device: null, userAgent: null, signedTotal: 1000, currencyCode: 'USD',
+} as const
+
+function signedContext(templateStyle = 'classic') {
+  const base = baseContext({ templateStyle })
+  const identity = buildSigningIdentity({ name: 'Frozen Company' }, { name: 'Frozen Project' }, 'Frozen Preparer', 'pt')
+  return {
+    ...base,
+    estimate: { ...BASE_ESTIMATE, summary: 'FROZEN summary', language: 'pt', signature: SIGNATURE, signedIdentity: identity },
+    project: { ...base.project, ...identity.project },
+    company: { ...base.company, ...identity.company },
+    signatureRow: { id: 'sig-1', signed_at: SIGNATURE.signedAt, signed_content: { summary: 'FROZEN summary' } },
   }
 }
 
@@ -108,13 +129,13 @@ const ONE_PAGE_PDF = Buffer.from('<< /Type /Page /Parent 1 0 R >>')
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockLoadEvidence.mockReset()
   mockRenderToBuffer.mockResolvedValue(ONE_PAGE_PDF)
 })
 
 describe('renderEstimatePdf (PDFPAR-04)', () => {
   it('selects EstimatePDFModern when company.estimate_template_style is "modern"', async () => {
     mockGetEstimate.mockResolvedValue(baseContext({ templateStyle: 'modern' }) as never)
-    mockLoadSnapshot.mockResolvedValue(null)
 
     await renderEstimatePdf('est-1', makeSupabase())
 
@@ -124,34 +145,26 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
 
   it('defaults to EstimatePDF (classic) when estimate_template_style is unset/invalid', async () => {
     mockGetEstimate.mockResolvedValue(baseContext({ templateStyle: 'nonsense' }) as never)
-    mockLoadSnapshot.mockResolvedValue(null)
 
     await renderEstimatePdf('est-1', makeSupabase())
 
     expect(mockCreateElement.mock.calls[0][0]).toBe(EstimatePDF)
   })
 
-  it('honors the signed snapshot (TRUST-01) — frozen content overrides the live row', async () => {
-    mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue({
-      id: 'sig-1',
-      signer_name: 'Jane Signer',
-      signature_data: 'data:image/png;base64,AA==',
-      signed_at: '2026-02-01T00:00:00Z',
-      signed_total: 1000,
-      signed_content: {
-        version: 1, summary: 'FROZEN summary', notes: null, timeline: null,
-        payment_terms: null, warranty_terms: null, estimate_date: null, estimate_number: null,
-        subtotal: 1000, tax_rate: 0, tax_amount: 0, discount_type: null, discount_value: null,
-        discount_amount: null, deposit_type: null, deposit_value: null, balance_due: null,
-        total: 1000, currency_code: 'USD', presentation_settings: null, sections: [],
-      },
-    })
+  it.each(['classic', 'modern'])('passes the frozen document and its certificate to the %s PDF', async (template) => {
+    mockRenderToBuffer.mockResolvedValue(Buffer.from('<< /Type /Page >>\n<< /Type /Page >>'))
+    mockGetEstimate.mockResolvedValue(signedContext(template) as never)
+    mockLoadEvidence.mockResolvedValue(EVIDENCE)
 
     await renderEstimatePdf('est-1', makeSupabase())
 
-    const passedProps = mockCreateElement.mock.calls[0][1] as { estimate: { summary: string } }
-    expect(passedProps.estimate.summary).toBe('FROZEN summary')
+    expect(mockCreateElement.mock.calls[0][1]).toMatchObject({
+      estimate: { summary: 'FROZEN summary' },
+      company: { name: 'Frozen Company' }, projectName: 'Frozen Project',
+      preparedBy: 'Frozen Preparer', signature: SIGNATURE, signatureEvidence: EVIDENCE,
+    })
+    expect(mockLoadEvidence).toHaveBeenCalledWith(expect.anything(), 'est-1', 'sig-1')
+    expect(mockRenderToBuffer).toHaveBeenCalledTimes(1)
   })
 
   it('pre-resolves attached photos to DRAWABLE data URIs before createElement is called', async () => {
@@ -168,7 +181,6 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
       ...baseContext(),
       estimate: { ...BASE_ESTIMATE, attachedPhotos: [{ id: 'p1', storage_path: 'co-1/p1.webp', caption: 'Before' }] },
     } as never)
-    mockLoadSnapshot.mockResolvedValue(null)
 
     await renderEstimatePdf('est-1', makeSupabase(stored))
 
@@ -186,7 +198,6 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
       ...baseContext(),
       estimate: { ...BASE_ESTIMATE, attachedPhotos: [{ id: 'p1', storage_path: 'co-1/gone.webp', caption: 'Before' }] },
     } as never)
-    mockLoadSnapshot.mockResolvedValue(null)
 
     // makeSupabase() with no bytes => download() errors => provider throws.
     const result = await renderEstimatePdf('est-1', makeSupabase())
@@ -200,7 +211,6 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
 
   it('resolveEstimatePdfContext alone never calls renderToBuffer (cheap path)', async () => {
     mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue(null)
 
     await resolveEstimatePdfContext('est-1', makeSupabase())
 
@@ -209,7 +219,6 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
 
   it('renderEstimatePdf accepts a pre-resolved context and skips re-fetching', async () => {
     mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue(null)
     const context = await resolveEstimatePdfContext('est-1', makeSupabase())
     mockGetEstimate.mockClear()
 
@@ -224,47 +233,23 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
     expect(result).toBeNull()
   })
 
-  it('resolveEstimatePdfContext returns signature: null when the snapshot has no signer_name (PDFPAR-02)', async () => {
-    mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue({
-      id: 'sig-1',
-      signer_name: null,
-      signature_data: null,
-      signed_at: '2026-02-01T00:00:00Z',
-      signed_total: 1000,
-      signed_content: null,
-    } as never)
-
-    const context = await resolveEstimatePdfContext('est-1', makeSupabase())
-
-    expect(context?.signature).toBeNull()
+  it('propagates a certificate read failure instead of exporting incomplete evidence', async () => {
+    mockGetEstimate.mockResolvedValue(signedContext() as never)
+    mockLoadEvidence.mockRejectedValue(new Error('Evidence read failed'))
+    await expect(renderEstimatePdf('est-1', makeSupabase())).rejects.toThrow('Evidence read failed')
+    expect(mockRenderToBuffer).not.toHaveBeenCalled()
   })
 
-  it('resolveEstimatePdfContext returns a populated DocumentSignature when the snapshot has signer_name/signature_data (PDFPAR-02)', async () => {
-    mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue({
-      id: 'sig-1',
-      signer_name: 'Jane Client',
-      signature_data: 'data:image/png;base64,AAA',
-      signed_at: '2026-02-01T00:00:00Z',
-      signed_total: 1000,
-      signed_content: null,
-    } as never)
-
-    const context = await resolveEstimatePdfContext('est-1', makeSupabase())
-
-    expect(context?.signature).toEqual({
-      signerName: 'Jane Client',
-      signedAt: '2026-02-01T00:00:00Z',
-      signatureDataUrl: 'data:image/png;base64,AAA',
-    })
+  it.each([null, { ...EVIDENCE, integrity: 'mismatch' as const }])('rejects missing or mismatched certificate evidence', async (evidence) => {
+    mockGetEstimate.mockResolvedValue(signedContext() as never)
+    mockLoadEvidence.mockResolvedValue(evidence)
+    await expect(resolveEstimatePdfContext('est-1', makeSupabase())).rejects.toThrow('Could not verify the estimate signature evidence')
   })
 })
 
 describe('renderEstimatePdf — runtime page-count guard', () => {
   it('a render whose real page count differs from the plan is retried with +48pt then +96pt margins, each drift reported to Sentry without PII, and the last render is returned', async () => {
     mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue(null)
     const drifted = Buffer.from('<< /Type /Page >> << /Type /Page >> << /Type /Page >>') // 3 real pages vs 1 planned
     mockRenderToBuffer.mockResolvedValue(drifted)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -289,7 +274,6 @@ describe('renderEstimatePdf — runtime page-count guard', () => {
 
   it('a render that matches its plan is rendered once and reports nothing', async () => {
     mockGetEstimate.mockResolvedValue(baseContext() as never)
-    mockLoadSnapshot.mockResolvedValue(null)
     await renderEstimatePdf('est-1', makeSupabase())
     expect(mockRenderToBuffer).toHaveBeenCalledTimes(1)
     expect(captureMessage).not.toHaveBeenCalled()

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeFakeSupabase, filterOf, type Call, type Result } from './fake-supabase'
 import { canonicalJsonStringify } from '@/lib/change-orders/snapshot'
 import { createHash } from 'node:crypto'
+import { buildChangeOrderSnapshot, hashChangeOrderSnapshot } from '@/lib/change-orders/snapshot'
 
 /**
  * Public change order sign route contract (app/api/change-orders/[id]/sign):
@@ -13,6 +14,20 @@ const mockDemoGuard = vi.fn()
 const mockRateLimit = vi.fn()
 const mockNotify = vi.fn()
 const mockHeaders = vi.fn()
+const IDENTITY = {
+  company: { name: 'Company', owner_name: null, phone: null, email: null, website: null, address: null, city: null, state: null, zip: null },
+  project: { name: 'Project', project_type: null }, client: null, preparedBy: null, language: 'en' as const,
+}
+const CONTRACT = { before: 1000, after: 1106.25, revision: 'contract-revision' }
+const PARENT = { id: 'est-1', company_id: 'comp-1', project_id: 'proj-1', estimate_number: 'SK-1045', responded_at: '2026-11-01T00:00:00Z' }
+vi.mock('@/lib/estimate/signing-identity', () => ({ loadSigningIdentity: async () => IDENTITY }))
+vi.mock('@/lib/change-orders/load', async (original) => ({
+  ...await original<typeof import('@/lib/change-orders/load')>(), loadChangeOrderSigningContract: async () => CONTRACT,
+}))
+vi.mock('@/lib/estimates/signing-result', () => ({
+  committedSigningResult: async (_client: unknown, _kind: unknown, _id: unknown, _company: unknown, alreadySigned = false) =>
+    ({ ok: true, ...(alreadySigned ? { alreadySigned: true } : {}) }),
+}))
 
 vi.mock('next/headers', () => ({ headers: () => mockHeaders() }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: (...a: unknown[]) => mockDemoGuard(...a) }))
@@ -38,6 +53,9 @@ function req(body: Record<string, unknown>): Request {
       signerName: 'Bob Client',
       signatureData: TINY_PNG,
       contentVersion: PAGE_VERSION,
+      contentFingerprint: hashChangeOrderSnapshot(buildChangeOrderSnapshot(CO_ROW, ITEMS, {
+        identity: IDENTITY, contract: CONTRACT, estimate: { number: PARENT.estimate_number, acceptedAt: PARENT.responded_at },
+      })),
       ...body,
     }),
   })
@@ -80,6 +98,7 @@ function setup(over: { co?: unknown; company?: unknown; items?: unknown; rpc?: R
       if (c.table === 'change_orders') return { data: over.co === undefined ? CO_ROW : over.co }
       if (c.table === 'companies') return { data: over.company === undefined ? { digital_signature_allowed: true, digital_signature_enabled: true } : over.company }
       if (c.table === 'change_order_items') return over.items === undefined ? { data: ITEMS } : (over.items as Result)
+      if (c.table === 'estimates') return { data: PARENT }
     },
     () => over.rpc ?? { data: RPC_OK },
   )

@@ -108,7 +108,7 @@ describe.each(['classic', 'modern'] as const)('signature certificate page (%s)',
     expect(texts).toContain(EVIDENCE.ipAddress)
     expect(texts).toContain('Safari on iPhone')
     expect(texts).toContain(SHA)
-    expect(texts).toContain('Content unchanged since signing')
+    expect(texts).toContain('Stored snapshot matches its fingerprint')
     expect(texts).toContain(EVIDENCE.consentStatement)
     expect(texts).toContain(formatCertificateDateTime(EVIDENCE.signedAt, 'en'))
     expect(texts).toContain('$12,480.50')
@@ -155,7 +155,7 @@ describe.each(['classic', 'modern'] as const)('signature certificate page (%s)',
         expect(last).toContain('Signature certificate')
         expect(last).toContain('203.0.113.42')
         expect(last).toContain(SHA)
-        expect(last).toContain('Content unchanged since signing')
+        expect(last).toContain('Stored snapshot matches its fingerprint')
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }

@@ -28,7 +28,7 @@ export interface LogCustomerMessageParams {
   providerMessageId?: string | null
   isTemplate: boolean
   templateEventType?: string | null
-  triggerSource: 'manual' | 'agentic-whatsapp' | 'agentic-mcp'
+  triggerSource: 'manual' | 'agentic-whatsapp' | 'agentic-mcp' | 'signature-receipt'
   subject?: string | null
   body: string
   status: 'sent' | 'failed'

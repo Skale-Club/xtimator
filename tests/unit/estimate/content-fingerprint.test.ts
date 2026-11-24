@@ -11,6 +11,8 @@ import {
   SIGN_CONSENT_KEY,
   SIGN_CONSENT_STATEMENT,
 } from '@/lib/estimate/signed-snapshot'
+import { buildSigningIdentity } from '@/lib/estimate/signing-identity'
+import { getSigningConsent } from '@/lib/estimate/signing-consent'
 
 const estimate = {
   summary: 'Kitchen remodel',
@@ -64,6 +66,14 @@ describe('content fingerprint: what the client would be signing', () => {
     expect(snapshot.version).toBe(2)
     expect(snapshot.consent).toEqual({ statement: SIGN_CONSENT_STATEMENT, key: SIGN_CONSENT_KEY })
     expect(snapshot.company_terms).toEqual({ enabled: true, text: 'Net 15.' })
+  })
+
+  it.each(['en', 'pt', 'es'])('freezes the displayed consent and editable validity date in %s', (locale) => {
+    const identity = buildSigningIdentity({ name: 'Contractor' }, { name: 'Project' }, null, locale)
+    const validEstimate = { ...estimate, valid_until: '2026-12-01' }
+    const snapshot = buildSignableSnapshot(validEstimate, sections(), company, identity)
+    expect(snapshot).toMatchObject({ version: 3, identity, valid_until: '2026-12-01', consent: getSigningConsent('estimate', locale) })
+    expect(fingerprintSignedContent(snapshot)).not.toBe(computeContentFingerprint({ ...validEstimate, valid_until: null }, sections(), company, identity))
   })
 
   it('is stable for the same content, whatever the row and key order', () => {

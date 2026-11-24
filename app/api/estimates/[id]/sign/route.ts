@@ -14,6 +14,8 @@ import {
   type SignedContentSnapshot,
 } from '@/lib/estimate/signed-snapshot'
 import { buildSignableSnapshot, fingerprintSignedContent } from '@/lib/estimate/content-fingerprint'
+import { loadSigningIdentity } from '@/lib/estimate/signing-identity'
+import { committedSigningResult } from '@/lib/estimates/signing-result'
 
 interface SignRequestBody {
   token: string
@@ -49,6 +51,8 @@ type SignEstimateRow = SnapshotSourceEstimate & {
   client_response: string | null
   is_current: boolean
   updated_at: string
+  created_by_user_id?: string | null
+  language?: string | null
 }
 
 interface SignRpcResult {
@@ -235,7 +239,7 @@ export async function POST(
       estimate.client_response === 'accepted' &&
       (await isSameSignerRetry(supabase, 'estimate_signatures', estimate.id, trimmedName, signerEmailValue))
     ) {
-      return NextResponse.json({ success: true, alreadySigned: true })
+      return NextResponse.json(await committedSigningResult(supabase, 'estimate', id, estimate.company_id, true))
     }
 
     // Demo guard: unchanged in relative position — still runs before the
@@ -287,6 +291,7 @@ export async function POST(
       estimate_terms_enabled: company.estimate_terms_enabled as boolean | null,
       estimate_terms_text: company.estimate_terms_text as string | null,
     }
+    const identity = await loadSigningIdentity(supabase, estimate)
 
     type AttemptOutcome =
       | { kind: 'success'; result: SignRpcResult }
@@ -320,7 +325,8 @@ export async function POST(
         signedContent = buildSignableSnapshot(
           estimateRow,
           sectionsData as unknown as SnapshotSourceSection[],
-          companyTerms
+          companyTerms,
+          identity,
         )
       } catch (snapshotError) {
         console.error('Signature snapshot build error:', snapshotError)
@@ -401,7 +407,7 @@ export async function POST(
       if (outcome.code === SIGN_RPC_ALREADY_RESPONDED) {
         // Concurrent duplicate of the same signature: also idempotent.
         if (await isSameSignerRetry(supabase, 'estimate_signatures', id, trimmedName, signerEmailValue)) {
-          return NextResponse.json({ success: true, alreadySigned: true })
+          return NextResponse.json(await committedSigningResult(supabase, 'estimate', id, estimate.company_id, true))
         }
         return NextResponse.json({ error: 'Estimate already responded to' }, { status: 409 })
       }
@@ -445,7 +451,7 @@ export async function POST(
       console.warn('[sign] recording price history failed:', historyError)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json(await committedSigningResult(supabase, 'estimate', id, estimate.company_id))
   } catch (error) {
     console.error('Sign endpoint error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

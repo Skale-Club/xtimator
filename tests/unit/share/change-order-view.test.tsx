@@ -92,6 +92,11 @@ describe('ChangeOrderView - content', () => {
     render(<ChangeOrderView data={data} token="tok-co1" appName="Xtimator" />)
     expect(screen.getByText('Aprovar e assinar')).toBeTruthy()
     expect(screen.getByTestId('change-order-kicker').textContent).toBe('Aditivo nº 1 · orçamento SK-1045')
+    fireEvent.click(screen.getByRole('button', { name: 'Aprovar e assinar' }))
+    const consent = 'Ao assinar, você aprova esta alteração e o novo total do contrato.'
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.getAttribute('aria-describedby')).toBeTruthy()
+    expect(within(dialog).getAllByText(consent)).toHaveLength(2)
   })
 })
 
@@ -133,10 +138,27 @@ describe('ChangeOrderView - approve and decline', () => {
     expect(within(bar).getByRole('button', { name: /approve and sign/i }).className).toContain('min-h-11')
   })
 
-  it('approve POSTs the rendered updated_at as contentVersion and shows the approved state', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) })
+  it('submits the rendered version and fingerprint, then shows the committed evidence', async () => {
+    const signature = {
+      signerName: 'Committed Signer',
+      signedAt: SIGNED.signed_at,
+      signatureDataUrl: SIGNED.signature_data,
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        signature,
+        signedContract: { before: 10200, after: 11300, revision: 'committed-revision' },
+      }),
+    })
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    renderView()
+    renderView({}, {}, {}, {
+      contentFingerprint: 'reviewed-fingerprint',
+      signingContract: { before: 10100, after: 11200, revision: 'reviewed-revision' },
+    })
+    const totals = within(screen.getByTestId('change-order-totals'))
+    expect(totals.getByText('New total').nextSibling?.textContent).toBe('$11,200.00')
     await openAndSign()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     const [url, init] = fetchMock.mock.calls[0]
@@ -147,25 +169,50 @@ describe('ChangeOrderView - approve and decline', () => {
       signerName: 'Jane Doe',
       signatureData: 'data:image/png;base64,AAAA',
       contentVersion: '2026-02-01T10:00:00.123456+00:00',
+      contentFingerprint: 'reviewed-fingerprint',
     })
     expect(await screen.findByText('Change order approved')).toBeTruthy()
-    expect(screen.getByTestId('approved-signature').textContent).toContain('Jane Doe')
+    const signatureBlock = within(screen.getByTestId('approved-signature'))
+    expect(signatureBlock.getByText(signature.signerName)).toBeTruthy()
+    expect(signatureBlock.getByRole('img').getAttribute('src')).toBe(signature.signatureDataUrl)
+    expect(screen.getByTestId('response-status').textContent).toContain('Approved on February 3, 2026')
     expect(screen.queryByTestId('change-order-actions')).toBeNull()
-    // approved on this visit: the new total does not double count it
-    expect(within(screen.getByTestId('change-order-totals')).getByText('New total').nextSibling?.textContent).toBe('$11,100.00')
+    expect(totals.getByText('Current contract').nextSibling?.textContent).toBe('$10,200.00')
+    expect(totals.getByText('New total').nextSibling?.textContent).toBe('$11,300.00')
   })
 
   it('409 change_order_updated closes the dialog and shows the reload notice', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: 'change_order_updated' }) })
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    renderView()
+    const stale = renderView()
     await openAndSign()
     const notice = await screen.findByTestId('change-order-updated-notice')
     expect(notice.textContent).toContain('This change order was just updated. Review the latest version before signing.')
     expect(within(notice).getByRole('button', { name: /load latest version/i })).toBeTruthy()
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.queryByTestId('change-order-actions')).toBeNull()
     expect(screen.queryByText('Change order approved')).toBeNull()
+
+    stale.unmount()
+    renderView({ updated_at: '2026-02-02T10:00:00Z' }, {}, {}, { contentFingerprint: 'new-fingerprint' })
+    fireEvent.click(screen.getByRole('button', { name: /approve and sign/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'stub-name' }))
+    expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: /sign & approve/i }).disabled).toBe(true)
   })
+
+  it.each([[403, 'link_locked'], [410, 'link_expired']])(
+    'leaves an actionable link notice after %s %s', async (status, error) => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({ error }) }) as unknown as typeof fetch
+      renderView()
+      await openAndSign()
+      const notice = await screen.findByTestId('change-order-link-unavailable-notice')
+      expect(notice.textContent).toContain('This link is no longer available. Please reload the page.')
+      expect(within(notice).getByRole('button', { name: 'Load latest version' })).toBeTruthy()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.queryByTestId('change-order-actions')).toBeNull()
+    },
+  )
 
   it.each([
     ['already_responded', 'change-order-answered-notice'],
@@ -207,6 +254,7 @@ describe('ChangeOrderView - answered states', () => {
       responded_at: '2026-02-03T15:00:00Z',
       hasSignature: true,
       signature: SIGNED,
+      signedContract: { before: 10000, after: 11100, revision: 'signed-revision' },
     })
     expect(screen.getByText('Change order approved')).toBeTruthy()
     expect(screen.getByTestId('response-status').textContent).toContain('Approved on February 3, 2026')
@@ -214,7 +262,6 @@ describe('ChangeOrderView - answered states', () => {
     expect(img.getAttribute('src')).toBe(SIGNED.signature_data)
     expect(screen.getByTestId('approved-signature').textContent).toContain('Jane Doe')
     expect(screen.queryByTestId('change-order-actions')).toBeNull()
-    // the summary already includes it (10000 + 1100): current contract takes it back out
     const totals = screen.getByTestId('change-order-totals')
     expect(within(totals).getByText('Current contract').nextSibling?.textContent).toBe('$10,000.00')
     expect(within(totals).getByText('New total').nextSibling?.textContent).toBe('$11,100.00')

@@ -14,6 +14,7 @@ import { applySignedSnapshot, applySignedCompanyTerms } from '@/lib/estimate/sig
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites
 import { resolveDigitalSignature } from '@/lib/features/company-features'
 import { computeContentFingerprint } from '@/lib/estimate/content-fingerprint'
+import { buildSigningIdentity, loadSigningPreparedBy, SIGNING_PROJECT_COLUMNS } from '@/lib/estimate/signing-identity'
 import type { SnapshotSourceEstimate, SnapshotSourceSection } from '@/lib/estimate/signed-snapshot'
 
 type PublicCompanyRow = {
@@ -24,8 +25,8 @@ type PublicCompanyRow = {
 /**
  * The anonymous viewer gets only the FINAL yes/no for online signing (platform
  * switch AND tenant switch). `digital_signature_allowed` is stripped: the
- * platform switch is never exposed. The content fingerprint reads only the
- * Terms fields, so it is unaffected by this overlay.
+ * platform switch is never exposed. Signing fingerprints use document terms
+ * and identity, so this feature-switch overlay does not change them.
  */
 function toPublicCompany(row: PublicCompanyRow) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -103,9 +104,10 @@ export interface ShareEstimateData {
     signerName: string | null
     signedAt: string | null
     signatureImageDataUrl: string | null
+    hasSignedSnapshot?: boolean
     /**
-     * Fingerprint of the content a signature would freeze (estimate, lines and
-     * company terms), computed from the same rows this page renders. The client
+     * Fingerprint of the content a signature would freeze, including party
+     * identity, computed from the same rows this page renders. The client
      * sends it back when signing and the sign route refuses on a mismatch, so
      * nobody signs a document that changed after their page loaded. null once
      * a signature exists (nothing left to sign).
@@ -135,38 +137,6 @@ export interface ShareEstimateData {
   preparedBy: string | null
 }
 
-/**
- * Resolve the "Prepared by" name for the public share page. Mirrors
- * renderEstimatePdf: `company_members.display_name` for the estimate's
- * `created_by_user_id` WITHIN the estimate's company, falling back to the
- * company's `owner_name`. Runs on the same service-role client the share
- * queries already use and selects ONLY `display_name` (no email / role /
- * user_id), so nothing beyond the name the PDF already prints is exposed.
- * Never throws: any failure degrades to the owner_name fallback.
- */
-async function resolvePreparedBy(
-  supabase: ReturnType<typeof requireServiceClient>,
-  createdByUserId: string | null | undefined,
-  companyId: string,
-  ownerName: string | null
-): Promise<string | null> {
-  let preparedBy: string | null = ownerName ?? null
-  if (!createdByUserId) return preparedBy
-  try {
-    const { data: member } = await supabase
-      .from('company_members')
-      .select('display_name')
-      .eq('user_id', createdByUserId)
-      .eq('company_id', companyId)
-      .maybeSingle()
-    const name = (member as { display_name?: string | null } | null)?.display_name
-    if (name) preparedBy = name
-  } catch {
-    // non-fatal: keep owner_name fallback
-  }
-  return preparedBy
-}
-
 export async function getEstimateByShareToken(
   token: string
 ): Promise<ShareEstimateData | null> {
@@ -193,21 +163,23 @@ export async function getEstimateByShareToken(
   const estimate = stripPublicEstimate(estimateData) as Estimate
 
   // Fetch sections with items (same pattern as fetchEstimateWithSections)
-  const { data: sectionsData } = await supabase
+  const { data: sectionsData, error: sectionsError } = await supabase
     .from('estimate_sections')
     .select('*')
     .eq('estimate_id', estimate.id)
     .order('sort_order', { ascending: true })
+  if (sectionsError) throw new Error('Could not load the estimate sections', { cause: sectionsError })
 
   const sections = (sectionsData ?? []) as EstimateSection[]
 
   const sectionsWithItems = await Promise.all(
     sections.map(async (section) => {
-      const { data: itemsData } = await supabase
+      const { data: itemsData, error: itemsError } = await supabase
         .from('estimate_items')
         .select('*')
         .eq('section_id', section.id)
         .order('sort_order', { ascending: true })
+      if (itemsError) throw new Error('Could not load the estimate items', { cause: itemsError })
 
       return {
         ...section,
@@ -263,20 +235,19 @@ export async function getEstimateByShareToken(
   )
 
   // Fetch project + client
-  const { data: projectData } = await supabase
+  const { data: projectData, error: projectError } = await supabase
     .from('projects')
-    .select(
-      'name, project_type, client_id, client:clients(id, name, email, phone, address, city, state, zip)'
-    )
+    .select(SIGNING_PROJECT_COLUMNS)
     .eq('id', estimate.project_id)
     .single()
 
+  if (projectError) throw new Error('Could not load the estimate project', { cause: projectError })
   if (!projectData) return null
 
   // Fetch only the company fields the public document + pay button render.
   // notify_on_* prefs are deliberately excluded — they're internal and were
   // being serialized to anonymous viewers without ever being displayed.
-  const { data: companyData } = await supabase
+  const { data: companyData, error: companyError } = await supabase
     .from('companies')
     .select(
       'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_allowed, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
@@ -284,7 +255,15 @@ export async function getEstimateByShareToken(
     .eq('id', estimate.company_id)
     .single()
 
+  if (companyError) throw new Error('Could not load the estimate contractor', { cause: companyError })
   if (!companyData) return null
+
+  const identity = signedContent?.identity ?? buildSigningIdentity(
+    companyData,
+    projectData,
+    await loadSigningPreparedBy(supabase, estimate.company_id, estimate.created_by_user_id, companyData.owner_name ?? null),
+    estimate.language,
+  )
 
   // Computed from the LIVE rows (never the signed overlay): it must equal what
   // the sign route rebuilds from the database when the client signs.
@@ -293,7 +272,8 @@ export async function getEstimateByShareToken(
     : computeContentFingerprint(
         estimate as unknown as SnapshotSourceEstimate,
         sectionsWithItems as unknown as SnapshotSourceSection[],
-        companyData as { estimate_terms_enabled?: boolean | null; estimate_terms_text?: string | null }
+        companyData,
+        identity,
       )
 
   // TRUST-01 v2 (security-hardening S1): a v2 signed snapshot freezes the
@@ -302,7 +282,7 @@ export async function getEstimateByShareToken(
   // snapshot or no signature at all is a no-op (renders live terms, today's
   // behavior).
   const companyDataFrozen = applySignedCompanyTerms(
-    toPublicCompany(companyData as unknown as PublicCompanyRow) as ShareEstimateData['estimate']['company'],
+    { ...toPublicCompany(companyData as unknown as PublicCompanyRow), ...identity.company } as ShareEstimateData['estimate']['company'],
     signedContent
   )
 
@@ -323,34 +303,6 @@ export async function getEstimateByShareToken(
   } catch {
     invoices = []
   }
-
-  // Extract client from project join (Supabase returns it as array or object)
-  // Phase 162-02 (DOCUX-02) — `id` widened onto the shape so ShareEstimateData
-  // can carry it through to the shared DocumentClient interface.
-  const clientRaw = projectData.client as
-    | {
-        id: string
-        name: string
-        email: string | null
-        phone: string | null
-        address: string | null
-        city: string | null
-        state: string | null
-        zip: string | null
-      }[]
-    | {
-        id: string
-        name: string
-        email: string | null
-        phone: string | null
-        address: string | null
-        city: string | null
-        state: string | null
-        zip: string | null
-      }
-    | null
-
-  const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw
 
   // Phase 70 — surface payment fields and derive cents total from `estimate.total`
   // (which is stored in dollars as numeric). Use Math.round to avoid float drift.
@@ -387,10 +339,7 @@ export async function getEstimateByShareToken(
   return {
     estimate: {
       ...safeEstimate,
-      project: {
-        name: projectData.name as string,
-        project_type: projectData.project_type as string | null,
-      },
+      project: identity.project,
       company: companyDataFrozen,
       payment_status,
       total_amount_cents,
@@ -404,15 +353,11 @@ export async function getEstimateByShareToken(
       signerName,
       signedAt,
       signatureImageDataUrl,
+      hasSignedSnapshot: !!signedContent,
       contentFingerprint,
     },
-    client,
-    preparedBy: await resolvePreparedBy(
-      supabase,
-      estimate.created_by_user_id,
-      estimate.company_id,
-      companyDataFrozen.owner_name
-    ),
+    client: identity.client ? { ...identity.client, id: identity.client.id ?? '' } : null,
+    preparedBy: identity.preparedBy,
   }
 }
 
@@ -480,21 +425,23 @@ export async function getEstimateByPublicToken(
   const estimate = stripPublicEstimate(estimateData) as Estimate
   const realShareToken = estimate.share_token
 
-  const { data: sectionsData } = await supabase
+  const { data: sectionsData, error: sectionsError } = await supabase
     .from('estimate_sections')
     .select('*')
     .eq('estimate_id', estimate.id)
     .order('sort_order', { ascending: true })
+  if (sectionsError) throw new Error('Could not load the estimate sections', { cause: sectionsError })
 
   const sections = (sectionsData ?? []) as EstimateSection[]
 
   const sectionsWithItems = await Promise.all(
     sections.map(async (section) => {
-      const { data: itemsData } = await supabase
+      const { data: itemsData, error: itemsError } = await supabase
         .from('estimate_items')
         .select('*')
         .eq('section_id', section.id)
         .order('sort_order', { ascending: true })
+      if (itemsError) throw new Error('Could not load the estimate items', { cause: itemsError })
 
       return {
         ...section,
@@ -536,17 +483,16 @@ export async function getEstimateByPublicToken(
     signedContent
   )
 
-  const { data: projectData } = await supabase
+  const { data: projectData, error: projectError } = await supabase
     .from('projects')
-    .select(
-      'name, project_type, client_id, client:clients(id, name, email, phone, address, city, state, zip)'
-    )
+    .select(SIGNING_PROJECT_COLUMNS)
     .eq('id', estimate.project_id)
     .single()
 
+  if (projectError) throw new Error('Could not load the estimate project', { cause: projectError })
   if (!projectData) return null
 
-  const { data: companyData } = await supabase
+  const { data: companyData, error: companyError } = await supabase
     .from('companies')
     .select(
       'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_allowed, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
@@ -554,7 +500,15 @@ export async function getEstimateByPublicToken(
     .eq('id', estimate.company_id)
     .single()
 
+  if (companyError) throw new Error('Could not load the estimate contractor', { cause: companyError })
   if (!companyData) return null
+
+  const identity = signedContent?.identity ?? buildSigningIdentity(
+    companyData,
+    projectData,
+    await loadSigningPreparedBy(supabase, estimate.company_id, estimate.created_by_user_id, companyData.owner_name ?? null),
+    estimate.language,
+  )
 
   // Computed from the LIVE rows (never the signed overlay): it must equal what
   // the sign route rebuilds from the database when the client signs.
@@ -563,14 +517,15 @@ export async function getEstimateByPublicToken(
     : computeContentFingerprint(
         estimate as unknown as SnapshotSourceEstimate,
         sectionsWithItems as unknown as SnapshotSourceSection[],
-        companyData as { estimate_terms_enabled?: boolean | null; estimate_terms_text?: string | null }
+        companyData,
+        identity,
       )
 
   // TRUST-01 v2 (security-hardening S1) — same overlay as
   // getEstimateByShareToken above; see that call site's comment for the
   // full rationale.
   const companyDataFrozen = applySignedCompanyTerms(
-    toPublicCompany(companyData as unknown as PublicCompanyRow) as ShareEstimateData['estimate']['company'],
+    { ...toPublicCompany(companyData as unknown as PublicCompanyRow), ...identity.company } as ShareEstimateData['estimate']['company'],
     signedContent
   )
 
@@ -587,15 +542,6 @@ export async function getEstimateByPublicToken(
   } catch {
     invoices = []
   }
-
-  // Phase 162-02 (DOCUX-02) — `id` widened onto the shape so ShareEstimateData
-  // can carry it through to the shared DocumentClient interface.
-  const clientRaw = projectData.client as
-    | { id: string; name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }[]
-    | { id: string; name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null }
-    | null
-
-  const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw
 
   const estimateRaw = estimateData as Record<string, unknown>
   const payment_status =
@@ -624,10 +570,7 @@ export async function getEstimateByPublicToken(
   return {
     estimate: {
       ...safeEstimate,
-      project: {
-        name: projectData.name as string,
-        project_type: projectData.project_type as string | null,
-      },
+      project: identity.project,
       company: companyDataFrozen,
       payment_status,
       total_amount_cents,
@@ -639,15 +582,11 @@ export async function getEstimateByPublicToken(
       signerName,
       signedAt,
       signatureImageDataUrl,
+      hasSignedSnapshot: !!signedContent,
       contentFingerprint,
     },
-    client,
-    preparedBy: await resolvePreparedBy(
-      supabase,
-      estimate.created_by_user_id,
-      estimate.company_id,
-      companyDataFrozen.owner_name
-    ),
+    client: identity.client ? { ...identity.client, id: identity.client.id ?? '' } : null,
+    preparedBy: identity.preparedBy,
     realShareToken,
   }
 }

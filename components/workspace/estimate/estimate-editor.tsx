@@ -94,6 +94,7 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
     deposit: state.deposit,
     balance_due: state.balance_due,
     estimate_date: state.estimate_date,
+    valid_until: state.valid_until,
     estimate_number: state.estimate_number,
     currency_code: state.currency_code,
     // Phase 162-04 (DOCUX-01) — thread raw override state so EstimateDocument
@@ -339,6 +340,11 @@ export function EstimateEditor({
   const [state, dispatch] = useEstimateReducer(estimate)
   const stateRef = useRef(state)
   stateRef.current = state
+  useEffect(() => {
+    if (estimate.hasSignature && stateRef.current.id === estimate.id && !stateRef.current.hasSignature) {
+      dispatch({ type: 'INIT', estimate })
+    }
+  }, [dispatch, estimate])
 
   // A draft stashed because a save failed across a deploy (lib/deploy/stale-build):
   // restore it as unsaved edits so this build saves it. Taken only when the
@@ -407,6 +413,22 @@ export function EstimateEditor({
   // reference on every render, making "did the data actually change"
   // comparisons meaningless.
   const documentData = useMemo(() => stateToDocumentData(state), [state])
+  const signedIdentity = state.signedIdentity
+  const signedTerms = state.signedCompanyTerms
+  const documentCompany = useMemo(() => ({
+    ...company,
+    ...signedIdentity?.company,
+    ...(signedTerms ? { estimate_terms_enabled: signedTerms.enabled, estimate_terms_text: signedTerms.text } : {}),
+  }), [company, signedIdentity, signedTerms])
+  const documentClient = useMemo(() => {
+    if (!signedIdentity) return client
+    return signedIdentity.client ? { ...signedIdentity.client, id: signedIdentity.client.id ?? '' } : null
+  }, [client, signedIdentity])
+  const documentProjectName = signedIdentity?.project.name ?? localProjectName
+  const documentProjectType = signedIdentity ? signedIdentity.project.project_type : projectType
+  const documentPreparedBy = signedIdentity ? signedIdentity.preparedBy : preparedBy
+  const documentLanguage: EstimateLanguage = signedIdentity?.language ?? state.language ?? estimate.language ?? 'en'
+  const documentCreatedAt = state.created_at ?? estimate.created_at
 
   // Phase 185 Plan 03 (PGMODE-02/03) — called UNCONDITIONALLY every render
   // (rules-of-hooks safe); `enabled` internally gates all work (font fetch +
@@ -414,15 +436,15 @@ export function EstimateEditor({
   const { pages: paginatedPages } = usePaginatedPreview({
     data: documentData,
     structuralEpoch: state.structuralEditEpoch,
-    company,
+    company: documentCompany,
     templateId: estimateTemplateId,
-    preparedBy,
-    language: (estimate.language ?? 'en') as EstimateLanguage,
-    projectName: localProjectName,
-    projectType,
-    client,
+    preparedBy: documentPreparedBy,
+    language: documentLanguage,
+    projectName: documentProjectName,
+    projectType: documentProjectType,
+    client: documentClient,
     estimateSeq: state.estimate_seq,
-    estimateCreatedAt: estimate.created_at,
+    estimateCreatedAt: documentCreatedAt,
     enabled: viewMode === 'page',
   })
 
@@ -485,8 +507,8 @@ export function EstimateEditor({
     state.hasSignature
   // Content lock ≠ display-preferences lock (164-02 PRESENTATION CARVE-OUT):
   // the document/autosave/nav-guards gate on isContentReadOnly, but the gear
-  // panel gets its OWN gate below (gearDisabled) so presentation settings
-  // stay editable on a locked-but-current estimate.
+  // panel gets its own gate so presentation settings stay editable on a
+  // locked current estimate before an online signature freezes them.
   // A paywalled free account is read-only on the server (assertCanEdit): the
   // editor says so up front instead of letting every save fail. The paywall
   // banner above explains why. An out-of-credits Pro account may still edit.
@@ -563,8 +585,8 @@ export function EstimateEditor({
   const translatingRef = useRef(false)
 
   const handleDiscard = useCallback(async () => {
-    const result = await getEstimateByIdAction(stateRef.current.id)
-    if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
+    const result = await getEstimateByIdAction(stateRef.current.id).catch(() => null)
+    if (!result?.data) { toast.error('Failed to reload estimate'); return }
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
     // "Reload latest" is the take-theirs exit out of a conflict (SAVE-05) —
@@ -893,22 +915,23 @@ export function EstimateEditor({
   const presentationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const handlePresentationSettingsChange = useCallback(
     (next: PresentationSettings) => {
-      // Paywalled: the server refuses this write and content autosave is off,
-      // so a change here would show in the preview and vanish on reload.
-      if (billingReadOnly) return
+      if (billingReadOnly || stateRef.current.hasSignature) return
       dispatch({ type: 'UPDATE_PRESENTATION_SETTINGS', presentation_settings: next })
       if (locked) {
+        const estimateId = stateRef.current.id
         // Serialized: each write reads the version the previous one returned
         // (tokenRef), so two quick consecutive changes never send a stale
         // expectedUpdatedAt and conflict against the editor's own write.
         presentationQueueRef.current = presentationQueueRef.current.then(async () => {
+          if (stateRef.current.id !== estimateId || stateRef.current.hasSignature) return
           let result: Awaited<ReturnType<typeof savePresentationSettings>>
           try {
-            result = await savePresentationSettings(stateRef.current.id, next, tokenRef.current)
+            result = await savePresentationSettings(estimateId, next, tokenRef.current)
           } catch {
             toast.error(tRef.current('Could not save your changes. Try again.'))
             return
           }
+          if (stateRef.current.id !== estimateId || stateRef.current.hasSignature) return
           if (result.error) {
             if (result.error === 'estimate_not_current') {
               setNotCurrentByServer(true)
@@ -1155,9 +1178,9 @@ export function EstimateEditor({
 
   const handleVersionChange = useCallback(async (estimateId: string) => {
     if (estimateId === currentVersionId) return
+    const result = await getEstimateByIdAction(estimateId).catch(() => null)
+    if (!result?.data) { toast.error('Failed to load version'); return }
     setCurrentVersionId(estimateId)
-    const result = await getEstimateByIdAction(estimateId)
-    if (result.error || !result.data) { toast.error('Failed to load version'); return }
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
     // The latch is scoped to the PREVIOUS version's server rejection — the
@@ -1391,18 +1414,18 @@ export function EstimateEditor({
           <PaginatedPreview
             data={documentData}
             pages={paginatedPages}
-            company={company}
+            company={documentCompany}
             templateId={estimateTemplateId}
-            language={(estimate.language ?? 'en') as EstimateLanguage}
+            language={documentLanguage}
             brandColor={companyBrandColor ?? undefined}
-            client={client}
-            projectName={localProjectName}
-            projectType={projectType}
-            preparedBy={preparedBy}
+            client={documentClient}
+            projectName={documentProjectName}
+            projectType={documentProjectType}
+            preparedBy={documentPreparedBy}
             estimateVersion={state.version}
             estimateSeq={state.estimate_seq}
-            estimateCreatedAt={estimate.created_at}
-            companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
+            estimateCreatedAt={documentCreatedAt}
+            companyTerms={{ enabled: documentCompany.estimate_terms_enabled ?? false, text: documentCompany.estimate_terms_text ?? null }}
             dispatch={isContentReadOnly ? undefined : dispatch}
             priceBookItems={priceBookItems}
             onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
@@ -1419,24 +1442,24 @@ export function EstimateEditor({
           <EstimateDocument
             mode="edit"
             data={documentData}
-            company={company}
+            company={documentCompany}
             companyDefaults={companyDefaults}
             brandColor={companyBrandColor ?? undefined}
-            client={client}
-            projectName={localProjectName}
-            projectType={projectType}
-            language={(estimate.language ?? 'en') as EstimateLanguage}
+            client={documentClient}
+            projectName={documentProjectName}
+            projectType={documentProjectType}
+            language={documentLanguage}
             estimateVersion={state.version}
             estimateSeq={state.estimate_seq}
-            estimateCreatedAt={estimate.created_at}
+            estimateCreatedAt={documentCreatedAt}
             dispatch={dispatch}
             isReadOnly={isContentReadOnly}
             projectId={projectId}
             onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
             priceBookItems={priceBookItems}
             onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
-            preparedBy={preparedBy}
-            companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
+            preparedBy={documentPreparedBy}
+            companyTerms={{ enabled: documentCompany.estimate_terms_enabled ?? false, text: documentCompany.estimate_terms_text ?? null }}
           />
         )}
       </div>
@@ -1446,7 +1469,7 @@ export function EstimateEditor({
       {isCurrent && !billingReadOnly && (
         <AddBlockRow
           settings={state.presentation_settings}
-          hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
+          hasCompanyTerms={!!(documentCompany.estimate_terms_enabled && documentCompany.estimate_terms_text)}
           hasValidUntil={!!state.valid_until}
           readOnly={isContentReadOnly}
           content={{
@@ -1575,9 +1598,9 @@ export function EstimateEditor({
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.
           Phase 164 Plan 02 (TRUST-02 carve-out): the gear panel's OWN gate is
           `!isCurrent` (gearDisabled) — NOT isContentReadOnly — so it stays
-          enabled on a locked-but-current estimate. handlePresentationSettingsChange
-          always dispatches (live preview) and additionally calls the
-          lock-exempt savePresentationSettings action directly when locked. */}
+          enabled on a locked-but-current estimate. Unsigned locked estimates
+          save through the lock-exempt action. Signed estimates keep their
+          snapshot settings. */}
       {isCurrent && (
         <PresentationSettingsPanel
           open={settingsOpen}
@@ -1591,12 +1614,12 @@ export function EstimateEditor({
           })}
           clientSlot={linkClientSlot}
           anchorRef={settingsGearRef}
-          hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
+          hasCompanyTerms={!!(documentCompany.estimate_terms_enabled && documentCompany.estimate_terms_text)}
           hasValidUntil={!!state.valid_until}
-          language={(estimate.language ?? 'en') as EstimateLanguage}
+          language={documentLanguage}
           onLanguageChange={handleLanguageChange}
           languageDisabled={isContentReadOnly}
-          readOnly={billingReadOnly}
+          readOnly={billingReadOnly || state.hasSignature}
         />
       )}
     </div>

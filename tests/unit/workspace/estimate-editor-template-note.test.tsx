@@ -4,6 +4,8 @@ import { EstimateEditor } from '@/components/workspace/estimate/estimate-editor'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
+import { getEstimateByIdAction, savePresentationSettings } from '@/lib/actions/estimate'
+import { buildSigningIdentity } from '@/lib/estimate/signing-identity'
 
 // The editable 'width' document is always the standard (Classic) layout, while
 // the Page-view preview renders the company's template. For a Modern company
@@ -22,6 +24,9 @@ vi.mock('@/lib/i18n/use-translation', () => ({
 }))
 
 const mockSetSlot = vi.fn()
+const mockWidthDocument = vi.fn()
+const mockPageDocument = vi.fn()
+const mockPresentationSettings = vi.fn()
 vi.mock('@/components/workspace/estimate-version-context', () => ({
   useEstimateVersionSlot: () => ({ setSlot: mockSetSlot }),
 }))
@@ -36,14 +41,16 @@ vi.mock('@/lib/actions/estimate-photo', () => ({ removePhotoFromEstimate: vi.fn(
 vi.mock('@/lib/actions/project', () => ({ renameProjectAction: vi.fn() }))
 
 vi.mock('@/components/workspace/estimate/estimate-document', () => ({
-  EstimateDocument: () => <div data-testid="edit-document" />,
+  EstimateDocument: (props: unknown) => {
+    mockWidthDocument(props)
+    return <div data-testid="edit-document" />
+  },
 }))
-// Page view: the preview itself is covered elsewhere — only the template id it
-// is handed matters here.
 vi.mock('@/components/workspace/estimate/paginated-preview', () => ({
-  PaginatedPreview: (props: { templateId: string }) => (
-    <div data-testid="paginated-preview" data-template-id={props.templateId} />
-  ),
+  PaginatedPreview: (props: { templateId: string }) => {
+    mockPageDocument(props)
+    return <div data-testid="paginated-preview" data-template-id={props.templateId} />
+  },
 }))
 vi.mock('@/components/workspace/estimate/use-paginated-preview', () => ({
   usePaginatedPreview: () => ({ pages: null }),
@@ -52,7 +59,7 @@ vi.mock('@/components/workspace/estimate/estimate-floating-actions', () => ({
   EstimateFloatingActions: () => null,
 }))
 vi.mock('@/components/workspace/estimate/presentation-settings-panel', () => ({
-  PresentationSettingsPanel: () => null,
+  PresentationSettingsPanel: (props: unknown) => { mockPresentationSettings(props); return null },
 }))
 vi.mock('@/components/workspace/estimate/issued-invoices-panel', () => ({
   IssuedInvoicesPanel: () => null,
@@ -62,7 +69,7 @@ vi.mock('@/components/workspace/estimate/generate-invoice-dialog', () => ({
 }))
 
 beforeEach(() => {
-  mockSetSlot.mockReset()
+  vi.clearAllMocks()
 })
 
 function buildEstimate(): EstimateWithSections {
@@ -108,7 +115,7 @@ function buildEstimate(): EstimateWithSections {
   } as unknown as EstimateWithSections
 }
 
-function renderEditor(templateId: EstimateTemplateId) {
+function renderEditor(templateId: EstimateTemplateId, estimate = buildEstimate()) {
   const company: DocumentCompany = {
     name: 'Acme Co',
     owner_name: null,
@@ -125,7 +132,7 @@ function renderEditor(templateId: EstimateTemplateId) {
   const companyDefaults: CompanyDefaults = { payment_terms: null, warranty_terms: null, tax_rate: 0 }
   return render(
     <EstimateEditor
-      estimate={buildEstimate()}
+      estimate={estimate}
       versions={[]}
       issuedInvoices={[]}
       paymentsEnabled={false}
@@ -182,5 +189,39 @@ describe('EstimateEditor — Modern template note', () => {
     expect(screen.getByTestId('paginated-preview')).toBeTruthy()
     const calls = mockSetSlot.mock.calls
     expect((calls[calls.length - 1][0] as { viewMode: string }).viewMode).toBe('page')
+  })
+
+  it('renders frozen parties in width and page views, without applying them to another estimate version', async () => {
+    const signedIdentity = buildSigningIdentity(
+      { name: 'Signed Contractor' },
+      { name: 'Signed Project', project_type: 'Renovation', client: { id: 'client-1', name: 'Signed Client', address: 'Signed Address' } },
+      'Signed Preparer',
+      'es',
+    )
+    renderEditor('classic', {
+      ...buildEstimate(), hasSignature: true, signedIdentity,
+      signedCompanyTerms: { enabled: true, text: 'Signed terms' }, valid_until: '2026-12-01',
+    })
+
+    const signedDocument = {
+      company: { name: 'Signed Contractor' }, projectName: 'Signed Project', projectType: 'Renovation',
+      client: { name: 'Signed Client', address: 'Signed Address' }, preparedBy: 'Signed Preparer', language: 'es',
+      companyTerms: { enabled: true, text: 'Signed terms' }, data: { valid_until: '2026-12-01' },
+    }
+    expect(mockWidthDocument.mock.lastCall?.[0]).toMatchObject(signedDocument)
+    expect(mockPresentationSettings).toHaveBeenLastCalledWith(expect.objectContaining({ readOnly: true }))
+    const settings = mockPresentationSettings.mock.lastCall?.[0] as { onChange: (value: object) => void }
+    act(() => settings.onChange({ blocks: {} }))
+    expect(savePresentationSettings).not.toHaveBeenCalled()
+    setViewMode('page')
+    expect(mockPageDocument.mock.lastCall?.[0]).toMatchObject(signedDocument)
+
+    vi.mocked(getEstimateByIdAction).mockResolvedValue({ data: { ...buildEstimate(), id: 'est-old', is_current: false } })
+    const slot = mockSetSlot.mock.lastCall?.[0] as { onVersionChange: (id: string) => Promise<void> }
+    await act(async () => slot.onVersionChange('est-old'))
+    expect(mockPageDocument.mock.lastCall?.[0]).toMatchObject({
+      projectName: 'Test Project', company: { name: 'Acme Co' }, client: null,
+      preparedBy: null, companyTerms: { enabled: false, text: null }, language: 'en',
+    })
   })
 })

@@ -31,6 +31,22 @@ describe('countPdfPages', () => {
 })
 
 describe('renderWithPageGuard', () => {
+  it('counts the fixed certificate page without false drift or repeated rendering', async () => {
+    const onDrift = vi.fn()
+    const render = vi.fn(async () => pdfWith(2))
+    const result = await renderWithPageGuard({ computePages: () => pagesOf(1), additionalPageCount: 1, render, onDrift })
+    expect(result).toMatchObject({ attempts: 1, mismatched: false })
+    expect(render).toHaveBeenCalledTimes(1)
+    expect(onDrift).not.toHaveBeenCalled()
+  })
+
+  it('still reports genuine overflow in addition to the certificate', async () => {
+    const onDrift = vi.fn()
+    const result = await renderWithPageGuard({ computePages: () => pagesOf(1), additionalPageCount: 1, render: async () => pdfWith(3), onDrift })
+    expect(result.mismatched).toBe(true)
+    expect(onDrift).toHaveBeenCalledWith({ attempt: 1, plannedPages: 2, realPages: 3, extraSafetyMarginPt: 0 })
+  })
+
   it('no mismatch: one render, no drift report', async () => {
     const onDrift = vi.fn()
     const render = vi.fn(async (pages: PageAssignment[]) => pdfWith(pages.length))

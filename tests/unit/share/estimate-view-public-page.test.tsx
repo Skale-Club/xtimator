@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import React, { Suspense } from 'react'
 
@@ -310,6 +310,11 @@ describe('EstimateView — proposal bar', () => {
 describe('EstimateView — lock-at-acceptance', () => {
   const signedOn = { digital_signature_enabled: true }
   const originalFetch = globalThis.fetch
+  const committedSignature = {
+    signerName: 'Committed Signer',
+    signedAt: '2026-02-03T15:00:00Z',
+    signatureDataUrl: 'data:image/png;base64,BBBB',
+  }
 
   afterEach(() => {
     globalThis.fetch = originalFetch
@@ -348,17 +353,90 @@ describe('EstimateView — lock-at-acceptance', () => {
   }
 
   it('sends the rendered updated_at as contentVersion in the sign POST', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true }) })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ signature: committedSignature }),
+    })
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    renderView({}, signedOn)
+    renderView({ contentFingerprint: 'reviewed-fingerprint' }, signedOn)
     await openSignatureAndSubmit()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/estimates/e1/sign')
-    expect(JSON.parse((init as RequestInit).body as string).contentVersion).toBe(
-      '2026-01-05T10:00:00.123456+00:00'
-    )
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      contentVersion: '2026-01-05T10:00:00.123456+00:00',
+      contentFingerprint: 'reviewed-fingerprint',
+    })
   }, 20_000)
+
+  it.each(['classic', 'modern'])('shows committed signature, date and public PDF after signing in %s', async (style) => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ signature: committedSignature }),
+    }) as unknown as typeof fetch
+    const { container } = renderView({}, { ...signedOn, estimate_template_style: style }, { token: 'tok&split' })
+    expect(screen.queryByRole('link', { name: 'Download PDF' })).toBeNull()
+    await openSignatureAndSubmit()
+    await screen.findByText(committedSignature.signerName, {}, SLOW)
+
+    const documentSignature = container.querySelector<HTMLElement>('[data-track-section="signature"]')!
+    expect(within(documentSignature).getByRole('img').getAttribute('src')).toBe(committedSignature.signatureDataUrl)
+    expect(within(documentSignature).getByText('February 3, 2026')).toBeTruthy()
+    expect(screen.getByTestId('response-status').textContent).toContain('February 3, 2026')
+    expect(screen.getByRole('link', { name: 'Download PDF' }).getAttribute('href')).toBe('/api/estimates/e1/pdf?token=tok%26split')
+  }, 20_000)
+
+  it.each([true, false])('offers a signed PDF only for a loaded signature with frozen content (%s)', (hasSignedSnapshot) => {
+    renderView({
+      client_response: 'accepted',
+      responded_at: committedSignature.signedAt,
+      signerName: committedSignature.signerName,
+      signedAt: committedSignature.signedAt,
+      signatureImageDataUrl: committedSignature.signatureDataUrl,
+      hasSignedSnapshot,
+    }, signedOn, { alreadyResponded: true })
+    expect(Boolean(screen.queryByRole('link', { name: 'Download PDF' }))).toBe(hasSignedSnapshot)
+  })
+
+  it('waits for the signed document on an idempotent reply before attaching any signature', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ alreadySigned: true, signature: committedSignature }),
+    }) as unknown as typeof fetch
+    const { container } = renderView({}, signedOn)
+    await openSignatureAndSubmit()
+    await waitFor(() => expect(container.firstElementChild?.getAttribute('aria-busy')).toBe('true'))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^accept$/i })).toBeNull()
+    expect(screen.queryByText(committedSignature.signerName)).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Download PDF' })).toBeNull()
+  })
+
+  it('uses the same Portuguese consent text for the dialog description and visible statement', async () => {
+    renderView({ language: 'pt' }, signedOn)
+    fireEvent.click(await screen.findByRole('button', { name: /^aceitar$/i }))
+    const dialog = await screen.findByRole('dialog')
+    const consent = 'Ao assinar, você concorda com os preços e termos deste orçamento.'
+    expect(within(dialog).getAllByText(consent)).toHaveLength(2)
+  })
+
+  it('requires redrawing after cancelling and reopening', async () => {
+    renderView({}, signedOn)
+    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+    const first = await screen.findByRole('dialog')
+    fireEvent.click(within(first).getByRole('button', { name: 'stub-name' }))
+    fireEvent.click(within(first).getByRole('button', { name: 'stub-draw' }))
+    expect(within(first).getByRole<HTMLButtonElement>('button', { name: /sign & accept estimate/i }).disabled).toBe(false)
+    fireEvent.click(within(first).getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+    const reopened = await screen.findByRole('dialog')
+    expect(within(reopened).getByRole<HTMLButtonElement>('button', { name: /sign & accept estimate/i }).disabled).toBe(true)
+  })
 
   it('409 estimate_updated closes the dialog and shows a reload notice', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -372,7 +450,23 @@ describe('EstimateView — lock-at-acceptance', () => {
     expect(notice.textContent).toMatch(/just updated\. Review the latest version before signing/i)
     expect(within(notice).getByRole('button', { name: /load latest version/i })).toBeTruthy()
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.queryByRole('button', { name: /^accept$/i })).toBeNull()
+    expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
   }, 20_000)
+
+  it.each([[403, 'link_locked'], [410, 'link_expired']])(
+    'leaves a reload notice and hides signing after %s %s', async (status, error) => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({ error }) }) as unknown as typeof fetch
+      renderView({}, signedOn)
+      await openSignatureAndSubmit()
+      const notice = await screen.findByTestId('estimate-unavailable-notice')
+      expect(notice.textContent).toContain('This link is no longer available. Please reload the page.')
+      expect(within(notice).getByRole('button', { name: 'Load latest version' })).toBeTruthy()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.queryByRole('button', { name: /^accept$/i })).toBeNull()
+      expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
+    },
+  )
 
   it('409 estimate_superseded shows the newer-version notice', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({

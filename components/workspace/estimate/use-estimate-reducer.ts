@@ -113,6 +113,10 @@ export interface EstimateEditorState {
    *  server row (lib/queries/estimate-signature.ts), alongside hasSignature's
    *  lock-coverage boolean. Null when unsigned; never mutated client-side. */
   signature: DocumentSignature | null
+  signedIdentity?: EstimateWithSections['signedIdentity']
+  signedCompanyTerms?: EstimateWithSections['signedCompanyTerms']
+  language?: EstimateWithSections['language']
+  created_at?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -444,6 +448,10 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     responded_at: estimate.responded_at ?? null,
     hasSignature: (estimate as { hasSignature?: boolean }).hasSignature ?? false,
     signature: (estimate as { signature?: DocumentSignature | null }).signature ?? null,
+    signedIdentity: estimate.signedIdentity ?? null,
+    signedCompanyTerms: estimate.signedCompanyTerms ?? null,
+    language: estimate.language,
+    created_at: estimate.created_at,
   }
 }
 
@@ -457,6 +465,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       return initState(action.estimate)
 
     case 'RESTORE_DRAFT':
+      if (state.hasSignature) return state
       // Keep the server's concurrency baseline and lock fields; take the
       // draft's content. Dirty + structural bump so autosave and the paginated
       // preview both pick it up.
@@ -467,6 +476,10 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         client_response: state.client_response,
         responded_at: state.responded_at,
         is_current: state.is_current,
+        signedIdentity: state.signedIdentity,
+        signedCompanyTerms: state.signedCompanyTerms,
+        language: state.language,
+        created_at: state.created_at,
         isDirty: true,
         editEpoch: state.editEpoch + 1,
         structuralEditEpoch: state.structuralEditEpoch + 1,

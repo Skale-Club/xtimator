@@ -399,74 +399,26 @@ export async function recordChangeOrderResponse(
     updated_at: string
   }
 
-  const { data: signature } = await supabase
-    .from('change_order_signatures')
-    .select('id')
-    .eq('change_order_id', id)
-    .limit(1)
-    .maybeSingle()
-  if (signature) return { error: 'This change order was signed online and cannot be changed' }
-
-  if (co.client_response === response) {
-    return {
-      data: { client_response: response, responded_at: co.responded_at, updated_at: co.updated_at },
-    }
-  }
-
-  // Approving adds to the contract, so the parent must still be the accepted
-  // current estimate. Declining / clearing never needs it.
-  if (response === 'accepted') {
-    const { data: parent } = await supabase
-      .from('estimates')
-      .select('is_current, client_response')
-      .eq('id', co.estimate_id)
-      .eq('company_id', companyId)
-      .maybeSingle()
-    const p = parent as { is_current: boolean | null; client_response: string | null } | null
-    if (!p || p.is_current !== true || p.client_response !== 'accepted') {
-      return { error: 'contract_not_accepted' }
-    }
-  }
-
-  const respondedAt = response ? new Date().toISOString() : null
-  const nextStatus = response ?? (co.sent_at ? 'sent' : 'draft')
-
-  const { data: updatedRows, error: updateError } = await supabase
-    .from('change_orders')
-    .update({ client_response: response, responded_at: respondedAt, status: nextStatus })
-    .eq('id', id)
-    .eq('company_id', companyId)
-    .select('id, updated_at')
-
-  if (updateError || !updatedRows || updatedRows.length === 0) {
+  const { data: result, error: updateError } = await supabase.rpc('record_change_order_response_atomic', {
+    p_change_order_id: id,
+    p_company_id: companyId,
+    p_expected_updated_at: co.updated_at,
+    p_response: response,
+  })
+  if (updateError || !result) {
+    const code = updateError?.code
+    if (code === 'P0011') return { error: 'This change order was signed online and cannot be changed' }
+    if (code === 'P0014') return { error: 'contract_not_accepted' }
+    if (code === 'P0012') return { error: 'This change order changed. Reload before recording a response.', conflict: true }
     return { error: 'Failed to record the response' }
   }
-  const newUpdatedAt = (updatedRows[0] as { updated_at: string }).updated_at
-
-  // Contract total follows the approved set. Best-effort: the answer itself is
-  // already committed, and the next contract read recomputes from the rows.
-  try {
-    const summary = await loadOwnerContractSummary(supabase, co.estimate_id, { companyId })
-    if (summary) {
-      await supabase.from('projects').update({ total: summary.contractTotal }).eq('id', co.project_id)
-    }
-  } catch (err) {
-    console.error('[change-orders] project total update failed', err)
-  }
-
-  await logActivity(supabase, {
-    project_id: co.project_id,
-    company_id: companyId,
-    estimate_id: co.estimate_id,
-    event_type: response ? `change_order_${response}` : 'change_order_response_cleared',
-    metadata: { change_order_id: co.id, number: co.number, total: co.total, source: 'manual' },
-  })
+  const committed = result as { client_response: ChangeOrderResponse | null; responded_at: string | null; updated_at: string }
 
   revalidatePath(`/projects/${co.project_id}`)
   revalidatePath('/dashboard')
 
   return {
-    data: { client_response: response, responded_at: respondedAt, updated_at: newUpdatedAt },
+    data: { client_response: committed.client_response, responded_at: committed.responded_at, updated_at: committed.updated_at },
   }
 }
 

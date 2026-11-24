@@ -34,6 +34,7 @@ import {
   purgeWhatsAppProcessedMessagesJob,
   purgeExpiredWhatsAppSessionsJob,
   debitMessagingCostsJob,
+  signatureReceiptJob,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -63,5 +64,6 @@ export const { GET, POST, PUT } = serve({
     purgeWhatsAppProcessedMessagesJob,
     purgeExpiredWhatsAppSessionsJob,
     debitMessagingCostsJob,
+    signatureReceiptJob,
   ],
 })

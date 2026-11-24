@@ -42,3 +42,4 @@ export { purgeWhatsAppProcessedMessagesJob } from './purge-whatsapp-processed-me
 export { purgeExpiredWhatsAppSessionsJob } from './purge-expired-whatsapp-sessions'
 // Phase 2b - hourly debit of WhatsApp/SMS/email message costs in credits.
 export { debitMessagingCostsJob } from './debit-messaging-costs'
+export { signatureReceiptJob } from './signature-receipt'

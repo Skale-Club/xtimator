@@ -44,6 +44,8 @@
 // keep rendering LIVE company terms -- see applySignedCompanyTerms's doc
 // comment for the exact v1/v2 branching.
 
+import type { SignedDocumentIdentity } from '@/lib/estimate/signing-identity'
+
 /** Schema version 1 fields — see module doc comment for provenance of each. */
 export interface SignedContentSnapshotItem {
   id: string
@@ -68,9 +70,8 @@ export interface SignedContentSnapshotSection {
 }
 
 export interface SignedContentSnapshot {
-  /** Snapshot schema version. v1 = pre-security-hardening (no company_terms/
-   *  consent). v2 = adds both fields below. */
-  version: 1 | 2
+  /** v2 added company terms and consent. v3 adds document identity and validity. */
+  version: 1 | 2 | 3
   summary: string | null
   notes: string | null
   timeline: string | null
@@ -80,6 +81,8 @@ export interface SignedContentSnapshot {
   estimate_date: string | null
   /** Rendered in the signed header — user-editable, MUST freeze. */
   estimate_number: string | null
+  /** v3. An absent field on a legacy snapshot leaves the live value in place. */
+  valid_until?: string | null
   subtotal: number
   tax_rate: number
   tax_amount: number
@@ -97,15 +100,16 @@ export interface SignedContentSnapshot {
   /** As-of-signing presentation settings (v4.18). */
   presentation_settings: unknown | null
   sections: SignedContentSnapshotSection[]
-  /** v2 only. The company's Terms & Conditions block AS OF signing --
+  /** v2+. The company's Terms & Conditions block AS OF signing --
    *  `null` on a v1 snapshot (field didn't exist yet); non-null on every v2
    *  snapshot (the builder always populates it, even when terms were
    *  disabled/empty at sign time -- `enabled: false` / `text: null` is a
    *  valid, meaningful frozen state, not an absent one). */
   company_terms?: { enabled: boolean; text: string | null } | null
-  /** v2 only. Evidence of the consent statement shown to the signer at sign
-   *  time. `null` on a v1 snapshot. */
-  consent?: { statement: string; key: string } | null
+  /** v2+. v3 also records the language of the statement shown to the signer. */
+  consent?: { statement: string; key: string; locale?: SignedDocumentIdentity['language'] } | null
+  /** v3. Earlier snapshots did not capture party and project identity. */
+  identity?: SignedDocumentIdentity
 }
 
 // ---- buildSignedContentSnapshot -------------------------------------------
@@ -121,6 +125,7 @@ export interface SnapshotSourceEstimate {
   warranty_terms: string | null
   estimate_date: string | null
   estimate_number: string | null
+  valid_until?: string | null
   subtotal: number
   tax_rate: number
   tax_amount: number
@@ -174,20 +179,20 @@ export const SIGN_CONSENT_KEY = 'sign_consent_v1'
  * already order by sort_order, but a frozen snapshot must not depend on
  * caller discipline).
  *
- * `extras` carries the v2 fields, both required so every NEW snapshot is a
- * v2 snapshot -- there is no code path left that produces a v1 snapshot;
- * v1 only exists as a legacy shape for rows written before this change.
+ * An identity produces a v3 snapshot. Callers omitting identity can still
+ * reproduce a v2 snapshot, including that version's original field set.
  */
 export function buildSignedContentSnapshot(
   estimate: SnapshotSourceEstimate,
   sections: SnapshotSourceSection[],
   extras: {
     companyTerms: { enabled: boolean; text: string | null }
-    consent: { statement: string; key: string } | null
+    consent: SignedContentSnapshot['consent']
+    identity?: SignedDocumentIdentity
   }
 ): SignedContentSnapshot {
   return {
-    version: 2,
+    version: extras.identity ? 3 : 2,
     summary: estimate.summary ?? null,
     notes: estimate.notes ?? null,
     timeline: estimate.timeline ?? null,
@@ -195,6 +200,7 @@ export function buildSignedContentSnapshot(
     warranty_terms: estimate.warranty_terms ?? null,
     estimate_date: estimate.estimate_date ?? null,
     estimate_number: estimate.estimate_number ?? null,
+    ...(extras.identity ? { identity: extras.identity, valid_until: estimate.valid_until ?? null } : {}),
     subtotal: estimate.subtotal,
     tax_rate: estimate.tax_rate,
     tax_amount: estimate.tax_amount,
@@ -234,7 +240,11 @@ export function buildSignedContentSnapshot(
       text: extras.companyTerms.text ?? null,
     },
     consent: extras.consent
-      ? { statement: extras.consent.statement, key: extras.consent.key }
+      ? {
+          statement: extras.consent.statement,
+          key: extras.consent.key,
+          ...(extras.consent.locale ? { locale: extras.consent.locale } : {}),
+        }
       : null,
   }
 }
@@ -258,6 +268,8 @@ export interface SignedSnapshotOverlayFields {
   warranty_terms: string | null
   estimate_date: string | null
   estimate_number: string | null
+  valid_until?: string | null
+  language?: SignedDocumentIdentity['language']
   subtotal: number
   tax_rate: number
   tax_amount: number
@@ -312,6 +324,8 @@ export function applySignedSnapshot<T extends SignedSnapshotOverlayFields>(
     warranty_terms: snapshot.warranty_terms,
     estimate_date: snapshot.estimate_date,
     estimate_number: snapshot.estimate_number,
+    ...(snapshot.valid_until !== undefined ? { valid_until: snapshot.valid_until } : {}),
+    ...(snapshot.identity ? { language: snapshot.identity.language } : {}),
     subtotal: snapshot.subtotal,
     tax_rate: snapshot.tax_rate,
     tax_amount: snapshot.tax_amount,

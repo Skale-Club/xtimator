@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -12,22 +12,24 @@ import {
 } from '@/components/ui/dialog'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink, Download } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import type { ShareEstimateData } from '@/lib/queries/share'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { ScopedLanguageProvider, type Language } from '@/lib/i18n/language-context'
+import { ScopedLanguageProvider } from '@/lib/i18n/language-context'
 import { formatMinorUnits, toMinorUnits } from '@/lib/money/currency'
 import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
-import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { isSupportedLanguage, LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { SignaturePad } from '@/components/share/signature-pad'
 import { ProposalBar } from '@/components/share/proposal-bar'
 import { ContractSection } from '@/components/share/contract-section'
 import type { ContractSummary } from '@/lib/change-orders/types'
 import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
+import type { DocumentSignature } from '@/lib/estimate/document/model'
+import { getSigningConsent } from '@/lib/estimate/signing-consent'
 import { useEstimateTracking } from '@/hooks/use-estimate-tracking'
 import type {
   EstimateDocumentData,
@@ -116,7 +118,7 @@ interface EstimateViewProps {
 // override HERE (rather than in EstimateViewInner) is required: a
 // component can't consume a context provider it renders itself.
 export function EstimateView(props: EstimateViewProps) {
-  const language = (props.estimate.language ?? 'en') as Language
+  const language = isSupportedLanguage(props.estimate.language) ? props.estimate.language : 'en'
   return (
     <ScopedLanguageProvider language={language} setLanguage={() => {}}>
       <EstimateViewInner {...props} />
@@ -146,11 +148,14 @@ function EstimateViewInner({
   const [signerName, setSignerName] = useState('')
   const [signerEmail, setSignerEmail] = useState('')
   const [signatureData, setSignatureData] = useState<string | null>(null)
+  const [committedSignature, setCommittedSignature] = useState<DocumentSignature | null>(null)
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
-  // Lock-at-acceptance: a sent estimate stays editable until the client answers,
-  // so the sign endpoint can refuse with 409. 'updated' = the content changed
-  // after this page loaded (reload to review); 'superseded' = a newer version exists.
-  const [signNotice, setSignNotice] = useState<'updated' | 'superseded' | null>(null)
+  const [signNotice, setSignNotice] = useState<'updated' | 'superseded' | 'unavailable' | 'refreshing' | null>(null)
+  const noticeRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (signNotice) noticeRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  }, [signNotice])
 
   // Phase 193-01 — scoped to the rendered document surface only (not the
   // whole page: the proposal bar, invoice cards, etc. live outside it), so
@@ -171,7 +176,7 @@ function EstimateViewInner({
   // A superseded version (the business issued a newer one) can no longer be
   // answered through its old link; an answered one keeps rendering as before.
   const isSuperseded = estimate.is_current === false
-  const canRespond = approvalEnabled && !responded && !isSuperseded
+  const canRespond = approvalEnabled && !responded && !isSuperseded && signNotice === null
   const showSupersededNotice = isSuperseded && !responded
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   // Render-time WCAG adaptation (stored brand color never mutated):
@@ -244,18 +249,15 @@ function EstimateViewInner({
         | import('@/lib/estimate/presentation-settings').PresentationSettings
         | null
         | undefined ?? null,
-    // PDFPAR-02 — guard on BOTH signerName and signatureImageDataUrl being
-    // non-null, mirroring the same-shape guard render-estimate-pdf.ts uses
-    // (Plan 183-02): a row can theoretically have one without the other only
-    // in malformed data, never trust partial presence.
-    signature:
-      estimate.signerName && estimate.signatureImageDataUrl
+    signature: committedSignature ?? (
+      estimate.signerName && estimate.signedAt && estimate.signatureImageDataUrl
         ? {
             signerName: estimate.signerName,
-            signedAt: estimate.signedAt ?? estimate.responded_at ?? estimate.created_at,
+            signedAt: estimate.signedAt,
             signatureDataUrl: estimate.signatureImageDataUrl,
           }
-        : null,
+        : null
+    ),
     // Signed URLs are already resolved server-side in lib/queries/share.ts
     // (getEstimateByShareToken) — anon visitors have no session to call
     // getSignedUrl with, so no client-side resolution happens here.
@@ -327,7 +329,8 @@ function EstimateViewInner({
     text: company.estimate_terms_text ?? null,
   }
 
-  const lang = (estimate.language ?? 'en') as EstimateLanguage
+  const consent = getSigningConsent('estimate', estimate.language)
+  const lang = consent.locale
   const total = formatMinorUnits(estimate.total_amount_cents ?? 0, estimate.currency_code ?? 'USD')
   // Same values/formatting the document header shows.
   const estimateNumber = formatEstimateNumber({
@@ -335,20 +338,28 @@ function EstimateViewInner({
     estimate_seq: estimate.estimate_seq,
   })
   const estimateDate = formatDate(documentData.estimate_date ?? estimate.created_at, lang)
-  const respondedOn = estimate.responded_at ? formatDate(estimate.responded_at, lang) : null
+  const respondedAt = committedSignature?.signedAt ?? estimate.responded_at
+  const respondedOn = respondedAt ? formatDate(respondedAt, lang) : null
 
   function openSignature() {
+    if (!canRespond) return
     trackAction('sign_start')
+    setSignatureData(null)
     setError(null)
     setConfirmingDecline(false)
     setShowSignaturePad(true)
   }
 
-  function closeSignature() {
-    if (isSubmittingSignature || responding) return
+  function resetSignatureSheet() {
     setShowSignaturePad(false)
+    setSignatureData(null)
     setConfirmingDecline(false)
     setError(null)
+  }
+
+  function closeSignature() {
+    if (isSubmittingSignature || responding) return
+    resetSignatureSheet()
   }
 
   // ---------------------------------------------------------------------------
@@ -364,8 +375,7 @@ function EstimateViewInner({
     if (result.success) {
       setResponded(true)
       setResponseValue('declined')
-      setShowSignaturePad(false)
-      setConfirmingDecline(false)
+      resetSignatureSheet()
     } else {
       setError(result.error ?? t('Something went wrong'))
     }
@@ -373,8 +383,9 @@ function EstimateViewInner({
   }
 
   async function handleSignAndAccept() {
-    if (!signerName.trim()) { setError('Please enter your full name.'); return }
-    if (!signatureData) { setError('Please draw your signature.'); return }
+    if (!canRespond || isSubmittingSignature || responding) return
+    if (!signerName.trim()) { setError(t('Please enter your full name.')); return }
+    if (!signatureData) { setError(t('Please draw your signature.')); return }
     setIsSubmittingSignature(true)
     setError(null)
     try {
@@ -390,40 +401,41 @@ function EstimateViewInner({
           contentFingerprint: estimate.contentFingerprint,
         }),
       })
+      const body: {
+        error?: string
+        alreadySigned?: boolean
+        signature?: DocumentSignature
+      } | null = await res.json().catch(() => null)
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        if (res.status === 409 && body.error === 'estimate_updated') {
-          setSignNotice('updated')
-          setShowSignaturePad(false)
-          // The notice sits above the document; the client is usually at the bottom.
-          window.scrollTo({ top: 0, behavior: 'smooth' })
+        if (res.status === 409) {
+          setSignNotice(body?.error === 'estimate_superseded' ? 'superseded' : 'updated')
+        } else if (res.status === 404 || res.status === 410 || res.status === 403) {
+          setSignNotice('unavailable')
+        } else {
+          setError(res.status === 429
+            ? t('Too many attempts. Please wait before trying again.')
+            : body?.error === 'Invalid signer email'
+              ? t('Please enter a valid email address')
+              : t('Something went wrong. Please try again.'))
           return
         }
-        if (res.status === 409 && body.error === 'estimate_superseded') {
-          setSignNotice('superseded')
-          setShowSignaturePad(false)
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-          return
-        }
-        if (res.status === 410 || (res.status === 403 && body.error === 'link_locked')) {
-          // The link expired or was locked after this page loaded: a reload
-          // shows the current state (fresh link request / password form).
-          setShowSignaturePad(false)
-          setError(t('This link is no longer available. Please reload the page.'))
-          return
-        }
-        throw new Error(body.error ?? 'Failed to submit signature')
+        resetSignatureSheet()
+        return
       }
-      // sign_estimate_atomic already committed client_response='accepted' as
-      // part of the sign transaction — calling respondToEstimate here would
-      // deterministically hit its already-responded guard and surface an
-      // error banner on a SUCCESSFUL signature. A 200 from the sign endpoint
-      // IS acceptance; just reflect it.
+
+      resetSignatureSheet()
+      const signature = body?.signature
+      // A retry can come from a stale tab. Load the actual signed document.
+      if (body?.alreadySigned || !signature?.signerName || !signature.signedAt || !signature.signatureDataUrl) {
+        setSignNotice('refreshing')
+        window.location.reload()
+        return
+      }
+      setCommittedSignature(signature)
       setResponded(true)
       setResponseValue('accepted')
-      setShowSignaturePad(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('Something went wrong'))
+    } catch {
+      setError(t('Something went wrong. Please try again.'))
     } finally {
       setIsSubmittingSignature(false)
     }
@@ -431,9 +443,11 @@ function EstimateViewInner({
 
   const showMobileAcceptBar = canRespond && !showSignaturePad
   const isAccepted = responseValue === 'accepted'
+  const reloadableNotice = signNotice === 'updated' || signNotice === 'unavailable'
 
   return (
     <div
+      aria-busy={signNotice === 'refreshing' || undefined}
       className={
         // Keep the last content clear of the fixed mobile bar (+ iOS home indicator).
         showMobileAcceptBar
@@ -469,13 +483,16 @@ function EstimateViewInner({
       />
 
       <div className="space-y-4 pt-4">
-        {signNotice === 'updated' && !responded && (
+        {reloadableNotice && !responded && (
           <div
+            ref={noticeRef}
             role="alert"
-            data-testid="estimate-updated-notice"
+            data-testid={signNotice === 'updated' ? 'estimate-updated-notice' : 'estimate-unavailable-notice'}
             className="mx-auto flex max-w-4xl flex-col items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900 sm:flex-row sm:justify-between sm:text-left"
           >
-            <p>{t('This estimate was just updated. Review the latest version before signing.')}</p>
+            <p>{signNotice === 'updated'
+              ? t('This estimate was just updated. Review the latest version before signing.')
+              : t('This link is no longer available. Please reload the page.')}</p>
             <Button size="sm" onClick={() => window.location.reload()}>
               {t('Load latest version')}
             </Button>
@@ -483,6 +500,7 @@ function EstimateViewInner({
         )}
         {(showSupersededNotice || (signNotice === 'superseded' && !responded)) && (
           <div
+            ref={noticeRef}
             role="alert"
             data-testid="estimate-superseded-notice"
             className="mx-auto max-w-4xl rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900"
@@ -493,6 +511,7 @@ function EstimateViewInner({
             )}
           </div>
         )}
+
         {/* Document body — registry-resolved templateId selects Classic vs Modern.
             Wrapped in a ref'd div (not the outer page) so use-estimate-tracking's
             click/section/heatmap coordinates are measured against the rendered
@@ -570,6 +589,17 @@ function EstimateViewInner({
             {approvalEnabled && respondedOn && (
               <span className="text-muted-foreground">· {respondedOn}</span>
             )}
+          </div>
+        )}
+
+        {responded && isAccepted && documentData.signature && (committedSignature || estimate.hasSignedSnapshot) && (
+          <div className="flex justify-center">
+            <Button asChild variant="outline">
+              <a href={`/api/estimates/${estimate.id}/pdf?token=${encodeURIComponent(token)}`}>
+                <Download className="h-4 w-4" aria-hidden />
+                {t('Download PDF')}
+              </a>
+            </Button>
           </div>
         )}
 
@@ -658,7 +688,7 @@ function EstimateViewInner({
 
       {/* Signature step — overlay panel opened by Accept. Accept means sign. */}
       {approvalEnabled && (
-        <Dialog open={showSignaturePad && !responded} onOpenChange={(open) => !open && closeSignature()}>
+        <Dialog open={showSignaturePad && canRespond} onOpenChange={(open) => !open && closeSignature()}>
           {/* The dialog portals to <body>, outside the forced-light share layout, so it
               re-declares the light scope (otherwise it turns dark for dark-mode
               visitors around a white signature canvas). Tighter padding/gaps on
@@ -685,7 +715,7 @@ function EstimateViewInner({
               </DialogTitle>
               <BottomSheetCloseButton label={t('Close')} disabled={isSubmittingSignature || responding} />
               <DialogDescription className="sr-only">
-                {t('By signing, you agree to the pricing and terms in this estimate.')}
+                {consent.statement}
               </DialogDescription>
             </DialogHeader>
             <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-5 pb-5 pt-1 sm:gap-4 sm:px-6 sm:pb-6">
@@ -697,9 +727,9 @@ function EstimateViewInner({
               onSignatureChange={setSignatureData}
               brandColor={brandColor}
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
             <p className="text-xs text-muted-foreground">
-              {t('By signing, you agree to the pricing and terms in this estimate.')}
+              {consent.statement}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button

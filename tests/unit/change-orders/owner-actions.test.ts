@@ -293,97 +293,39 @@ describe('markChangeOrderShared', () => {
 })
 
 describe('recordChangeOrderResponse', () => {
-  const OWNED_ESTIMATE = {
-    id: 'est-1',
-    is_current: true,
-    client_response: 'accepted',
-    responded_at: '2026-11-01T00:00:00Z',
-    total: 1000,
-    currency_code: 'USD',
-    estimate_number: 'SK-1',
-    estimate_seq: 1,
-    version: 1,
+  function scenario(code?: string) {
+    setup((c) => c.table === 'change_orders' ? { data: ROW } : undefined,
+      (_name,args) => code ? { error:{code} } : { data:{client_response:args.p_response,responded_at:args.p_response?'SERVER':null,updated_at:'NEW'} })
   }
-
-  function scenario(over: { co?: Record<string, unknown>; signature?: unknown; estimate?: unknown; updated?: unknown[] }) {
-    setup((c) => {
-      if (c.table === 'change_orders' && c.op === 'select' && c.terminal === 'maybeSingle') return { data: { ...ROW, ...over.co } }
-      if (c.table === 'change_order_signatures') return { data: over.signature ?? null }
-      if (c.table === 'estimates') return { data: over.estimate === undefined ? OWNED_ESTIMATE : over.estimate }
-      if (c.table === 'estimate_signatures') return { data: { signed_total: 900 } }
-      if (c.table === 'change_orders' && c.op === 'update') return { data: over.updated ?? [{ id: 'co-1', updated_at: 'NEW' }] }
-      if (c.table === 'change_orders' && c.terminal === 'list') {
-        return {
-          data: [
-            { id: 'co-1', number: 1, title: 'a', status: 'accepted', client_response: 'accepted', total: 250, sent_at: null, responded_at: null, view_count: 0 },
-          ],
-        }
-      }
-    })
-  }
-
-  it('refuses when a signature exists (signed online is evidence)', async () => {
-    scenario({ signature: { id: 'sig' } })
+  it.each(['accepted','declined',null] as const)('records %s atomically with the content revision and active company', async (response) => {
+    scenario()
     const { recordChangeOrderResponse } = await actions()
-    expect(await recordChangeOrderResponse('co-1', null)).toEqual({
-      error: 'This change order was signed online and cannot be changed',
-    })
-    expect(fake.calls.some((c) => c.op === 'update')).toBe(false)
+    expect(await recordChangeOrderResponse('co-1',response)).toEqual({data:{client_response:response,responded_at:response?'SERVER':null,updated_at:'NEW'}})
+    expect(fake.rpcCalls).toEqual([{name:'record_change_order_response_atomic',args:{
+      p_change_order_id:'co-1',p_company_id:'co_1',p_expected_updated_at:ROW.updated_at,p_response:response,
+    }}])
+    expect(fake.calls.some(c=>c.op!=='select')).toBe(false)
+    expect(fake.calls.some(c=>c.table==='change_order_signatures')).toBe(false)
   })
-
-  it('records an approval: status accepted, project total = signed base + approved change orders, activity logged', async () => {
-    scenario({})
-    const { recordChangeOrderResponse } = await actions()
-    const r = await recordChangeOrderResponse('co-1', 'accepted')
-    expect(r.data).toMatchObject({ client_response: 'accepted', updated_at: 'NEW' })
-    const upd = fake.calls.find((c) => c.table === 'change_orders' && c.op === 'update')!
-    expect(upd.payload).toMatchObject({ client_response: 'accepted', status: 'accepted' })
-    const proj = fake.calls.find((c) => c.table === 'projects')!
-    expect(proj.payload).toEqual({ total: 1150 }) // 900 signed base + 250 approved
-    expect(fake.calls.find((c) => c.table === 'estimate_activity')!.payload).toMatchObject({
-      event_type: 'change_order_accepted',
-      metadata: { source: 'manual' },
-    })
+  it.each([
+    ['P0011','signed online'],['P0014','contract_not_accepted'],['P0012','changed'],['XX000','Failed'],
+  ])('fails closed on %s, including a signer committing after the initial read', async (code,message) => {
+    scenario(code)
+    const { recordChangeOrderResponse }=await actions()
+    expect(await recordChangeOrderResponse('co-1',null)).toMatchObject({error:expect.stringContaining(message)})
+    expect(fake.calls.some(c=>c.op!=='select')).toBe(false)
   })
-
-  it('never reads the company: the owner can record an answer whatever the online-signing switches say', async () => {
-    scenario({})
-    const { recordChangeOrderResponse } = await actions()
-    for (const response of ['accepted', 'declined'] as const) {
-      const r = await recordChangeOrderResponse('co-1', response)
-      expect(r.data ?? r.error).toBeTruthy()
-    }
-    expect(fake.calls.filter((c) => c.table === 'companies')).toEqual([])
+  it('rejects invalid responses before the transaction', async () => {
+    scenario()
+    const { recordChangeOrderResponse }=await actions()
+    expect(await recordChangeOrderResponse('co-1','maybe' as never)).toEqual({error:'Invalid response'})
+    expect(fake.rpcCalls).toHaveLength(0)
   })
-
-  it('refuses to approve when the parent is no longer the accepted current estimate', async () => {
-    scenario({ estimate: { is_current: false, client_response: 'accepted' } })
-    const { recordChangeOrderResponse } = await actions()
-    expect(await recordChangeOrderResponse('co-1', 'accepted')).toEqual({ error: 'contract_not_accepted' })
-    expect(fake.calls.some((c) => c.op === 'update')).toBe(false)
-  })
-
-  it('clearing a declined answer reopens it (back to sent, or draft when never shared)', async () => {
-    scenario({ co: { client_response: 'declined', status: 'declined', sent_at: '2026-11-10T00:00:00Z' } })
-    const { recordChangeOrderResponse } = await actions()
-    const r = await recordChangeOrderResponse('co-1', null)
-    expect(r.data).toMatchObject({ client_response: null, responded_at: null })
-    expect(fake.calls.find((c) => c.table === 'change_orders' && c.op === 'update')!.payload).toMatchObject({
-      client_response: null,
-      status: 'sent',
-    })
-    scenario({ co: { client_response: 'declined', status: 'declined', sent_at: null } })
-    await recordChangeOrderResponse('co-1', null)
-    expect(fake.calls.find((c) => c.table === 'change_orders' && c.op === 'update')!.payload).toMatchObject({ status: 'draft' })
-  })
-
-  it('is a no-op (success, no write) when the answer is unchanged, and rejects a bad value', async () => {
-    scenario({ co: { client_response: 'accepted', responded_at: 'R' } })
-    const { recordChangeOrderResponse } = await actions()
-    const r = await recordChangeOrderResponse('co-1', 'accepted')
-    expect(r.data).toMatchObject({ client_response: 'accepted', responded_at: 'R' })
-    expect(fake.calls.some((c) => c.op === 'update')).toBe(false)
-    expect(await recordChangeOrderResponse('co-1', 'maybe' as never)).toEqual({ error: 'Invalid response' })
+  it('does not gate manual response on company signing switches', async () => {
+    scenario()
+    const { recordChangeOrderResponse }=await actions()
+    await recordChangeOrderResponse('co-1','accepted')
+    expect(fake.calls.some(c=>c.table==='companies')).toBe(false)
   })
 })
 

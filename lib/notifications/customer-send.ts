@@ -1,4 +1,6 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
+import { z } from 'zod'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { SendChannel, SendPermit } from '@/lib/notifications/customer-send-gate'
 import { sendCustomerEmail } from '@/lib/email/customer-emails'
@@ -64,18 +66,24 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export type TriggerSource = 'manual' | 'agentic-whatsapp' | 'agentic-mcp'
 
-export interface SendCustomerMessageParams {
+interface SendCustomerMessageContent {
   permit: SendPermit
   companyId: string
   /** MUST equal permit.clientId — checked, not assumed (defense-in-depth
    * against a caller passing a permit granted for a different client). */
   clientId: string
   businessName: string
-  triggerSource: TriggerSource
   /** Exactly one of template | freeform must be provided. */
   template?: { eventType: CustomerEventType; vars: CustomerCopyContext }
   freeform?: { subject?: string; body: string; attachments?: CustomerEmailAttachment[] }
 }
+
+export type SendCustomerMessageParams = SendCustomerMessageContent & (
+  | { triggerSource: TriggerSource }
+  | { triggerSource: 'signature-receipt'; emailDelivery: { recipientSha256: string; idempotencyKey: string } }
+)
+
+const receiptEmailSchema = z.email().max(254)
 
 export interface SendCustomerMessageResult {
   ok: boolean
@@ -148,6 +156,18 @@ export async function sendCustomerMessage(
       return { ok: false, channel, error: 'no_recipient_phone' }
     }
 
+    const receipt = params.triggerSource === 'signature-receipt' ? params.emailDelivery : null
+    const receiptEmail = receipt ? clientRow?.email?.trim().toLowerCase() : undefined
+    if (
+      receipt &&
+      (channel !== 'email' ||
+        !receiptEmail ||
+        !receiptEmailSchema.safeParse(receiptEmail).success ||
+        createHash('sha256').update(receiptEmail).digest('hex') !== receipt.recipientSha256)
+    ) {
+      return { ok: false, channel, error: 'receipt_recipient_changed' }
+    }
+
     // 5. Resolve subject/body.
     let subject: string | undefined
     let body: string
@@ -172,14 +192,15 @@ export async function sendCustomerMessage(
     let dispatchResult: DispatchResult
     if (channel === 'email') {
       dispatchResult = await sendCustomerEmail({
-        toEmail: clientRow!.email!,
+        toEmail: receiptEmail ?? clientRow!.email!,
         toName: clientRow?.name ?? null,
         businessName: params.businessName,
         subject: subject ?? `A message from ${params.businessName}`,
         html: body,
         text: stripHtmlTags(body),
         ...(params.freeform?.attachments?.length ? { attachments: params.freeform.attachments } : {}),
-        meta: { companyId: params.companyId, purpose: 'customer_message', billable: true },
+        ...(receipt ? { idempotencyKey: receipt.idempotencyKey } : {}),
+        meta: { companyId: params.companyId, purpose: 'customer_message', billable: !receipt },
       })
     } else {
       dispatchResult = await sendCustomerSms(clientRow!.phone!, body, {
@@ -195,7 +216,7 @@ export async function sendCustomerMessage(
       companyId: params.companyId,
       clientId: params.clientId,
       channel,
-      recipientEmail: channel === 'email' ? (clientRow?.email ?? null) : null,
+      recipientEmail: channel === 'email' ? (receiptEmail ?? clientRow?.email ?? null) : null,
       recipientPhone: channel === 'sms' ? (clientRow?.phone ?? null) : null,
       provider: channel === 'email' ? 'resend' : 'twilio',
       providerMessageId: dispatchResult.id ?? dispatchResult.sid ?? null,
@@ -203,7 +224,7 @@ export async function sendCustomerMessage(
       templateEventType: params.template?.eventType ?? null,
       triggerSource: params.triggerSource,
       subject: subject ?? null,
-      body,
+      body: receipt ? '[Signed document link]' : body,
       status: dispatchResult.ok ? 'sent' : 'failed',
       errorMessage: dispatchResult.ok ? null : (dispatchResult.error ?? null),
     })

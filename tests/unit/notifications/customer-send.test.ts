@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { createHash } from 'node:crypto'
 
 /**
  * Phase 177 Plan 06 (CUST-01/02/05) — sendCustomerMessage() is the ONE
@@ -135,6 +136,28 @@ describe('lib/notifications/customer-send — sendCustomerMessage()', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('refuses to send a signature receipt after the pinned recipient email changes', async () => {
+    const permit = await grantPermit('email', 'company-1', 'client-1')
+    mockRequireServiceClient.mockReturnValue(buildServiceClient({ ...FULL_CLIENT, email: 'different@example.com' }))
+
+    const result = await sendCustomerMessage({
+      permit,
+      companyId: 'company-1',
+      clientId: 'client-1',
+      businessName: BUSINESS_NAME,
+      triggerSource: 'signature-receipt',
+      freeform: { subject: 'Signed document', body: 'Share link' },
+      emailDelivery: {
+        recipientSha256: createHash('sha256').update(FULL_CLIENT.email).digest('hex'),
+        idempotencyKey: 'signature-receipt/test',
+      },
+    })
+
+    expect(result).toEqual({ ok: false, channel: 'email', error: 'receipt_recipient_changed' })
+    expect(mockSendCustomerEmail).not.toHaveBeenCalled()
+    expect(mockLogCustomerMessage).not.toHaveBeenCalled()
   })
 
   it('permit.clientId !== params.clientId -> permit_client_mismatch; no clients fetch, no dispatch, no log', async () => {
