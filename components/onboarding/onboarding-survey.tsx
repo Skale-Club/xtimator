@@ -81,8 +81,13 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
           finalValues = { ...finalValues, logoUrl: result.url }
           state.setValue('logoUrl', result.url)
         }
-        // Explicit WhatsApp consent (pre-unchecked box). Best-effort: never blocks setup.
-        if (whatsappOptIn) await recordWhatsAppOptIn().catch(() => undefined)
+        if (whatsappOptIn) {
+          const consent = await recordWhatsAppOptIn()
+          if ('error' in consent) {
+            toast.error(t(consent.error))
+            return
+          }
+        }
         const payload = await autosave.prepareCompletion(finalValues)
         const result = await completeOnboarding(payload)
         if (result?.error) toast.error(t(result.error))

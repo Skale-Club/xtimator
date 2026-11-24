@@ -4,30 +4,34 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const mockSelect = vi.fn()
 const mockEq = vi.fn()
-const mockLimit = vi.fn()
+const mockRpc = vi.fn()
 const mockMaybeSingle = vi.fn()
 
 const chainable = {
   select: mockSelect.mockReturnThis(),
   eq: mockEq.mockReturnThis(),
-  limit: mockLimit.mockReturnThis(),
   maybeSingle: mockMaybeSingle,
 }
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(() => ({
     from: vi.fn(() => chainable),
+    rpc: (...args: unknown[]) => mockRpc(...args),
   })),
 }))
 
-import { getWhatsAppAccountStatus, findActiveWhatsAppSender, normalizeWhatsAppPhone } from '@/lib/whatsapp/account-registry'
-import { requireServiceClient } from '@/lib/supabase/service'
+import {
+  getWhatsAppAccountStatus,
+  findActiveWhatsAppSender,
+  normalizeWhatsAppPhone,
+  revalidateWhatsAppSender,
+} from '@/lib/whatsapp/account-registry'
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockSelect.mockReturnValue(chainable)
   mockEq.mockReturnValue(chainable)
-  mockLimit.mockReturnValue(chainable)
+  mockRpc.mockResolvedValue({ data: [], error: null })
   mockMaybeSingle.mockResolvedValue({ data: null, error: null })
 })
 
@@ -66,6 +70,11 @@ describe('normalizeWhatsAppPhone', () => {
 
   it('handles international numbers', () => {
     expect(normalizeWhatsAppPhone('+447911123456')).toBe('+447911123456')
+  })
+
+  it('rejects letters, extensions, and a zero country code', () => {
+    expect(normalizeWhatsAppPhone('+15551234567 callback')).toBeNull()
+    expect(normalizeWhatsAppPhone('+05551234567')).toBeNull()
   })
 })
 
@@ -175,12 +184,13 @@ describe('getWhatsAppAccountStatus', () => {
 
 describe('findActiveWhatsAppSender', () => {
   it('returns the sender on an exact active match', async () => {
-    mockLimit.mockResolvedValue({
+    mockRpc.mockResolvedValue({
       data: [
         {
           company_id: 'company-abc',
           user_id: 'user-123',
           phone_e164: '+15551234567',
+          authorized: true,
         },
       ],
       error: null,
@@ -193,14 +203,11 @@ describe('findActiveWhatsAppSender', () => {
       userId: 'user-123',
       phoneE164: '+15551234567',
     })
-    // Should query with status='active'
-    expect(mockEq).toHaveBeenCalledWith('status', 'active')
-    // Should cap at 2 rows
-    expect(mockLimit).toHaveBeenCalledWith(2)
+    expect(mockRpc).toHaveBeenCalledWith('resolve_whatsapp_sender_authority', { p_phone_e164: '+15551234567' })
   })
 
   it('returns null for zero matches (unknown sender)', async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null })
+    mockRpc.mockResolvedValue({ data: [], error: null })
 
     const result = await findActiveWhatsAppSender('+15559999999')
 
@@ -208,10 +215,10 @@ describe('findActiveWhatsAppSender', () => {
   })
 
   it('returns null for ambiguous matches (multiple active senders)', async () => {
-    mockLimit.mockResolvedValue({
+    mockRpc.mockResolvedValue({
       data: [
-        { company_id: 'company-1', user_id: 'user-a', phone_e164: '+15551234567' },
-        { company_id: 'company-2', user_id: 'user-b', phone_e164: '+15551234567' },
+        { company_id: 'company-1', user_id: 'user-a', phone_e164: '+15551234567', authorized: true },
+        { company_id: 'company-2', user_id: 'user-b', phone_e164: '+15551234567', authorized: false },
       ],
       error: null,
     })
@@ -222,7 +229,7 @@ describe('findActiveWhatsAppSender', () => {
   })
 
   it('returns null on DB error', async () => {
-    mockLimit.mockResolvedValue({
+    mockRpc.mockResolvedValue({
       data: null,
       error: { message: 'timeout' },
     })
@@ -232,43 +239,55 @@ describe('findActiveWhatsAppSender', () => {
     expect(result).toBeNull()
   })
 
+  it('throws the authority read failure in strict mode so queued work can retry', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'timeout' } })
+    await expect(findActiveWhatsAppSender('+15551234567', { throwOnError: true }))
+      .rejects.toThrow('authority lookup failed')
+  })
+
   it('returns null for invalid phone input', async () => {
     const result = await findActiveWhatsAppSender('')
 
     expect(result).toBeNull()
     // Should not even query the DB
-    expect(mockEq).not.toHaveBeenCalled()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
-  it('never uses .maybeSingle() for the sender lookup', async () => {
-    mockLimit.mockResolvedValue({
+  it('rejects the only active row when its underlying authority is invalid', async () => {
+    mockRpc.mockResolvedValue({
       data: [
-        { company_id: 'company-abc', user_id: null, phone_e164: '+15551234567' },
+        { company_id: 'company-abc', user_id: 'user-123', phone_e164: '+15551234567', authorized: false },
       ],
       error: null,
     })
 
-    await findActiveWhatsAppSender('+15551234567')
+    await expect(findActiveWhatsAppSender('+15551234567')).resolves.toBeNull()
+  })
 
-    // The chain should end at .limit(), NOT .maybeSingle()
-    // maybeSingle should only have been called by getWhatsAppAccountStatus tests,
-    // not by findActiveWhatsAppSender
-    // We verify by checking that the limit result was used directly
-    expect(mockLimit).toHaveBeenCalled()
+  it('only revalidates queued work for the user and company it originally authorized', async () => {
+    mockRpc.mockResolvedValue({
+      data: [{ company_id: 'company-abc', user_id: 'user-456', phone_e164: '+15551234567', authorized: true }],
+      error: null,
+    })
+    const expected = { companyId: 'company-abc', userId: 'user-123', phoneE164: '+15551234567' }
+    await expect(revalidateWhatsAppSender(expected)).resolves.toBe(false)
+    await expect(revalidateWhatsAppSender({ ...expected, userId: 'user-456' })).resolves.toBe(true)
+    await expect(revalidateWhatsAppSender({ ...expected, userId: 'user-456', companyId: 'other-company' }))
+      .resolves.toBe(false)
   })
 
   it('normalizes phone before querying', async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null })
+    mockRpc.mockResolvedValue({ data: [], error: null })
 
     await findActiveWhatsAppSender('15551234567')
 
     // The first eq should be the normalized phone
-    expect(mockEq).toHaveBeenCalledWith('phone_e164', '+15551234567')
+    expect(mockRpc).toHaveBeenCalledWith('resolve_whatsapp_sender_authority', { p_phone_e164: '+15551234567' })
   })
 
   it('does not log the full sender phone on zero matches', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    mockLimit.mockResolvedValue({ data: [], error: null })
+    mockRpc.mockResolvedValue({ data: [], error: null })
 
     await findActiveWhatsAppSender('+15551234567')
 
@@ -282,7 +301,7 @@ describe('findActiveWhatsAppSender', () => {
 
   it('does not log the full sender phone on ambiguity', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    mockLimit.mockResolvedValue({
+    mockRpc.mockResolvedValue({
       data: [
         { company_id: 'c1', user_id: 'u1', phone_e164: '+15551234567' },
         { company_id: 'c2', user_id: 'u2', phone_e164: '+15551234567' },

@@ -50,19 +50,19 @@ type ConfirmFrame = {
 const FRAMES: Record<EstimateLanguage, ConfirmFrame> = {
   en: {
     header: (total) => `Estimate ready - ${total}`,
-    instruction: 'Reply *send* to deliver to your client, or *cancel* to discard.',
+    instruction: 'Reply *send* to deliver it to your client, or *cancel* to keep it in the app and close this confirmation.',
     editHint:
       'To change something, just tell me — e.g. "change item 1.1 to $120" or "remove item 2.3".',
   },
   pt: {
     header: (total) => `Orçamento pronto - ${total}`,
-    instruction: 'Responda *send* para enviar ao cliente, ou *cancel* para descartar.',
+    instruction: 'Responda *send* para enviar ao cliente, ou *cancel* para encerrar a confirmação e guardar o orçamento no app.',
     editHint:
       'Para alterar algo, é só me dizer — ex.: "mudar item 1.1 para $120" ou "remover item 2.3".',
   },
   es: {
     header: (total) => `Presupuesto listo - ${total}`,
-    instruction: 'Responda *send* para enviarlo al cliente, o *cancel* para descartarlo.',
+    instruction: 'Responda *send* para enviarlo al cliente, o *cancel* para cerrar la confirmación y conservar el presupuesto en la app.',
     editHint:
       'Para cambiar algo, solo dígame — p. ej. "cambiar el ítem 1.1 a $120" o "eliminar el ítem 2.3".',
   },

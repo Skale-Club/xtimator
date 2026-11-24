@@ -6,8 +6,7 @@
  * they messaged us. The sequence is three SHORT messages sent one after another
  * (content kept, delivery chopped; never a wall of text):
  *   1. what the assistant does
- *   2. the how-it-works video (a line + URL), or a text placeholder until the
- *      owner has recorded the video for that language (assets never block)
+ *   2. a how-it-works video (a line + URL) or localized usage guidance
  *   3. a call to send the first job now
  * The copy is localized (pt/en/es). The language is resolved from the owner's
  * company default (companies.default_estimate_language) through the shared
@@ -17,16 +16,18 @@
  * whatsapp_company_configs is RLS deny-all — always call with a service-role client.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { randomUUID } from 'node:crypto'
+import { isExplicitWhatsAppSendRejection, sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { isWhatsAppOutboundBlocked } from '@/lib/whatsapp/outbound-guard'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
-import { getWhatsAppWelcomeConfig } from '@/lib/platform-config'
+import { getWhatsAppPlatformConfig, getWhatsAppWelcomeConfig } from '@/lib/platform-config'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 
 type WelcomeCopy = {
   intro: string
   videoWithUrl: (url: string) => string
-  videoPlaceholder: string
+  usageGuide: string
   tryNow: string
 }
 
@@ -35,29 +36,29 @@ const WELCOME_COPY: Record<EstimateLanguage, WelcomeCopy> = {
     intro:
       'Olá! Eu sou o assistente da Xtimator. Por aqui você cria orçamentos profissionais mandando áudio e fotos do serviço.',
     videoWithUrl: (url) => `Veja em 1 minuto como funciona: ${url}`,
-    videoPlaceholder: 'Em breve vou te mandar um vídeo curto mostrando como funciona.',
-    tryNow: 'Quer testar agora? Me manda um áudio contando o serviço que você precisa orçar.',
+    usageGuide: 'Inclua medidas, materiais e os preços que você já sabe. Você também pode mandar fotos.',
+    tryNow: 'Quer testar? Mande um áudio contando o serviço. Você pode revisar o rascunho antes de enviar o orçamento.',
   },
   en: {
     intro:
       "Hi! I'm the Xtimator assistant. Right here you can create professional estimates by sending audio and photos of the job.",
     videoWithUrl: (url) => `See how it works in 1 minute: ${url}`,
-    videoPlaceholder: "I'll send you a short video soon showing how it works.",
-    tryNow: 'Want to try it now? Send me a voice message describing the job you need to estimate.',
+    usageGuide: 'Include measurements, materials, and any prices you know. You can also send photos.',
+    tryNow: 'Want to try it? Send a voice message about the job. You can review the draft before sending the estimate.',
   },
   es: {
     intro:
       '¡Hola! Soy el asistente de Xtimator. Aquí puede crear presupuestos profesionales enviando audio y fotos del trabajo.',
     videoWithUrl: (url) => `Vea cómo funciona en 1 minuto: ${url}`,
-    videoPlaceholder: 'Pronto le enviaré un video corto mostrando cómo funciona.',
-    tryNow: '¿Quiere probar ahora? Envíeme un audio contando el trabajo que necesita presupuestar.',
+    usageGuide: 'Incluya medidas, materiales y los precios que conozca. También puede enviar fotos.',
+    tryNow: '¿Quiere probar? Envíeme un audio sobre el trabajo. Puede revisar el borrador antes de enviar el presupuesto.',
   },
 }
 
 /**
  * The welcome sequence as an ordered list of short messages. Unknown languages
  * fall back to English (English-first principle). `videoUrl` empty/null → the
- * text placeholder replaces the video message.
+ * usage guidance replaces the video message.
  */
 export function buildWelcomeSequence(
   language: EstimateLanguage,
@@ -65,30 +66,7 @@ export function buildWelcomeSequence(
 ): string[] {
   const copy = WELCOME_COPY[language] ?? WELCOME_COPY.en
   const url = videoUrl?.trim()
-  return [copy.intro, url ? copy.videoWithUrl(url) : copy.videoPlaceholder, copy.tryNow]
-}
-
-/**
- * Atomically claim the "first contact" welcome for a company. Returns true only
- * for the caller that flips welcome_sent_at from NULL → now(), so concurrent
- * inbound messages never double-send. Returns false if already welcomed (or on error).
- */
-export async function claimWhatsAppWelcome(
-  serviceClient: SupabaseClient,
-  companyId: string
-): Promise<boolean> {
-  const { data, error } = await serviceClient
-    .from('whatsapp_company_configs')
-    .update({ welcome_sent_at: new Date().toISOString() })
-    .eq('company_id', companyId)
-    .is('welcome_sent_at', null)
-    .select('company_id')
-
-  if (error) {
-    console.warn('[WhatsApp] claimWhatsAppWelcome failed', error)
-    return false
-  }
-  return Array.isArray(data) && data.length > 0
+  return [copy.intro, url ? copy.videoWithUrl(url) : copy.usageGuide, copy.tryNow]
 }
 
 /**
@@ -106,44 +84,116 @@ export async function resolveWelcomeLanguage(
 }
 
 /**
- * First-contact convenience: claim the welcome slot, and if won, resolve the
- * company's language and send the three-message sequence in order (each awaited
- * before the next). Best-effort — never throws. Returns true if the whole
- * sequence was sent; if a message fails, the rest are not sent.
+ * Send or resume the company welcome for the authorized phone opening the
+ * conversation. Only an accepted Meta message advances progress. A subsequent
+ * inbound from the same phone retries the first unfinished step.
  */
 export async function welcomeOnFirstContact(
   serviceClient: SupabaseClient,
   companyId: string,
   toPhone: string
 ): Promise<boolean> {
-  const claimed = await claimWhatsAppWelcome(serviceClient, companyId)
-  if (!claimed) return false
+  if (isWhatsAppOutboundBlocked()) return false
+  const token = randomUUID()
+  let claimed = false
+  let complete = false
+  let sendUncertain = false
   try {
-    const language = await resolveWelcomeLanguage(serviceClient, companyId)
+    const { data: lease, error: claimError } = await serviceClient
+      .rpc('claim_whatsapp_welcome', {
+        p_company_id: companyId,
+        p_recipient: toPhone,
+        p_token: token,
+      })
+      .maybeSingle<{ next_step: number }>()
+    if (claimError) throw claimError
+    if (!lease) return false
+    claimed = true
+
+    const [language, platform] = await Promise.all([
+      resolveWelcomeLanguage(serviceClient, companyId),
+      getWhatsAppPlatformConfig(),
+    ])
+    if (!platform.accessToken || !platform.phoneNumberId) return false
     const videoUrl = await getWhatsAppWelcomeConfig()
       .then((c) => c.videoUrls[language])
       .catch(() => null)
     const messages = buildWelcomeSequence(language, videoUrl)
 
-    for (const body of messages) {
-      // Onboarding welcome: a PLATFORM cost, recorded but never billed to the customer.
-      const wamid = await sendWhatsAppMessage(
-        toPhone,
-        { type: 'text', text: { body } },
-        { companyId, purpose: 'welcome', billable: false }
-      )
-      logOutboundMessage(serviceClient, {
+    for (let index = lease.next_step; index < messages.length; index++) {
+      const body = messages[index]
+      const { data: sendSlot, error: slotError } = await serviceClient
+        .from('whatsapp_company_configs')
+        .update({
+          welcome_sending_step: index,
+          welcome_claim_until: new Date(Date.now() + 5 * 60_000).toISOString(),
+        })
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .eq('welcome_claim_token', token)
+        .eq('welcome_next_step', index)
+        .is('welcome_sending_step', null)
+        .select('company_id')
+      if (slotError || !sendSlot?.length) throw slotError ?? new Error('Welcome lease was lost.')
+
+      sendUncertain = true
+      let wamid: string | null
+      try {
+        wamid = await sendWhatsAppMessage(
+          toPhone,
+          { type: 'text', text: { body } },
+          { companyId, purpose: 'welcome', billable: false }
+        )
+      } catch (err) {
+        if (isExplicitWhatsAppSendRejection(err)) sendUncertain = false
+        throw err
+      }
+      if (!wamid) throw new Error('Welcome message was not confirmed by Meta.')
+
+      const now = new Date()
+      const last = index + 1 === messages.length
+      const { data: advanced, error: advanceError } = await serviceClient
+        .from('whatsapp_company_configs')
+        .update({
+          welcome_next_step: index + 1,
+          welcome_sending_step: null,
+          welcome_claim_until: last ? null : new Date(now.getTime() + 5 * 60_000).toISOString(),
+          ...(last ? { welcome_sent_at: now.toISOString(), welcome_claim_token: null } : {}),
+        })
+        .eq('company_id', companyId)
+        .eq('welcome_claim_token', token)
+        .eq('welcome_next_step', index)
+        .select('company_id')
+      if (advanceError || !advanced?.length) throw advanceError ?? new Error('Welcome lease was lost.')
+      sendUncertain = false
+      complete = last
+
+      await logOutboundMessage(serviceClient, {
         companyId,
         contactPhone: toPhone,
+        ownerPhone: toPhone,
         body,
         msgType: 'text',
         waMessageId: wamid,
         status: 'sent',
       }).catch(() => undefined)
     }
-    return true
+    return complete
   } catch (err) {
-    console.warn('[WhatsApp] welcome message send failed', err)
+    console.warn('[WhatsApp] welcome message send failed', { sendUncertain, companyId, error: err instanceof Error ? err.name : 'database' })
     return false
+  } finally {
+    if (claimed && !complete && !sendUncertain) {
+      try {
+        const { error } = await serviceClient
+          .from('whatsapp_company_configs')
+          .update({ welcome_claim_until: null, welcome_claim_token: null, welcome_sending_step: null })
+          .eq('company_id', companyId)
+          .eq('welcome_claim_token', token)
+        if (error) throw error
+      } catch (err) {
+        console.warn('[WhatsApp] welcome lease release failed; lease will expire', err)
+      }
+    }
   }
 }

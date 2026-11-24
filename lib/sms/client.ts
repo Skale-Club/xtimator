@@ -23,6 +23,7 @@ export interface SendSmsResult {
   ok: boolean
   sid?: string
   error?: string
+  deliveryFailure?: 'permanent' | 'retryable' | 'ambiguous'
 }
 
 /**
@@ -58,9 +59,15 @@ async function recordSmsCost(
  * recorded as an 'unclassified', non-billable platform send.
  */
 export async function sendSms(to: string, body: string, meta?: MessagingMeta): Promise<SendSmsResult> {
-  const twilio = await getTwilioConfig()
+  let twilio: Awaited<ReturnType<typeof getTwilioConfig>>
+  try {
+    twilio = await getTwilioConfig()
+  } catch {
+    // The request has not been sent, so a config lookup failure can be retried.
+    return { ok: false, error: 'twilio_config_lookup_failed', deliveryFailure: 'retryable' }
+  }
   if (!twilio) {
-    return { ok: false, error: 'twilio_unconfigured' }
+    return { ok: false, error: 'twilio_unconfigured', deliveryFailure: 'permanent' }
   }
 
   try {
@@ -90,7 +97,12 @@ export async function sendSms(to: string, body: string, meta?: MessagingMeta): P
     }
 
     if (!res.ok) {
-      return { ok: false, error: data.message ?? `twilio_${res.status}` }
+      if (res.status === 429) {
+        // Twilio documents that REST requests rejected with 429 are unprocessed.
+        return { ok: false, error: data.message ?? 'twilio_429', deliveryFailure: 'retryable' }
+      }
+      const deliveryFailure = res.status === 408 || res.status >= 500 ? 'ambiguous' : 'permanent'
+      return { ok: false, error: data.message ?? `twilio_${res.status}`, deliveryFailure }
     }
     await recordSmsCost(to, body, data, meta ?? { companyId: null, purpose: 'unclassified', billable: false })
     return { ok: true, sid: data.sid }
@@ -99,7 +111,7 @@ export async function sendSms(to: string, body: string, meta?: MessagingMeta): P
       '[sms.client] send failed:',
       e instanceof Error ? e.message : String(e),
     )
-    return { ok: false, error: 'send_failed' }
+    return { ok: false, error: 'send_failed', deliveryFailure: 'ambiguous' }
   }
 }
 

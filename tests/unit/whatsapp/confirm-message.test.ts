@@ -11,6 +11,7 @@ import {
  * INVARIANTS pinned here:
  *   - The literal *send* / *cancel* protocol tokens survive in EVERY language
  *     (the agent + docs key on them; only the localized verb is added).
+ *   - Cancel closes the WhatsApp confirmation and keeps the estimate in the app.
  *   - The N.M edit-command example numbers ("1.1", "2.3") survive in EVERY
  *     language (they are the stable display numbers, not translated).
  *   - The language-neutral breakdown + total are passed through verbatim.
@@ -25,8 +26,8 @@ describe('buildConfirmMessage — localized confirmation frame', () => {
   it('en: English header + send/cancel instruction + edit hint', () => {
     const body = buildConfirmMessage('en', { total: '$1,234.00', breakdown: BREAKDOWN })
     expect(body).toMatch(/Estimate ready - \$1,234\.00/)
-    expect(body).toMatch(/deliver to your client/i)
-    expect(body).toMatch(/discard/i)
+    expect(body).toMatch(/deliver it to your client/i)
+    expect(body).toMatch(/keep it in the app and close this confirmation/i)
     expect(body).toContain('*send*')
     expect(body).toContain('*cancel*')
     // Edit-hint example numbers preserved.
@@ -40,7 +41,7 @@ describe('buildConfirmMessage — localized confirmation frame', () => {
     const body = buildConfirmMessage('pt', { total: 'R$ 1.234,00', breakdown: BREAKDOWN })
     expect(body).toMatch(/Orçamento pronto/i)
     expect(body).toMatch(/enviar ao cliente/i)
-    expect(body).toMatch(/descartar/i)
+    expect(body).toMatch(/encerrar a confirmação e guardar o orçamento no app/i)
     // Protocol keywords stay literal.
     expect(body).toContain('*send*')
     expect(body).toContain('*cancel*')
@@ -54,7 +55,7 @@ describe('buildConfirmMessage — localized confirmation frame', () => {
     const body = buildConfirmMessage('es', { total: '$1.234,00', breakdown: BREAKDOWN })
     expect(body).toMatch(/Presupuesto listo/i)
     expect(body).toMatch(/cliente/i)
-    expect(body).toMatch(/descartar/i)
+    expect(body).toMatch(/cerrar la confirmación y conservar el presupuesto en la app/i)
     expect(body).toContain('*send*')
     expect(body).toContain('*cancel*')
     expect(body).toContain('1.1')

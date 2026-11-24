@@ -94,6 +94,61 @@ export interface MetaTemplateStatusResult {
   rejectionReason: string | null
 }
 
+export interface MetaTemplateDefinition extends MetaTemplateStatusResult {
+  id: string
+  name: string
+  language: string
+  components: unknown[]
+}
+
+/** Read the exact language variant from the configured WABA. */
+export async function findMetaTemplateByName(
+  wabaId: string,
+  accessToken: string,
+  name: string,
+  language: string,
+): Promise<
+  { ok: true; result: MetaTemplateDefinition } | { ok: false; status: number; error: string }
+> {
+  try {
+    const params = new URLSearchParams({
+      name,
+      language: JSON.stringify([language]),
+      fields: 'id,name,language,status,components,rejected_reason',
+    })
+    const response = await fetch(`${GRAPH_BASE}/${encodeURIComponent(wabaId)}/message_templates?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: 'Could not read templates from the configured Meta account.' }
+    }
+
+    const body = await response.json() as { data?: Record<string, unknown>[] }
+    const matches = Array.isArray(body.data)
+      ? body.data.filter((item) => item?.name === name && item.language === language)
+      : []
+    const template = matches[0]
+    if (matches.length !== 1 || !template || typeof template.id !== 'string' ||
+      !template.id || typeof template.status !== 'string' || !template.status ||
+      !Array.isArray(template.components)) {
+      return { ok: false, status: 404, error: 'Meta did not return one exact template name and language match.' }
+    }
+    return {
+      ok: true,
+      result: {
+        id: template.id,
+        name,
+        language,
+        status: template.status,
+        rejectionReason: extractRejectionReason(template),
+        components: template.components,
+      },
+    }
+  } catch {
+    return { ok: false, status: 0, error: 'Could not reach Meta to read the template.' }
+  }
+}
+
 /**
  * Normalize Meta's rejection-reason field off a GET-by-id (or webhook) JSON
  * body. The exact field name is LOW confidence per research — checks

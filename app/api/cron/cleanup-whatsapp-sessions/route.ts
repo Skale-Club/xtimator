@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getOwnerLastInboundAt, sendOwnerWhatsApp } from '@/lib/whatsapp/owner-send'
 import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
-import { getOwnerUpdateTemplate } from '@/lib/notifications/whatsapp-registry'
+import { getApprovedOwnerUpdateTemplate } from '@/lib/notifications/whatsapp-registry'
+import { getUserPreferences } from '@/lib/notifications/preferences'
+import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 import { notifyOps } from '@/lib/observability/ops-alert'
@@ -53,17 +55,26 @@ export async function GET(request: Request) {
             // otherwise (or on Meta 131047) the generic owner_update template.
             const companyId = session.company_id as string
             const ownerPhone = session.phone_number as string
+            const sender = await findActiveWhatsAppSender(ownerPhone)
+            if (!sender?.userId || sender.companyId !== companyId ||
+              !(await getUserPreferences(sender.userId))?.whatsapp_opt_in_at) {
+              throw new Error('WhatsApp notification recipient is no longer authorized.')
+            }
             const language = await resolveOwnerLanguage(supabase, companyId)
+            const [template, lastInboundAt] = await Promise.all([
+              getApprovedOwnerUpdateTemplate(
+                { title: 'Estimate confirmation expired', body: 'Send a new audio, text or photo to create a fresh estimate.' },
+                language,
+              ),
+              getOwnerLastInboundAt(supabase, companyId, ownerPhone),
+            ])
             const sent = await sendOwnerWhatsApp({
               to: ownerPhone,
               companyId,
               text: body,
-              template: getOwnerUpdateTemplate(
-                { title: 'Estimate confirmation expired', body: 'Send a new audio, text or photo to create a fresh estimate.' },
-                language,
-              ),
+              template,
               meta: { companyId, purpose: 'owner_notification', billable: true },
-              lastInboundAt: await getOwnerLastInboundAt(supabase, companyId, ownerPhone),
+              lastInboundAt,
             })
             if (!sent.ok) throw new Error(sent.message ?? sent.error)
             const wamid = sent.wamid

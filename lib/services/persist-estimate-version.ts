@@ -36,6 +36,8 @@ export interface PersistEstimateVersionArgs {
   calculatedSections: CalculatedSections
   /** The version being replaced; its photos are copied onto the new one. Null when there is none. */
   previousCurrentId: string | null
+  /** Update the WhatsApp session in the same transaction as activation. */
+  whatsappRegeneration?: { commandId: string; attemptId: string }
   /** Project fields committed in the SAME transaction as version activation. */
   projectUpdate?: {
     status?: string
@@ -202,7 +204,14 @@ export async function persistEstimateVersion(
   }
 
   try {
-    const { data, error } = await supabase.rpc('activate_estimate_version', {
+    const { data, error } = args.whatsappRegeneration
+      ? await supabase.rpc('whatsapp_activate_regenerated_estimate', {
+        p_command_id: args.whatsappRegeneration.commandId,
+        p_attempt_id: args.whatsappRegeneration.attemptId,
+        p_estimate_id: estimateId,
+        p_project_update: args.projectUpdate ?? {},
+      })
+      : await supabase.rpc('activate_estimate_version', {
       p_company_id: companyId,
       p_project_id: projectId,
       p_estimate_id: estimateId,

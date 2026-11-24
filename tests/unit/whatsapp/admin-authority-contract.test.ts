@@ -116,8 +116,8 @@ describe('admin-authority-contract — static source guards', () => {
     expect(content).not.toMatch(/normalizedPhoneDigits/)
   })
 
-  it('webhook imports findActiveWhatsAppSender from account-registry (D-13)', () => {
-    const webhookFile = join(ROOT, 'app', 'api', 'webhooks', 'whatsapp', 'route.ts')
+  it('durable inbound staging resolves findActiveWhatsAppSender from account-registry (D-13)', () => {
+    const webhookFile = join(ROOT, 'lib', 'whatsapp', 'stage-inbound.ts')
     const content = readFileSync(webhookFile, 'utf-8')
     expect(content).toContain("from '@/lib/whatsapp/account-registry'")
     expect(content).toContain('findActiveWhatsAppSender')

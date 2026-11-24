@@ -73,9 +73,10 @@ export async function pushToBuffer(
  *   delete the buffer and return all messages.
  * - Otherwise return null (a newer message arrived; its worker will process).
  *
- * Uses Lua-style atomicity: GET all + check + DEL is wrapped in MULTI for
- * minimal race surface. (Upstash REST is single-threaded per request, so the
- * MULTI block is effectively atomic.)
+ * The read/check/delete executes in ONE Redis Lua script. A concurrent RPUSH
+ * occurs wholly before or after the claim and can never be deleted unseen.
+ * Live webhook ingestion uses the durable database queue; this compatibility
+ * buffer is retained for direct/legacy callers.
  */
 export async function tryClaimBuffer(
   phoneNumber: string,
@@ -86,7 +87,15 @@ export async function tryClaimBuffer(
 
   try {
     const k = key(phoneNumber)
-    const entries = await redis.lrange<string>(k, 0, -1)
+    const entries = await redis.eval<[string], string[] | null>(`
+      local entries = redis.call('LRANGE', KEYS[1], 0, -1)
+      if #entries == 0 then return nil end
+      local ok, last = pcall(cjson.decode, entries[#entries])
+      if not ok or last.id ~= ARGV[1] then return nil end
+      redis.call('DEL', KEYS[1])
+      return entries
+    `, [k], [messageId])
+    if (!entries) return null
     if (entries.length === 0) return null
 
     const parsed: BufferedMessage[] = entries
@@ -107,8 +116,6 @@ export async function tryClaimBuffer(
       return null
     }
 
-    // We're the winner. Delete the buffer.
-    await redis.del(k)
     return parsed
   } catch (err) {
     console.warn('[whatsapp/buffer] tryClaimBuffer failed', err)

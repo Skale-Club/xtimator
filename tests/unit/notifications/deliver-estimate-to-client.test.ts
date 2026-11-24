@@ -81,6 +81,32 @@ beforeEach(() => {
 })
 
 describe('deliverEstimateToClient', () => {
+  it('never dispatches a reserved email again after an uncertain provider outcome', async () => {
+    let reservation: 'dispatching' | 'unverified' | null = null
+    const rpc = vi.fn(async (name: string) => {
+      if (name === 'whatsapp_claim_estimate_delivery_channel') {
+        if (reservation) return { data: reservation, error: null }
+        reservation = 'dispatching'
+        return { data: 'claimed', error: null }
+      }
+      throw new Error('Worker lost the delivery acknowledgement')
+    })
+    const svc = {
+      rpc,
+      from: () => {
+        const query = { select: () => query, eq: () => query, then: (resolve: (value: unknown) => unknown) =>
+          Promise.resolve({ data: reservation ? [{ channel: 'email', status: reservation }] : [], error: null }).then(resolve) }
+        return query
+      },
+    } as never
+    const input = params(svc, { ...BOTH, phone: null })
+    await expect(deliverEstimateToClient({ ...input, command: { commandId: 'first', attemptId: 'attempt-1' } }))
+      .rejects.toThrow('lost the delivery acknowledgement')
+    const retry = await deliverEstimateToClient({ ...input, command: { commandId: 'second', attemptId: 'attempt-2' } })
+    expect(retry).toEqual({ status: 'not_delivered', failed: [{ channel: 'email', ok: false, reason: 'delivery_unverified' }] })
+    expect(sendCustomerMessage).toHaveBeenCalledOnce()
+  })
+
   it('client with email and phone gets BOTH email and SMS through sendCustomerMessage', async () => {
     const { svc, inserts, updates } = makeSvc()
     const out = await deliverEstimateToClient(params(svc, BOTH))

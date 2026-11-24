@@ -46,12 +46,21 @@ function lastFour(phone: string): string {
 
 /** The user's verified phone in E.164, or null when there is none. */
 export async function getVerifiedPhone(userId: string): Promise<string | null> {
+  try {
+    return await readVerifiedPhone(userId)
+  } catch {
+    return null
+  }
+}
+
+async function readVerifiedPhone(userId: string): Promise<string | null> {
   const { data, error } = await requireDataServiceClient()
     .from('xtimator_accounts')
-    .select('phone, phone_confirmed_at')
+    .select('phone, phone_confirmed_at, disabled_at')
     .eq('id', userId)
     .maybeSingle()
-  if (error || !data?.phone || !data.phone_confirmed_at) return null
+  if (error) throw new Error('Verified phone lookup failed')
+  if (!data?.phone || !data.phone_confirmed_at || data.disabled_at) return null
   return normalizeWhatsAppPhone(data.phone as string)
 }
 
@@ -74,8 +83,8 @@ type SenderRow = {
   id: string
   company_id: string
   user_id: string | null
-  status: string
-  created_by_admin: boolean | null
+  config_id: string
+  suspension_reason: string | null
 }
 
 /**
@@ -88,7 +97,7 @@ export async function ensureWhatsAppSenderForUser(
 ): Promise<EnsureSenderResult> {
   try {
     if (!userId || !companyId) return { status: 'error' }
-    const phone = await getVerifiedPhone(userId)
+    const phone = await readVerifiedPhone(userId)
     if (!phone) return { status: 'no_verified_phone' }
 
     const svc = requireServiceClient()
@@ -98,13 +107,14 @@ export async function ensureWhatsAppSenderForUser(
 
     const { data: rows, error: rowsErr } = await svc
       .from('whatsapp_authorized_senders')
-      .select('id, company_id, user_id, status, created_by_admin')
+      .select('id, company_id, config_id, user_id, suspension_reason')
       .eq('phone_e164', phone)
-      .limit(20)
-    if (rowsErr) throw new Error(rowsErr.message)
+      .eq('status', 'active')
+      .limit(2)
+    if (rowsErr) throw new Error('Active sender lookup failed')
     const senders = (rows ?? []) as SenderRow[]
 
-    const elsewhere = senders.find((r) => r.status === 'active' && r.company_id !== companyId)
+    const elsewhere = senders.find((r) => r.company_id !== companyId)
     if (elsewhere) {
       void notifyOps({
         kind: 'whatsapp_link_conflict',
@@ -122,48 +132,35 @@ export async function ensureWhatsAppSenderForUser(
       return { status: 'conflict', phoneE164: phone }
     }
 
-    const own = senders.filter((r) => r.company_id === companyId)
-    const active = own.find((r) => r.status === 'active')
-    if (active) {
-      if (!active.user_id) {
-        await svc
-          .from('whatsapp_authorized_senders')
-          .update({ user_id: userId, updated_at: new Date().toISOString() })
-          .eq('id', active.id)
-      }
-      return { status: 'already_linked', phoneE164: phone }
-    }
-
-    // Reactivate our own earlier rows (deactivated on a phone change) and rows still
-    // waiting for review; never undo an explicit admin suspension.
-    const reusable = own.find((r) => r.status === 'pending_review' || r.created_by_admin !== true)
-    if (own.length > 0 && !reusable) return { status: 'blocked', phoneE164: phone }
-
-    const nowIso = new Date().toISOString()
-    if (reusable) {
-      const { error } = await svc
-        .from('whatsapp_authorized_senders')
-        .update({ status: 'active', user_id: userId, verified_at: nowIso, updated_at: nowIso })
-        .eq('id', reusable.id)
-      if (error) {
-        if (error.code === '23505') return { status: 'conflict', phoneE164: phone }
-        throw new Error(error.message)
-      }
-      return { status: 'linked', phoneE164: phone }
-    }
-
-    // Config row: one per company. Created active here (no admin step); a suspended
-    // config is an explicit platform decision and is respected.
-    const { data: cfg, error: cfgErr } = await svc
+    if (senders.length > 1) return { status: 'conflict', phoneE164: phone }
+    const active = senders[0]
+    const senderRows = () => svc.from('whatsapp_authorized_senders').select('id')
+      .eq('company_id', companyId).eq('phone_e164', phone)
+    const readConfig = () => svc
       .from('whatsapp_company_configs')
       .select('id, status')
       .eq('company_id', companyId)
       .maybeSingle()
-    if (cfgErr) throw new Error(cfgErr.message)
-    let configId = (cfg as { id: string } | null)?.id ?? null
-    if ((cfg as { status?: string } | null)?.status === 'suspended') {
+
+    const [config, underReview, revoked] = await Promise.all([
+      readConfig(),
+      senderRows().eq('status', 'pending_review').limit(1),
+      senderRows().eq('status', 'suspended').neq('suspension_reason', 'phone_change').limit(1),
+    ])
+    if (config.error || underReview.error || revoked.error) throw new Error('Sender review lookup failed')
+    if (config.data && config.data.status !== 'active') return { status: 'blocked', phoneE164: phone }
+    if (active) {
+      if (active.user_id !== userId || active.config_id !== config.data?.id || active.suspension_reason) {
+        return { status: 'blocked', phoneE164: phone }
+      }
+      return { status: 'already_linked', phoneE164: phone }
+    }
+    if (underReview.data?.length || revoked.data?.length) {
       return { status: 'blocked', phoneE164: phone }
     }
+
+    // A new company starts active. Existing admin review or suspension stays in force.
+    let configId = (config.data?.id as string | undefined) ?? null
     if (!configId) {
       const { data: created, error: createErr } = await svc
         .from('whatsapp_company_configs')
@@ -171,18 +168,42 @@ export async function ensureWhatsAppSenderForUser(
         .select('id')
         .single()
       if (createErr) {
-        if (createErr.code !== '23505') throw new Error(createErr.message)
-        const { data: again } = await svc
-          .from('whatsapp_company_configs')
-          .select('id')
-          .eq('company_id', companyId)
-          .maybeSingle()
-        configId = (again as { id: string } | null)?.id ?? null
+        if (createErr.code !== '23505') throw new Error('Config creation failed')
+        const again = await readConfig()
+        if (again.error) throw new Error('Config reread failed')
+        if (again.data && again.data.status !== 'active') return { status: 'blocked', phoneE164: phone }
+        configId = (again.data?.id as string | undefined) ?? null
       } else {
         configId = (created as { id: string } | null)?.id ?? null
       }
     }
     if (!configId) throw new Error('config unavailable')
+
+    // Only the same user can resume a row automatically suspended for a phone change.
+    const { data: reusable, error: reusableError } = await senderRows()
+      .eq('config_id', configId)
+      .eq('user_id', userId)
+      .eq('status', 'suspended')
+      .eq('suspension_reason', 'phone_change')
+      .limit(1)
+      .maybeSingle()
+    if (reusableError) throw new Error('Previous sender lookup failed')
+
+    const nowIso = new Date().toISOString()
+    if (reusable) {
+      const { data: updated, error } = await svc
+        .from('whatsapp_authorized_senders')
+        .update({ status: 'active', suspension_reason: null, verified_at: nowIso, updated_at: nowIso })
+        .eq('id', reusable.id)
+        .eq('user_id', userId)
+        .eq('status', 'suspended')
+        .eq('suspension_reason', 'phone_change')
+        .select('id')
+        .maybeSingle()
+      if (error?.code === '23505') return { status: 'conflict', phoneE164: phone }
+      if (error) throw new Error('Sender reactivation failed')
+      return { status: updated ? 'linked' : 'blocked', phoneE164: phone }
+    }
 
     const { error: insertErr } = await svc.from('whatsapp_authorized_senders').insert({
       company_id: companyId,
@@ -214,11 +235,11 @@ export async function ensureWhatsAppSenderForUser(
  */
 export async function syncWhatsAppSenderAfterPhoneChange(userId: string): Promise<void> {
   try {
-    const phone = await getVerifiedPhone(userId)
+    const phone = await readVerifiedPhone(userId)
     const svc = requireServiceClient()
     let query = svc
       .from('whatsapp_authorized_senders')
-      .update({ status: 'suspended', updated_at: new Date().toISOString() })
+      .update({ status: 'suspended', suspension_reason: 'phone_change', updated_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active')
     if (phone) query = query.neq('phone_e164', phone)

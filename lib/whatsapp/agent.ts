@@ -2,7 +2,7 @@
  * LangGraph ReAct agent for the WhatsApp confirmation flow.
  *
  * Replaces the regex command parser in confirm.ts. The owner can send natural
- * language messages ("change the total to 2k and go ahead and send it") and the
+ * language messages ("change item 1.2 to 200 and update the timeline") and the
  * agent will call the appropriate tools in sequence, then reply with a single
  * synthesized WhatsApp message.
  *
@@ -16,7 +16,7 @@ import type { WhatsAppCostMeter } from '@/lib/whatsapp/cost-meter'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { makeConfirmationTools } from '@/lib/whatsapp/agent-tools'
+import { makeConfirmationTools, runStandaloneConfirmation } from '@/lib/whatsapp/agent-tools'
 import {
   actionGetEstimateContext,
   formatEstimateContext,
@@ -28,8 +28,20 @@ import {
 } from '@/lib/whatsapp/estimate-numbering'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { estimateReplyAuthorization, loadCurrentSession, sameSession } from '@/lib/whatsapp/session-commands'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 
 const HISTORY_LIMIT = 20
+const STALE_REPLY = {
+  en: 'This WhatsApp draft changed or expired. Open the estimate in the app or reply to its latest WhatsApp confirmation.',
+  pt: 'Este orçamento do WhatsApp mudou ou expirou. Abra o orçamento no app ou responda à confirmação mais recente.',
+  es: 'Este presupuesto de WhatsApp cambió o venció. Abre el presupuesto en la app o responde a su confirmación más reciente.',
+}
+const RETRY_REPLY = {
+  en: 'I could not confirm that action. Check the estimate in the app before trying again.',
+  pt: 'Não consegui confirmar essa ação. Confira o orçamento no app antes de tentar novamente.',
+  es: 'No pude confirmar esa acción. Revisa el presupuesto en la app antes de intentarlo de nuevo.',
+}
 
 // ---------------------------------------------------------------------------
 // Conversation history loader
@@ -77,11 +89,40 @@ export async function runConfirmationAgent(
   ownerPhone: string,
   supabase: SupabaseClient,
   // Phase 2a: per-inbound-message cost meter owned (and settled) by the intent router.
-  meter?: WhatsAppCostMeter
+  meter?: WhatsAppCostMeter,
+  messageId?: string,
+  allowAuthorization = false,
+  senderUserId?: string | null,
 ): Promise<void> {
+  const reply = async (body: string): Promise<void> => {
+    const wamid = await sendWhatsAppMessage(
+      ownerPhone,
+      { type: 'text', text: { body } },
+      { companyId, purpose: 'bot_reply', billable: true },
+    )
+    await logOutboundMessage(supabase, {
+      companyId, contactPhone: ownerPhone, body, msgType: 'text', waMessageId: wamid, status: 'sent',
+    }).catch(() => undefined)
+  }
+  const current = await loadCurrentSession(supabase, companyId, ownerPhone)
+  if (!messageId || !sameSession(current, session) || session.state !== 'awaiting_confirm') {
+    await reply(STALE_REPLY[await resolveOwnerLanguage(supabase, companyId)])
+    return
+  }
+
+  const confirmation = allowAuthorization && estimateReplyAuthorization(userMessage)
+  const scope = { session, companyId, ownerPhone, messageId, senderUserId }
+  if (confirmation) {
+    // A standalone reply authorizes the matching command directly.
+    const language = await resolveOwnerLanguage(supabase, companyId)
+    await reply(await runStandaloneConfirmation(scope, supabase, confirmation, language))
+    return
+  }
+  const tools = makeConfirmationTools(scope, supabase)
+
   const [estimateCtx, numbered, history] = await Promise.all([
     session.draft_estimate_id
-      ? actionGetEstimateContext(supabase, session.draft_estimate_id)
+      ? actionGetEstimateContext(supabase, session.draft_estimate_id, companyId)
       : Promise.resolve(null),
     session.draft_estimate_id
       ? getNumberedEstimate(supabase, session.draft_estimate_id)
@@ -106,9 +147,9 @@ ${numberedText ? `\nNumbered line items (use these numbers for edits):\n${number
 The estimate is organized into numbered sections (1, 2, 3, …) each containing numbered items (1.1, 1.2, 2.1, …). An item reference like "2.3" means the 3rd item of the 2nd section. These numbers come from get_estimate_details and the confirmation message the owner already saw.
 
 Available actions via tools:
-- send_estimate: deliver the estimate to the client by email and/or SMS (the client never gets WhatsApp from this number)
-- cancel_estimate: discard the draft
-- update_total: set a new total amount
+- send_estimate: explain how the owner can deliver the estimate by email and/or SMS with a standalone SEND reply
+- cancel_estimate: explain how to close the WhatsApp confirmation while keeping the estimate in the app
+- update_total: explain how to change a requested overall total by editing line items
 - update_timeline: set a new timeline
 - update_payment_terms: update payment terms
 - update_summary: update the estimate summary
@@ -124,12 +165,11 @@ Instructions:
 - Be concise — this is a WhatsApp conversation.
 - If the owner requests multiple changes, perform ALL of them in sequence before composing your reply.
 - After performing actions, confirm what was done in one short message.
-- Do NOT ask for confirmation before acting — just do what they asked.
+- Apply clear line edits as requested. Deliveries require a separate standalone SEND reply after the owner reviews changes. If the owner requested changes and delivery together, explain the next SEND step.
+- Relay any tool refusal, question, or uncertain outcome accurately.
 - Line-item edits (update_item / add_item / remove_item) are addressed by number. If the owner's reference to an item or section is ambiguous or not a clear number (e.g. "the tile one", "the second thing"), call get_estimate_details to see the current numbering and ASK which number they mean rather than guessing. Never invent an item/section number.
 - If something is truly unclear (e.g. missing a phone number), ask one specific question.
-- After send_estimate, say in one short message which channel(s) were used. If it reports no phone or email, tell the owner in one short message to add the client's phone (set_client) or email.`
-
-  const tools = makeConfirmationTools(session, companyId, supabase)
+- After send_estimate, relay the instructions in the tool result.`
 
   const model = await makeWhatsAppLLM(companyId, 'chat', meter)
 
@@ -147,7 +187,7 @@ Instructions:
   const allMessages = result.messages as BaseMessage[]
   let responseText: string | null = null
 
-  for (let i = allMessages.length - 1; i >= 0; i--) {
+  for (let i = allMessages.length - 1; i >= history.length + 2; i--) {
     const msg = allMessages[i]
     if (msg._getType() !== 'ai') continue
     const content = msg.content
@@ -158,19 +198,5 @@ Instructions:
     }
   }
 
-  if (responseText) {
-    const wamid = await sendWhatsAppMessage(
-      ownerPhone,
-      { type: 'text', text: { body: responseText } },
-      { companyId, purpose: 'bot_reply', billable: true }
-    )
-    logOutboundMessage(supabase, {
-      companyId,
-      contactPhone: ownerPhone,
-      body: responseText,
-      msgType: 'text',
-      waMessageId: wamid,
-      status: 'sent',
-    }).catch(() => undefined)
-  }
+  await reply(responseText ?? RETRY_REPLY[await resolveOwnerLanguage(supabase, companyId)])
 }

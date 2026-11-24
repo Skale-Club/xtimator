@@ -103,6 +103,12 @@ describe('getVerifiedPhone', () => {
     db = makeDb(baseTables({ xtimator_accounts: [{ id: 'u1', phone: PHONE, phone_confirmed_at: null }] }))
     expect(await getVerifiedPhone('u1')).toBeNull()
   })
+
+  it('ignores a disabled account even if it previously verified the phone', async () => {
+    db = makeDb(baseTables({ xtimator_accounts: [{ id: 'u1', phone: PHONE, phone_confirmed_at: VERIFIED, disabled_at: VERIFIED }] }))
+    expect(await getVerifiedPhone('u1')).toBeNull()
+    expect(await ensureWhatsAppSenderForUser('u1', 'c1')).toEqual({ status: 'no_verified_phone' })
+  })
 })
 
 describe('ensureWhatsAppSenderForUser', () => {
@@ -139,7 +145,7 @@ describe('ensureWhatsAppSenderForUser', () => {
       baseTables({
         whatsapp_company_configs: [{ id: 'cfg1', company_id: 'c1', status: 'active' }],
         whatsapp_authorized_senders: [
-          { id: 's1', company_id: 'c1', user_id: 'u1', phone_e164: PHONE, status: 'suspended', created_by_admin: false },
+          { id: 's1', config_id: 'cfg1', company_id: 'c1', user_id: 'u1', phone_e164: PHONE, status: 'suspended', suspension_reason: 'phone_change', created_by_admin: false },
         ],
       }),
     )
@@ -154,7 +160,7 @@ describe('ensureWhatsAppSenderForUser', () => {
     db = makeDb(
       baseTables({
         whatsapp_authorized_senders: [
-          { id: 's1', company_id: 'c1', user_id: 'u1', phone_e164: PHONE, status: 'suspended', created_by_admin: true },
+          { id: 's1', company_id: 'c1', user_id: 'u1', phone_e164: PHONE, status: 'suspended', suspension_reason: 'admin', created_by_admin: false },
         ],
       }),
     )
@@ -162,6 +168,25 @@ describe('ensureWhatsAppSenderForUser', () => {
 
     expect(result.status).toBe('blocked')
     expect(senderRows()[0].status).toBe('suspended')
+  })
+
+  it('never attaches a verified user to an active phone-only grant', async () => {
+    db = makeDb(baseTables({
+      whatsapp_company_configs: [{ id: 'cfg1', company_id: 'c1', status: 'active' }],
+      whatsapp_authorized_senders: [{
+        id: 's1', config_id: 'cfg1', company_id: 'c1', user_id: null, phone_e164: PHONE, status: 'active', admin_phone_only: true,
+      }],
+    }))
+
+    expect(await ensureWhatsAppSenderForUser('u1', 'c1')).toEqual({ status: 'blocked', phoneE164: PHONE })
+    expect(senderRows()[0].user_id).toBeNull()
+  })
+
+  it('does not activate a sender when the company config is pending review', async () => {
+    db = makeDb(baseTables({ whatsapp_company_configs: [{ id: 'cfg1', company_id: 'c1', status: 'pending_review' }] }))
+
+    expect(await ensureWhatsAppSenderForUser('u1', 'c1')).toEqual({ status: 'blocked', phoneE164: PHONE })
+    expect(senderRows()).toHaveLength(0)
   })
 
   it('does nothing and alerts ops (last 4 digits only) when the phone is active for another company', async () => {
@@ -235,7 +260,7 @@ describe('syncWhatsAppSenderAfterPhoneChange', () => {
 
     const old = senderRows().find((r) => r.phone_e164 === PHONE)
     const next = senderRows().find((r) => r.phone_e164 === NEW_PHONE)
-    expect(old?.status).toBe('suspended')
+    expect(old).toMatchObject({ status: 'suspended', suspension_reason: 'phone_change' })
     expect(next).toMatchObject({ company_id: 'c1', user_id: 'u1', status: 'active' })
   })
 

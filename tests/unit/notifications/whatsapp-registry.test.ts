@@ -1,222 +1,69 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createServiceClient } from '@/lib/supabase/service'
+import { getApprovedTemplateForEvent, getApprovedOwnerUpdateTemplate } from '@/lib/notifications/whatsapp-registry'
 
-/**
- * Phase 104.3 — DB-backed template resolver `getApprovedTemplateForEvent`.
- *
- * Exercises the REAL resolver (module NOT mocked) against a mocked Supabase
- * service client, covering the two branches the dispatch wiring depends on:
- *   (a) an APPROVED `whatsapp_notification_templates` row wins over the static map
- *   (b) no approved row → falls back to the static REGISTRY (mapped) / null (unmapped)
- * plus the two safety fallbacks: no service client, and a throwing DB query.
- */
+vi.mock('@/lib/supabase/service', () => ({ createServiceClient: vi.fn() }))
+afterEach(() => vi.clearAllMocks())
 
-vi.mock('@/lib/supabase/service', () => ({
-  requireServiceClient: vi.fn(),
-  createServiceClient: vi.fn(),
-}))
-
-afterEach(() => {
-  vi.clearAllMocks()
+const approved = (name: string, language: string, words = ['Title', 'Details']) => ({
+  template_name: name,
+  language_code: language,
+  meta_template_id: 'meta-1',
+  status: 'approved',
+  variables_schema: words,
+  quick_reply_count: 0,
 })
 
-type SimpleResp<T = unknown> = { data: T; error: { message: string } | null }
-
-/** Chainable stub matching .from().select().eq().eq().order().limit().maybeSingle(). */
-function makeTemplateClient(maybeSingle: SimpleResp<unknown> | (() => Promise<never>)) {
-  const chain: Record<string, unknown> = {
-    maybeSingle:
-      typeof maybeSingle === 'function'
-        ? vi.fn().mockImplementation(maybeSingle)
-        : vi.fn().mockResolvedValue(maybeSingle),
+function service(rows: unknown[], error: unknown = null) {
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    in: vi.fn(() => query),
+    order: vi.fn(() => query),
+    then: (resolve: (value: { data: unknown[]; error: unknown }) => void) => resolve({ data: rows, error }),
   }
-  chain.select = vi.fn().mockReturnValue(chain)
-  chain.eq = vi.fn().mockReturnValue(chain)
-  chain.order = vi.fn().mockReturnValue(chain)
-  chain.limit = vi.fn().mockReturnValue(chain)
-  return { from: vi.fn().mockReturnValue(chain) }
+  vi.mocked(createServiceClient).mockReturnValue({ from: () => query } as never)
+  return query
 }
 
-describe('lib/notifications/whatsapp-registry — getApprovedTemplateForEvent()', () => {
-  it('(a) an approved DB row WINS over the static map for the same event', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({
-        data: { template_name: 'db_owner_estimate', language_code: 'pt_BR' },
-        error: null,
-      }),
-    )
-
-    // 'estimate.accepted' is mapped statically to 'owner_estimate_update' — the DB row must win.
-    const tpl = await getApprovedTemplateForEvent('estimate.accepted')
-    expect(tpl?.templateName).toBe('db_owner_estimate')
-    expect(tpl?.languageCode).toBe('pt_BR')
-    expect(tpl?.variables({ title: 'T', body: 'B' })).toEqual(['T', 'B'])
+describe('approved WhatsApp notification resolution', () => {
+  it('uses the exact event binding in the owner locale ahead of English', async () => {
+    const query = service([approved('english_estimate', 'en_US'), approved('localized_estimate', 'pt_BR')])
+    const template = await getApprovedTemplateForEvent('estimate.accepted', 'pt')
+    expect(query.eq).toHaveBeenCalledWith('event_type', 'estimate.accepted')
+    expect(query.in).toHaveBeenCalledWith('language_code', ['pt_BR', 'en_US'])
+    expect(template?.templateName).toBe('localized_estimate')
+    expect(template?.variables({ title: 'T', body: 'B' })).toEqual(['T', 'B'])
+    expect(template?.expectedVariableCount).toBe(2)
   })
 
-  it('(a) defaults languageCode to en_US when the approved row omits it', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({
-        data: { template_name: 'db_owner_estimate', language_code: null },
-        error: null,
-      }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('estimate.accepted')
-    expect(tpl?.templateName).toBe('db_owner_estimate')
-    expect(tpl?.languageCode).toBe('en_US')
+  it('falls back to approved English, skipping paused and incompatible variants', async () => {
+    service([
+      { ...approved('paused', 'es'), status: 'paused' },
+      approved('wrong_count', 'es', []),
+      { ...approved('no_meta', 'es'), meta_template_id: null },
+      approved('english_estimate', 'en_US'),
+    ])
+    expect(await getApprovedTemplateForEvent('estimate.viewed', 'es')).toMatchObject({
+      templateName: 'english_estimate', languageCode: 'en_US',
+    })
   })
 
-  it('(b) no approved DB row → falls back to the static map for a mapped event', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({ data: null, error: null }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('payment.received')
-    expect(tpl?.templateName).toBe('owner_billing_alert')
-    expect(tpl?.languageCode).toBe('en_US')
+  it('never guesses an approved variant from a static template name', async () => {
+    service([])
+    expect(await getApprovedTemplateForEvent('estimate.declined')).toBeNull()
+    service([], { message: 'read failed' })
+    expect(await getApprovedTemplateForEvent('estimate.declined')).toBeNull()
   })
 
-  it('(b) no approved DB row → returns null for an UNmapped event', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({ data: null, error: null }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('payment.refunded')
-    expect(tpl).toBeNull()
-  })
-
-  it('falls back to the static map when no service client is available', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(null)
-
-    const tpl = await getApprovedTemplateForEvent('quota.exhausted')
-    expect(tpl?.templateName).toBe('owner_billing_alert')
-  })
-
-  it('never throws on a DB error → warns and falls back to the static map', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient(() => Promise.reject(new Error('connection refused'))),
-    )
-
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const tpl = await getApprovedTemplateForEvent('estimate.declined')
-    expect(tpl?.templateName).toBe('owner_estimate_update')
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
-  })
-})
-
-/**
- * Phase 174 plan 03 (TNT-03 / Pitfall 3) — expectedVariableCount.
- *
- * Every NotificationTemplate (DB-approved or static-fallback) now carries the
- * expected `{{n}}` variable count Plan 174-04's runtime guard reads. DB rows
- * source it from `variables_schema.length`; the 5 static REGISTRY entries
- * hardcode 2 (matching titleBodyVars's own fixed output) — a structural
- * no-op for those, documented honestly rather than pretending it's a guard.
- */
-describe('lib/notifications/whatsapp-registry — expectedVariableCount (TNT-03 / Pitfall 3)', () => {
-  it('an approved DB row with a 2-element variables_schema → expectedVariableCount 2', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({
-        data: {
-          template_name: 'db_owner_estimate',
-          language_code: 'en_US',
-          variables_schema: ['title', 'body'],
-        },
-        error: null,
-      }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('estimate.accepted')
-    expect(tpl?.expectedVariableCount).toBe(2)
-  })
-
-  it('an approved DB row with an empty (unconfigured) variables_schema → expectedVariableCount 0', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({
-        data: {
-          template_name: 'db_owner_estimate',
-          language_code: 'en_US',
-          variables_schema: [],
-        },
-        error: null,
-      }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('estimate.accepted')
-    expect(tpl?.expectedVariableCount).toBe(0)
-  })
-
-  it('an approved DB row with a missing/null variables_schema → expectedVariableCount 0, never throws', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({
-        data: {
-          template_name: 'db_owner_estimate',
-          language_code: 'en_US',
-          variables_schema: null,
-        },
-        error: null,
-      }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('estimate.accepted')
-    expect(tpl?.expectedVariableCount).toBe(0)
-  })
-
-  it('falling back to the static map (no approved row) → expectedVariableCount 2', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({ data: null, error: null }),
-    )
-
-    const tpl = await getApprovedTemplateForEvent('payment.received')
-    expect(tpl?.expectedVariableCount).toBe(2)
-  })
-
-  it('falling back to the static map (no service client) → expectedVariableCount 2', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(null)
-
-    const tpl = await getApprovedTemplateForEvent('quota.exhausted')
-    expect(tpl?.expectedVariableCount).toBe(2)
-  })
-
-  it('falling back to the static map (throwing query) → expectedVariableCount 2', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient(() => Promise.reject(new Error('connection refused'))),
-    )
-
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const tpl = await getApprovedTemplateForEvent('estimate.declined')
-    expect(tpl?.expectedVariableCount).toBe(2)
-    warn.mockRestore()
-  })
-
-  it('getTemplateForEvent (sync static-only) also carries expectedVariableCount: 2 for a mapped event', async () => {
-    const { getTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const tpl = getTemplateForEvent('trial.expiring_3d')
-    expect(tpl?.expectedVariableCount).toBe(2)
+  it('validates the exact locale and one summary variable for owner update', async () => {
+    const query = service([approved('owner_update', 'pt_BR', ['Summary'])])
+    await expect(getApprovedOwnerUpdateTemplate({ title: 'T', body: 'B' }, 'pt')).resolves.toEqual({
+      name: 'owner_update', languageCode: 'pt_BR', bodyVariables: ['T: B'],
+    })
+    expect(query.eq).toHaveBeenCalledWith('language_code', 'pt_BR')
+    service([approved('owner_update', 'pt_BR', ['One', 'Two'])])
+    await expect(getApprovedOwnerUpdateTemplate({ title: 'T', body: 'B' }, 'pt')).resolves.toBeNull()
   })
 })
 
@@ -271,14 +118,4 @@ describe('lib/notifications/whatsapp-registry — static map by owner language',
     expect(summaryVariable({ title: 'x'.repeat(300), body: '' }).length).toBeLessThanOrEqual(200)
   })
 
-  it('getApprovedTemplateForEvent falls back to the language-specific static template', async () => {
-    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
-    const { createServiceClient } = await import('@/lib/supabase/service')
-    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeTemplateClient({ data: null, error: null }),
-    )
-    const tpl = await getApprovedTemplateForEvent('estimate.viewed', 'es')
-    expect(tpl?.templateName).toBe('owner_estimate_update')
-    expect(tpl?.languageCode).toBe('es')
-  })
 })

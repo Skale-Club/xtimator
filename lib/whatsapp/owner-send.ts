@@ -22,6 +22,7 @@ import {
   isTemplateRequiredError,
   sendWhatsAppMessage,
   sendWhatsAppTemplate,
+  WhatsAppSendError,
 } from '@/lib/whatsapp/client'
 import { isWithinReplyWindow, toE164 } from '@/lib/whatsapp/conversations'
 
@@ -33,7 +34,31 @@ export interface OwnerTemplate {
 
 export type OwnerSendResult =
   | { ok: true; mode: 'freeform' | 'template'; wamid: string | null; fellBack: boolean }
-  | { ok: false; error: 'outside_window_no_template' | 'send_failed'; message?: string }
+  | {
+      ok: false
+      error: 'outside_window_no_template' | 'send_failed'
+      message?: string
+      deliveryFailure?: 'permanent' | 'retryable' | 'ambiguous'
+    }
+
+const META_RETRYABLE_REJECTIONS = new Set([2, 4, 80007, 130429, 131000, 131016, 131056])
+
+function ownerSendFailure(error: unknown): OwnerSendResult {
+  const message = error instanceof Error ? error.message : String(error)
+  let deliveryFailure: 'permanent' | 'retryable' | 'ambiguous' = 'ambiguous'
+  if (error instanceof WhatsAppSendError) {
+    // Meta documents these structured rejects as retryable. An unclassified
+    // gateway error can occur after acceptance.
+    if (error.status === 429 || (error.code !== null && META_RETRYABLE_REJECTIONS.has(error.code))) {
+      deliveryFailure = 'retryable'
+    } else if (error.status >= 400 && error.status < 500 && error.status !== 408) {
+      deliveryFailure = 'permanent'
+    }
+  } else if (message.startsWith('[WhatsApp] Missing platform config:')) {
+    deliveryFailure = 'permanent'
+  }
+  return { ok: false, error: 'send_failed', message, deliveryFailure }
+}
 
 /** Last inbound message time from the owner's conversation row, or null when unknown. */
 export async function getOwnerLastInboundAt(
@@ -84,7 +109,7 @@ export async function sendOwnerWhatsApp(opts: {
       return { ok: true, mode: 'template', wamid, fellBack }
     } catch (err) {
       // One template attempt only: a failing template is final.
-      return { ok: false, error: 'send_failed', message: err instanceof Error ? err.message : String(err) }
+      return ownerSendFailure(err)
     }
   }
 
@@ -95,6 +120,6 @@ export async function sendOwnerWhatsApp(opts: {
     return { ok: true, mode: 'freeform', wamid, fellBack: false }
   } catch (err) {
     if (isTemplateRequiredError(err)) return sendTemplate(true)
-    return { ok: false, error: 'send_failed', message: err instanceof Error ? err.message : String(err) }
+    return ownerSendFailure(err)
   }
 }

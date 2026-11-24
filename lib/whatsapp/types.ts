@@ -40,7 +40,9 @@ export interface WhatsAppInteractiveReply {
 
 export interface WhatsAppMessage {
   id: string        // wamid.*
-  from: string      // E.164 without leading +
+  /** Meta can omit the phone for username/BSUID users. Never infer a linked identity. */
+  from?: string
+  from_user_id?: string
   timestamp: string
   type:
     | 'text'

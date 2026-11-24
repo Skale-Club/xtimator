@@ -17,6 +17,17 @@ const expireMock = vi.fn(async (key: string, seconds: number) => {
 })
 
 const lrangeMock = vi.fn(async (key: string) => lists.get(key) ?? [])
+const evalMock = vi.fn(async (_script: string, keys: string[], args: string[]) => {
+  const values = lists.get(keys[0]) ?? []
+  if (!values.length) return null
+  const raw = values[values.length - 1]
+  const last = typeof raw === 'string' ? JSON.parse(raw) : raw
+  if (last.id !== args[0]) return null
+  const snapshot = [...values]
+  lists.delete(keys[0])
+  expires.delete(keys[0])
+  return snapshot
+})
 
 const delMock = vi.fn(async (key: string) => {
   const had = lists.has(key)
@@ -43,6 +54,7 @@ vi.mock('@upstash/redis', () => ({
     multi = multiMock
     lrange = lrangeMock
     del = delMock
+    eval = evalMock
   },
 }))
 
@@ -73,6 +85,7 @@ beforeEach(() => {
   lrangeMock.mockClear()
   delMock.mockClear()
   multiMock.mockClear()
+  evalMock.mockClear()
   process.env.UPSTASH_REDIS_REST_URL = 'https://test'
   process.env.UPSTASH_REDIS_REST_TOKEN = 'token'
   __resetRedisCache()
@@ -109,6 +122,14 @@ describe('pushToBuffer', () => {
 })
 
 describe('tryClaimBuffer', () => {
+  it('uses one atomic server-side claim rather than a separate range/delete', async () => {
+    await pushToBuffer('15551234567', fakeMessage('wamid.atomic'))
+    await tryClaimBuffer('15551234567', 'wamid.atomic')
+    expect(evalMock).toHaveBeenCalledWith(expect.stringContaining("redis.call('LRANGE'"),
+      ['buffer:whatsapp:15551234567'], ['wamid.atomic'])
+    expect(lrangeMock).not.toHaveBeenCalled()
+    expect(delMock).not.toHaveBeenCalled()
+  })
   it('returns full array AND clears buffer when called with the latest message id', async () => {
     await pushToBuffer('15551234567', fakeMessage('wamid.1'))
     await pushToBuffer('15551234567', fakeMessage('wamid.2'))

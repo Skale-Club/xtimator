@@ -16,12 +16,8 @@ const adminWhatsAppFilterSchema = z.object({
     .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
     .optional()
     .nullable(),
-  dateFrom: z.string().optional().nullable(),
-  dateTo: z.string().optional().nullable(),
   page: z.coerce.number().int().positive().default(1),
 })
-
-export type AdminWhatsAppFilters = z.infer<typeof adminWhatsAppFilterSchema>
 
 export type ParsedAdminWhatsAppFilters = {
   companyId: string | undefined
@@ -32,6 +28,14 @@ export type ParsedAdminWhatsAppFilters = {
   dateFrom: Date | undefined
   dateTo: Date | undefined
   page: number
+}
+
+function parseCalendarDate(value: string | undefined): Date | undefined {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? date
+    : undefined
 }
 
 /**
@@ -50,8 +54,8 @@ export function parseAdminWhatsAppFilters(
     q: f.q?.trim() || undefined,
     status: f.status ?? undefined,
     unreadOnly: f.unreadOnly === 'true' || f.unreadOnly === '1',
-    dateFrom: f.dateFrom ? new Date(f.dateFrom) : undefined,
-    dateTo: f.dateTo ? new Date(f.dateTo) : undefined,
+    dateFrom: parseCalendarDate(raw.dateFrom),
+    dateTo: parseCalendarDate(raw.dateTo),
     page: f.page ?? 1,
   }
 }
@@ -76,6 +80,7 @@ export type AdminWhatsAppListResult = {
   pageCount: number
   companyNames: Map<string, string>
   senderLabels: Map<string, string>
+  error?: string
 }
 
 /**
@@ -96,52 +101,70 @@ export async function listAdminWhatsAppConversations(
   const { companyId, senderId, q, status, unreadOnly, dateFrom, dateTo, page } = filters
   const from = (page - 1) * PAGE_SIZE
 
-  // ── Main paginated query ────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mainQ: any = svc
-    .from('whatsapp_conversations')
-    .select('id, company_id, contact_phone, contact_name, last_message_at, last_message_preview, last_inbound_at, unread_count', { count: 'exact' })
-
-  if (companyId) mainQ = mainQ.eq('company_id', companyId)
-  if (status) mainQ = mainQ.eq('whatsapp_company_configs.status', status)
-  if (unreadOnly) mainQ = mainQ.gt('unread_count', 0)
-  if (dateFrom) mainQ = mainQ.gte('last_message_at', dateFrom.toISOString())
-  if (dateTo) mainQ = mainQ.lte('last_message_at', dateTo.toISOString())
-  if (q) {
-    mainQ = mainQ.or(`contact_phone.ilike.%${q}%,contact_name.ilike.%${q}%`)
+  const emptyResult: AdminWhatsAppListResult = {
+    rows: [],
+    total: 0,
+    page,
+    pageCount: 0,
+    companyNames: new Map(),
+    senderLabels: new Map(),
+  }
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return { ...emptyResult, error: 'The start date must be on or before the end date.' }
   }
 
-  // When filtering by sender, we need to join through authorized_senders → conversations
-  // via company_id. The sender's company_id narrows the conversation set.
+  const conversationFields =
+    'id, company_id, contact_phone, contact_name, last_message_at, last_message_preview, last_inbound_at, unread_count'
+  // Both tables reference companies. Inner embeddings apply the account filter
+  // before the conversation count and range are evaluated.
+  let mainQ = svc
+    .from('whatsapp_conversations')
+    .select(
+      status
+        ? `${conversationFields}, companies!inner(whatsapp_company_configs!inner(status))`
+        : conversationFields,
+      { count: 'exact' },
+    )
+
+  if (companyId) mainQ = mainQ.eq('company_id', companyId)
+  if (status) mainQ = mainQ.eq('companies.whatsapp_company_configs.status', status)
+  if (unreadOnly) mainQ = mainQ.gt('unread_count', 0)
+  if (dateFrom) mainQ = mainQ.gte('last_message_at', dateFrom.toISOString())
+  if (dateTo) {
+    const nextDay = new Date(dateTo)
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+    mainQ = mainQ.lt('last_message_at', nextDay.toISOString())
+  }
+  if (q) {
+    const pattern = `"%${q.replace(/[\\"]/g, '\\$&')}%"`
+    mainQ = mainQ.or(`contact_phone.ilike.${pattern},contact_name.ilike.${pattern}`)
+  }
+
   if (senderId) {
-    const { data: senderData } = await svc
+    const { data: senderData, error } = await svc
       .from('whatsapp_authorized_senders')
-      .select('company_id')
+      .select('company_id, phone_e164')
       .eq('id', senderId)
       .maybeSingle()
 
-    if (senderData) {
-      mainQ = mainQ.eq('company_id', senderData.company_id)
+    if (error) {
+      console.error('[admin-whatsapp] sender filter failed:', error.message)
+      return { ...emptyResult, error: 'Could not load WhatsApp conversations.' }
     }
-    // If sender not found, return empty result
-    if (!senderData) {
-      return {
-        rows: [],
-        total: 0,
-        page,
-        pageCount: 0,
-        companyNames: new Map(),
-        senderLabels: new Map(),
-      }
-    }
+    if (!senderData) return emptyResult
+    mainQ = mainQ.eq('company_id', senderData.company_id).eq('contact_phone', senderData.phone_e164)
   }
 
-  const { data: convData, count } = await mainQ
+  const { data: convData, count, error } = await mainQ
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false })
     .range(from, from + PAGE_SIZE - 1)
 
-  const conversations = (convData ?? []) as AdminWhatsAppConversationRow[]
+  if (error) {
+    console.error('[admin-whatsapp] inbox list failed:', error.message)
+    return { ...emptyResult, error: 'Could not load WhatsApp conversations.' }
+  }
+  const conversations = (convData ?? []) as unknown as AdminWhatsAppConversationRow[]
   const total = count ?? 0
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 

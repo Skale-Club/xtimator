@@ -79,6 +79,7 @@ import type { EstimateStateType } from '@/lib/estimate/graph/state'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { failureReasonToChannelCopy } from '@/lib/estimate/failure'
+import { openEstimateSession } from '@/lib/whatsapp/session-commands'
 
 const SESSION_TTL_MINUTES = 30
 
@@ -116,11 +117,13 @@ export function makeWhatsAppAdapter({
   companyId,
   supabase,
   ownerPhone,
+  senderUserId,
   messages = [],
 }: {
   companyId: string
   supabase: SupabaseClient
   ownerPhone: string
+  senderUserId?: string | null
   /**
    * Inbound WhatsApp messages for this invocation. Closure-captured (like
    * companyId/ownerPhone) because the channel-neutral core state intentionally
@@ -412,6 +415,12 @@ export function makeWhatsAppAdapter({
       // branches below — never a second sendWhatsAppMessage call (never-reply
       // invariant). Empty when nothing was dropped (full success).
       const droppedNote = buildDroppedNote(language, state.droppedInputs)
+      // Use the durable graph request time for expiry and out-of-order replacement.
+      const requestedAtMs = state.requestedAt ?? Date.now()
+      const sessionWindow = {
+        requestedAt: new Date(requestedAtMs).toISOString(),
+        expiresAt: new Date(requestedAtMs + SESSION_TTL_MINUTES * 60_000).toISOString(),
+      }
 
       if (state.isVague) {
         // --- askDetails (vague) ------------------------------------------------
@@ -419,20 +428,13 @@ export function makeWhatsAppAdapter({
         // inbound message regenerates cleanly against the same project.
         await revertVagueEstimate(supabase, projectId, estimateId ?? null, companyId)
 
-        // HARD-07: derive expiry from the durable graph-entry timestamp (replay-safe);
-        // fall back to Date.now() so direct invokers (unit tests) without requestedAt still work.
-        const base = state.requestedAt ?? Date.now()
-        const expiresAt = new Date(
-          base + SESSION_TTL_MINUTES * 60 * 1000
-        ).toISOString()
-        await supabase.from('whatsapp_sessions').insert({
-          company_id: companyId,
-          phone_number: ownerPhone,
+        const opened = await openEstimateSession(supabase, {
+          companyId, ownerPhone, senderUserId, projectId,
           state: 'awaiting_details',
-          draft_project_id: projectId,
-          draft_estimate_id: null,
-          expires_at: expiresAt,
+          estimateId: null,
+          ...sessionWindow,
         })
+        if (!opened) return {}
 
         const askBody = buildAskDetailsMessage(language)
         const body = droppedNote ? `${askBody}\n\n${droppedNote}` : askBody
@@ -454,33 +456,22 @@ export function makeWhatsAppAdapter({
       }
 
       // --- sendConfirmation (usable estimate) ----------------------------------
-      // HARD-07: derive expiry from the durable graph-entry timestamp (replay-safe);
-      // fall back to Date.now() so direct invokers (unit tests) without requestedAt still work.
-      const base = state.requestedAt ?? Date.now()
-      const expiresAt = new Date(
-        base + SESSION_TTL_MINUTES * 60 * 1000
-      ).toISOString()
-      await supabase.from('whatsapp_sessions').insert({
-        company_id: companyId,
-        phone_number: ownerPhone,
-        state: 'awaiting_confirm',
-        draft_project_id: projectId,
-        draft_estimate_id: estimateId,
-        expires_at: expiresAt,
-      })
-
+      if (!estimateId) throw new Error('Cannot open a WhatsApp confirmation without an estimate')
       // Embed items so the confirmation shows a STABLE numbered breakdown
       // (sections 1..N, items N.M). Those numbers are what the owner references
       // in edit commands ("change item 2.3 to 85") — resolved by the same
       // sort_order-based numbering (lib/whatsapp/estimate-numbering.ts). No
       // `.order()` is chained; numberSections sorts in JS (ordering invariant).
-      const { data: estimate } = await supabase
+      const { data: estimate, error } = await supabase
         .from('estimates')
         .select(
           'total, currency_code, summary, sections:estimate_sections(id, title, subtotal, sort_order, items:estimate_items(id, description, quantity, unit, unit_price, total, sort_order))'
         )
-        .eq('id', estimateId!)
+        .eq('id', estimateId)
+        .eq('company_id', companyId)
+        .eq('project_id', projectId)
         .single()
+      if (error || !estimate) throw new Error('Could not read the WhatsApp confirmation estimate', { cause: error })
 
       const totalNum = (estimate as { total: number } | null)?.total ?? 0
       const currencyCode =
@@ -496,6 +487,14 @@ export function makeWhatsAppAdapter({
       // N.M edit-command example numbers are preserved across all languages;
       // buildConfirmMessage owns the frame strings (lib/whatsapp/confirm-message.ts).
       const body = buildConfirmMessage(language, { total, breakdown, droppedNote })
+
+      const opened = await openEstimateSession(supabase, {
+        companyId, ownerPhone, senderUserId, projectId,
+        state: 'awaiting_confirm',
+        estimateId,
+        ...sessionWindow,
+      })
+      if (!opened) return {}
 
       const wamid = await sendWhatsAppMessage(
         ownerPhone,

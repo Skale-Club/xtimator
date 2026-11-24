@@ -9,16 +9,15 @@
  *   normalize → loadHistory → classify (OpenRouter via makeWhatsAppLLM) → dispatch
  *
  * The normalized text + session context + recent conversation history are
- * classified into exactly one of four intents and routed to the EXISTING flows:
+ * classified into a fixed intent label and routed to the matching flow:
  *
  *   CONFIRM_OR_CANCEL → processConfirmationReply   (text path)
  *   EDIT              → runConfirmationAgent        (edit a pending draft)
- *   CREATE            → actionCancel (discard pending) + processInboundMessages
+ *   CREATE            → processInboundMessages (existing draft remains recoverable)
  *   QUERY             → ReAct agent with company-scoped makeQueryTools
  *
  * SECURITY (T-lrf-01/02): the classifier output is constrained to a fixed label
- * set; any unrecognized output defaults to CREATE (the normal, safe estimate
- * path) — never to a privileged action. QUERY tools are scoped to the trusted
+ * set; any unrecognized output asks the owner to clarify. QUERY tools are scoped to the trusted
  * companyId resolved upstream; the LLM never supplies a tenant.
  */
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
@@ -41,7 +40,7 @@ import {
 import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { runConfirmationAgent } from '@/lib/whatsapp/agent'
-import { actionCancel, type Session } from '@/lib/whatsapp/confirm-actions'
+import { estimateReplyAuthorization, type Session } from '@/lib/whatsapp/session-commands'
 import { processInboundMessages } from '@/lib/whatsapp/handler'
 import { makeQueryTools } from '@/lib/whatsapp/query-tools'
 import { makeManageTools } from '@/lib/whatsapp/manage-tools'
@@ -73,6 +72,10 @@ export interface RouteInput {
   ownerPhone: string // E.164 WITH '+'
   fromPhone: string // E.164 WITHOUT '+'
   message: WhatsAppMessage
+  messages?: WhatsAppMessage[]
+  batchKey?: string
+  senderUserId?: string | null
+  pendingSendId?: string | null
   session: Session | null
   supabase: SupabaseClient
 }
@@ -116,15 +119,19 @@ async function loadConversationHistory(
 // Classifier
 // ---------------------------------------------------------------------------
 
-function parseIntent(raw: string): Intent {
-  const t = raw.toUpperCase()
-  if (t.includes('CONFIRM_OR_CANCEL')) return 'CONFIRM_OR_CANCEL'
-  if (t.includes('EDIT')) return 'EDIT'
-  if (t.includes('QUERY')) return 'QUERY'
-  if (t.includes('KNOWLEDGE')) return 'KNOWLEDGE'
-  if (t.includes('MANAGE')) return 'MANAGE'
-  // CREATE is the safe default for anything else (new media / unrecognized).
-  return 'CREATE'
+function parseIntent(raw: string): Intent | null {
+  const label = raw.trim().toUpperCase()
+  switch (label) {
+    case 'CONFIRM_OR_CANCEL':
+    case 'EDIT':
+    case 'CREATE':
+    case 'QUERY':
+    case 'KNOWLEDGE':
+    case 'MANAGE':
+      return label
+    default:
+      return null
+  }
 }
 
 function extractAIText(messages: BaseMessage[]): string | null {
@@ -186,7 +193,7 @@ async function classify(
   session: Session | null,
   history: BaseMessage[],
   meter?: WhatsAppCostMeter
-): Promise<Intent> {
+): Promise<Intent | null> {
   const sessionState = session?.state ?? 'none'
   const hasDraft = Boolean(session?.draft_estimate_id)
 
@@ -220,8 +227,36 @@ Use the recent conversation history for context. Reply with ONLY one of: CONFIRM
   ])
 
   const content = result.content
-  const raw = typeof content === 'string' ? content : JSON.stringify(content)
+  const raw = typeof content === 'string' ? content : content.length === 1
+    && typeof content[0] === 'object' && content[0]?.type === 'text'
+    && typeof content[0].text === 'string' ? content[0].text : ''
   return parseIntent(raw)
+}
+
+const ROUTING_REPLIES = {
+  en: {
+    retry: 'I could not process that message. Please try again in a moment.',
+    clarify: 'Could you tell me what you want to do with the estimate or describe the new job?',
+    noDraft: 'There is no estimate waiting for confirmation here. Open your estimates in the app or describe a new job.',
+    staleSend: 'That message confirmation is no longer current. Review your latest draft before replying.',
+  },
+  pt: {
+    retry: 'Não consegui processar sua mensagem. Tente novamente em instantes.',
+    clarify: 'Você pode dizer o que quer fazer com o orçamento ou descrever o novo serviço?',
+    noDraft: 'Não há nenhum orçamento aguardando confirmação aqui. Abra seus orçamentos no app ou descreva um novo serviço.',
+    staleSend: 'A confirmação dessa mensagem mudou ou expirou. Confira o rascunho mais recente antes de responder.',
+  },
+  es: {
+    retry: 'No pude procesar tu mensaje. Inténtalo de nuevo en un momento.',
+    clarify: '¿Puedes decirme qué quieres hacer con el presupuesto o describir el nuevo trabajo?',
+    noDraft: 'No hay ningún presupuesto pendiente de confirmación aquí. Abre tus presupuestos en la app o describe un nuevo trabajo.',
+    staleSend: 'La confirmación de ese mensaje cambió o venció. Revisa el último borrador antes de responder.',
+  },
+}
+
+async function replyRouting(input: RouteInput, key: keyof typeof ROUTING_REPLIES.en): Promise<void> {
+  const language = await resolveOwnerLanguage(input.supabase, input.companyId)
+  await sendOwnerReply(input, ROUTING_REPLIES[language][key])
 }
 
 // ---------------------------------------------------------------------------
@@ -422,13 +457,15 @@ RULES
 // ---------------------------------------------------------------------------
 async function dispatchPendingSendReply(
   input: RouteInput,
-  normalizedText: string
+  pendingId: string,
+  normalizedText: string,
 ): Promise<void> {
   try {
     const verdict = interpretConfirmationReply(normalizedText)
     if (verdict === 'cancel') {
-      await cancelSendByChannelRef(input.supabase, input.companyId, input.ownerPhone)
-      await sendOwnerReply(input, "Okay, I won't send that.")
+      const result = await cancelSendByChannelRef(input.supabase, input.companyId, input.ownerPhone, pendingId)
+      if (result.ok) await sendOwnerReply(input, "Okay, I won't send that.")
+      else await replyRouting(input, 'staleSend')
       return
     }
     if (verdict === 'unclear') {
@@ -438,7 +475,11 @@ async function dispatchPendingSendReply(
       )
       return
     }
-    const result = await confirmSendByChannelRef(input.supabase, input.companyId, input.ownerPhone)
+    const result = await confirmSendByChannelRef(input.supabase, input.companyId, input.ownerPhone, pendingId)
+    if (result.error === 'not_found' || result.error === 'already_processed') {
+      await replyRouting(input, 'staleSend')
+      return
+    }
     await sendOwnerReply(input, result.ok ? 'Sent!' : explainSendGateRefusal(result.error))
   } catch (err) {
     console.error('[WhatsApp] agentic-send confirmation dispatch failed', err)
@@ -466,7 +507,7 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
 }
 
 async function routeInbound(input: RouteInput, meter: WhatsAppCostMeter): Promise<void> {
-  const { companyId, ownerPhone, fromPhone, message, session, supabase } = input
+  const { companyId, ownerPhone, message, session, supabase } = input
 
   // 0. Per-type policy (lib/whatsapp/message-policy.ts) — identical to the batch and
   // awaiting-details paths. Stickers/reactions: no reply, no AI, no cost. Video,
@@ -501,53 +542,75 @@ async function routeInbound(input: RouteInput, meter: WhatsAppCostMeter): Promis
     return
   }
 
-  // 1.5. Pending agentic-send confirmation pre-check (Phase 178-03, AGENT-01)
-  // — keep in sync with the twin check in lib/whatsapp/handler.ts. Runs
-  // BEFORE history/classification so a bare "yes"/"no" for a pending send
-  // can never be misrouted into the LLM classifier or a new CREATE.
-  const pendingSend = await resolvePendingByChannelRef(supabase, companyId, ownerPhone)
+  // Media descriptions and shared data cannot authorize a customer delivery.
+  const authoredReply = message.type === 'text' || message.type === 'interactive'
+    || message.type === 'button' || message.type === 'audio'
+
+  // Bind the reply to the pending draft observed by durable ingress. In
+  // particular, a captured null cannot confirm a draft created after ingress.
+  const pendingSend = await resolvePendingByChannelRef(supabase, companyId, ownerPhone, {
+    throwOnError: input.pendingSendId !== undefined,
+  })
+  if (input.pendingSendId !== undefined && input.pendingSendId !== (pendingSend?.id ?? null)) {
+    await replyRouting(input, 'staleSend')
+    return
+  }
   if (pendingSend) {
-    await dispatchPendingSendReply(input, normalized.text)
+    await dispatchPendingSendReply(input, pendingSend.id, authoredReply ? normalized.text : '')
     return
   }
 
-  // 2. History for classifier context.
-  const history = await loadConversationHistory(supabase, companyId, ownerPhone)
+  if (session?.state === 'awaiting_confirm' && authoredReply && estimateReplyAuthorization(normalized.text)) {
+    await processConfirmationReply(normalized.text, session, companyId, ownerPhone, supabase, meter, message.id, true, input.senderUserId)
+    return
+  }
+  if (!session && input.pendingSendId !== undefined && authoredReply && estimateReplyAuthorization(normalized.text)) {
+    // A delayed standalone reply is not a new job, and cannot acquire a draft
+    // created after its signed send time through classification.
+    await replyRouting(input, 'noDraft')
+    return
+  }
 
-  // 3. Classify. If the classifier is unavailable/misconfigured, keep the
-  // primary estimating flow alive by falling back to the safe CREATE path.
-  let intent: Intent
+  let intent: Intent | null
   try {
+    const history = await loadConversationHistory(supabase, companyId, ownerPhone)
     intent = await classify(companyId, normalized.text, session, history, meter)
   } catch (err) {
-    console.error('[WhatsApp] intent classification failed; defaulting to CREATE', err)
-    intent = 'CREATE'
+    console.error('[WhatsApp] intent classification failed', err)
+    await replyRouting(input, 'retry')
+    return
+  }
+  if (!intent) {
+    await replyRouting(input, 'clarify')
+    return
   }
 
   // 4. Dispatch to the existing flow.
   switch (intent) {
     case 'CONFIRM_OR_CANCEL': {
-      if (session) {
+      if (session?.state === 'awaiting_confirm') {
         await processConfirmationReply(
           normalized.text,
           session,
           companyId,
           ownerPhone,
           supabase,
-          meter
+          meter,
+          message.id,
+          authoredReply,
+          input.senderUserId,
         )
         return
       }
-      // No session to confirm against — fall through to CREATE.
-      await dispatchCreate(input, message, session)
+      await replyRouting(input, 'noDraft')
       return
     }
     case 'EDIT': {
-      if (session) {
-        await runConfirmationAgent(normalized.text, session, companyId, ownerPhone, supabase, meter)
+      if (session?.state === 'awaiting_confirm') {
+        await runConfirmationAgent(normalized.text, session, companyId, ownerPhone, supabase, meter, message.id, authoredReply, input.senderUserId)
         return
       }
-      await dispatchCreate(input, message, session)
+      await replyRouting(input, 'noDraft')
       return
     }
     case 'QUERY': {
@@ -562,21 +625,20 @@ async function routeInbound(input: RouteInput, meter: WhatsAppCostMeter): Promis
       await dispatchManage(input, normalized.text, meter)
       return
     }
-    case 'CREATE':
-    default: {
-      await dispatchCreate(input, message, session)
+    case 'CREATE': {
+      // Leave the existing confirmation active during billing, queue dispatch,
+      // and generation. The replacement is installed by the estimate adapter.
+      const messages = input.messages ?? [message]
+      if (input.batchKey || input.senderUserId) {
+        await processInboundMessages(messages, companyId, input.fromPhone, supabase, {
+          batchKey: input.batchKey,
+          senderUserId: input.senderUserId,
+        })
+      } else {
+        await processInboundMessages(messages, companyId, input.fromPhone, supabase)
+      }
       return
     }
   }
 
-  async function dispatchCreate(
-    inp: RouteInput,
-    msg: WhatsAppMessage,
-    sess: Session | null
-  ): Promise<void> {
-    // Discard the pending draft + session so the new content starts fresh.
-    if (sess) await actionCancel(sess, inp.supabase)
-    // processInboundMessages(messages, companyId, fromPhone, supabase) — fromPhone WITHOUT '+'
-    await processInboundMessages([msg], inp.companyId, inp.fromPhone, inp.supabase)
-  }
 }

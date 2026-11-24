@@ -84,8 +84,7 @@ export function WhatsAppConfigForm({
             disabled={isPending}
           />
           <p className="text-xs text-muted-foreground">
-            The public WhatsApp number customers message. Used to build the
-            &ldquo;Get Started on WhatsApp&rdquo; link in welcome emails.
+            The platform WhatsApp number owners message. This powers click-to-chat links on onboarding and in welcome emails.
           </p>
         </div>
       </div>

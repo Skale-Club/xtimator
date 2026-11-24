@@ -25,8 +25,8 @@ describe('describeSendResult (owner confirmation)', () => {
 
   it('no contact: one short instruction to add phone or email, no claim of delivery', () => {
     const msg = describeSendResult({ ...base, outcome: 'no_contact', deliveredToClient: false, channels: [] })
-    expect(msg).toMatch(/^Not sent: no phone or email on file for Johnson/)
-    expect(msg).toContain('set_client')
+    expect(msg).toMatch(/no phone or email on file for Johnson/)
+    expect(msg).toContain('Send me their name and phone')
     expect(msg).not.toMatch(/sent to/i)
   })
 

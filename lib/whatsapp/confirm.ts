@@ -7,20 +7,14 @@
  * The LangGraph ReAct agent (agent.ts) interprets the request, calls the appropriate
  * tools (confirm-actions.ts), and replies with a single synthesized WhatsApp message.
  *
- * Supports chained actions in one message, e.g.:
- *   "change the total to 2k and send it"
- *   "set the client to Maria +15552223333 and use the share link"
+ * Estimate delivery requires a standalone confirmation after any edits.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { runConfirmationAgent } from '@/lib/whatsapp/agent'
 import type { WhatsAppCostMeter } from '@/lib/whatsapp/cost-meter'
+import type { Session } from '@/lib/whatsapp/session-commands'
 
-export type Session = {
-  id: string
-  state: string
-  draft_project_id: string | null
-  draft_estimate_id: string | null
-}
+export type { Session } from '@/lib/whatsapp/session-commands'
 
 // ---------------------------------------------------------------------------
 // Entry point — called by handler.ts for every reply in awaiting_confirm state
@@ -31,7 +25,10 @@ export async function processConfirmationReply(
   companyId: string,
   ownerPhone: string,
   supabase: SupabaseClient,
-  meter?: WhatsAppCostMeter
+  meter?: WhatsAppCostMeter,
+  messageId?: string,
+  allowAuthorization = false,
+  senderUserId?: string | null,
 ): Promise<void> {
-  await runConfirmationAgent(textBody, session, companyId, ownerPhone, supabase, meter)
+  await runConfirmationAgent(textBody, session, companyId, ownerPhone, supabase, meter, messageId, allowAuthorization, senderUserId)
 }

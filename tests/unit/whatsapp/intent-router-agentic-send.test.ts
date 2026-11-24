@@ -102,13 +102,14 @@ import { AIMessage } from '@langchain/core/messages'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 // Chainable supabase mock for history loading (returns no conversation → empty history)
-function makeSupabase() {
+function makeSupabase(language = 'en') {
   const chain: Record<string, unknown> = {}
   chain.select = vi.fn(() => chain)
   chain.eq = vi.fn(() => chain)
   chain.order = vi.fn(() => chain)
   chain.limit = vi.fn(() => Promise.resolve({ data: [], error: null }))
   chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }))
+  chain.single = vi.fn(async () => ({ data: { default_estimate_language: language }, error: null }))
   return { from: vi.fn(() => chain) } as never
 }
 
@@ -156,6 +157,39 @@ beforeEach(() => {
 })
 
 describe('classifyAndRoute — pending agentic-send confirmation pre-check (Phase 178-03)', () => {
+  it.each([null, 'pending-old'])('an old YES captured with pending ID %s cannot confirm a newer draft', async (pendingSendId) => {
+    mockResolvePending.mockResolvedValue({ ...PENDING, id: 'pending-new' })
+    mockNormalize.mockResolvedValue({ text: 'yes', kind: 'text', ok: true })
+
+    await classifyAndRoute({
+      companyId: 'company-1', ownerPhone: '+15551112222', fromPhone: '15551112222',
+      message: TEXT('yes'), session: SESSION, pendingSendId, supabase: makeSupabase('pt'),
+    })
+
+    expect(mockConfirmSend).not.toHaveBeenCalled()
+    expect(mockCancelSend).not.toHaveBeenCalled()
+    expect(mockProcessConfirmationReply).not.toHaveBeenCalled()
+    expect(mockProcessInboundMessages).not.toHaveBeenCalled()
+    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(mockSendWhatsAppMessage).toHaveBeenCalledOnce()
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/confirmação dessa mensagem mudou ou expirou/)
+  })
+
+  it('passes the exact captured ID to the send helper and handles a replacement during its second read', async () => {
+    const supabase = makeSupabase()
+    mockResolvePending.mockResolvedValue(PENDING)
+    mockNormalize.mockResolvedValue({ text: 'yes', kind: 'text', ok: true })
+    mockConfirmSend.mockResolvedValue({ ok: false, error: 'not_found' })
+
+    await classifyAndRoute({
+      companyId: 'company-1', ownerPhone: '+15551112222', fromPhone: '15551112222',
+      message: TEXT('yes'), session: null, pendingSendId: PENDING.id, supabase,
+    })
+
+    expect(mockConfirmSend).toHaveBeenCalledWith(supabase, 'company-1', '+15551112222', PENDING.id)
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/confirmation is no longer current/i)
+  })
+
   it('pending row + "yes" → confirmSendByChannelRef(supabase, companyId, ownerPhone) called; classifier NEVER called; owner gets exactly one success reply', async () => {
     mockResolvePending.mockResolvedValue(PENDING)
     mockNormalize.mockResolvedValue({ text: 'yes', kind: 'text', ok: true })
@@ -256,6 +290,18 @@ describe('classifyAndRoute — pending agentic-send confirmation pre-check (Phas
     expect(mockProcessConfirmationReply.mock.calls[0][0]).toBe('send it')
     expect(mockConfirmSend).not.toHaveBeenCalled()
     expect(mockCancelSend).not.toHaveBeenCalled()
+  })
+  it('a captured absence and standalone YES clarify without creating or confirming a newer draft', async () => {
+    mockResolvePending.mockResolvedValue(null)
+    mockNormalize.mockResolvedValue({ text: 'yes', kind: 'text', ok: true })
+    mockInvoke.mockResolvedValue(new AIMessage('CREATE'))
+    await classifyAndRoute({ companyId: 'company-1', ownerPhone: '+15551112222', fromPhone: '15551112222',
+      message: TEXT('yes'), session: null, pendingSendId: null, supabase: makeSupabase() })
+    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(mockProcessConfirmationReply).not.toHaveBeenCalled()
+    expect(mockConfirmSend).not.toHaveBeenCalled()
+    expect(mockSendWhatsAppMessage).toHaveBeenCalledTimes(1)
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/no estimate waiting/i)
   })
 
   it('unexpected thrown error from confirmSendByChannelRef → caught, owner still receives exactly one reply, function does not reject', async () => {

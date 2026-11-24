@@ -16,6 +16,7 @@ vi.mock('@/lib/inngest/client', () => ({
   },
 }))
 vi.mock('@/lib/demo/guard', () => ({ assertCompanyWritable: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/whatsapp/job-authority', () => ({ isWhatsAppJobAuthorized: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/whatsapp/client', () => ({
   sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
   sendWhatsAppMessage: vi.fn().mockResolvedValue(undefined),

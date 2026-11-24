@@ -238,18 +238,18 @@ export async function createSendConfirmation(
  * Resolves the most recent pending, unexpired confirmation for a WhatsApp
  * owner (looked up on their NEXT inbound message). `.order` + `.limit(1)`
  * makes this multi-pending safe -- if an owner somehow has more than one
- * pending draft, the newest wins. Never throws: a DB/mock failure (including
- * a mock `.from()` with no `.select` method, mirroring handler.test.ts's
- * fallback shape) resolves `null`.
+ * pending draft, the newest wins. Durable routing supplies the inbound message
+ * cutoff and asks for a strict read so only authoritative absence becomes null.
  */
 export async function resolvePendingByChannelRef(
   supabase: SupabaseClient,
   companyId: string,
   channelRef: string,
+  { throwOnError = false, createdBefore }: { throwOnError?: boolean; createdBefore?: string } = {},
 ): Promise<PendingSendConfirmation | null> {
   try {
     const nowIso = new Date().toISOString()
-    const { data, error } = (await supabase
+    let query = supabase
       .from(TABLE)
       .select('*')
       .eq('company_id', companyId)
@@ -257,19 +257,22 @@ export async function resolvePendingByChannelRef(
       .eq('trigger_source', 'agentic-whatsapp')
       .eq('status', 'pending')
       .gt('expires_at', nowIso)
-      .order('created_at', { ascending: false })
+    if (createdBefore) query = query.lte('created_at', createdBefore)
+    const { data, error } = (await query.order('created_at', { ascending: false })
       .limit(1)) as unknown as {
       data: AgenticSendConfirmationRow[] | null
       error: { message: string } | null
     }
 
     if (error) {
+      if (throwOnError) throw new Error('Could not read the pending customer message confirmation', { cause: error })
       console.warn('[agentic-send-confirm] resolvePendingByChannelRef read failed:', error.message)
       return null
     }
     const row = data?.[0]
     return row ? mapRow(row) : null
   } catch (err) {
+    if (throwOnError) throw err
     console.warn(
       '[agentic-send-confirm] resolvePendingByChannelRef unexpected:',
       err instanceof Error ? err.message : String(err),

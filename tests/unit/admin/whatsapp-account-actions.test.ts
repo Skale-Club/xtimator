@@ -28,6 +28,8 @@ function chainable() {
   chain.insert = vi.fn().mockReturnValue(chain)
   chain.update = vi.fn().mockReturnValue(chain)
   chain.eq = vi.fn().mockReturnValue(chain)
+  chain.lt = vi.fn().mockReturnValue(chain)
+  chain.is = vi.fn().mockReturnValue(chain)
   chain.maybeSingle = vi.fn().mockReturnValue(chain)
   chain.single = vi.fn().mockReturnValue(chain)
   chain.limit = vi.fn().mockReturnValue(chain)
@@ -50,6 +52,7 @@ vi.mock('@/lib/admin/audit-log', () => ({
 }))
 
 vi.mock('@/lib/whatsapp/account-registry', () => ({
+  isCurrentWhatsAppLinkedIdentity: vi.fn(),
   normalizeWhatsAppPhone: vi.fn((raw: string) => {
     if (!raw) return null
     const digits = raw.replace(/[^\d]/g, '')
@@ -61,6 +64,7 @@ vi.mock('@/lib/whatsapp/account-registry', () => ({
 // ─── Import after mocks ─────────────────────────────────────────────────────
 
 import {
+  resolveWhatsAppWelcomeTemplate,
   saveWhatsAppAccount,
   saveWhatsAppSender,
   setWhatsAppSenderStatus,
@@ -68,12 +72,14 @@ import {
 } from '@/lib/actions/admin-whatsapp-accounts'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
+import { isCurrentWhatsAppLinkedIdentity } from '@/lib/whatsapp/account-registry'
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockSvc = chainable()
+  vi.mocked(isCurrentWhatsAppLinkedIdentity).mockResolvedValue(false)
 })
 
 describe('requireAdmin gate', () => {
@@ -86,6 +92,36 @@ describe('requireAdmin gate', () => {
     await saveWhatsAppAccount('comp-1', {})
 
     expect(requireAdmin).toHaveBeenCalled()
+  })
+})
+
+describe('resolveWhatsAppWelcomeTemplate', () => {
+  const senderId = '10000000-0000-4000-8000-000000000009'
+  const claimUntil = '2026-11-01T12:00:00.000+00:00'
+
+  it('records an audited confirmation only for the exact expired sender attempt', async () => {
+    mockSvc.select.mockResolvedValueOnce({ data: [{ id: senderId }], error: null })
+
+    const result = await resolveWhatsAppWelcomeTemplate(senderId, claimUntil, 'sent')
+
+    expect(result.ok).toBe(true)
+    expect(mockSvc.eq).toHaveBeenCalledWith('welcome_template_claim_until', claimUntil)
+    expect(mockSvc.lt).toHaveBeenCalledWith('welcome_template_claim_until', expect.any(String))
+    expect(mockSvc.update).toHaveBeenCalledWith({
+      welcome_template_claim_until: null,
+      welcome_template_needs_review: false,
+      welcome_template_sent_at: expect.any(String),
+    })
+    expect(logAdminAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'whatsapp.welcome.reconcile', targetId: senderId,
+      metadata: { kind: 'template', resolution: 'sent' },
+    }))
+  })
+
+  it('rejects a stale or still active review attempt without recording an audit resolution', async () => {
+    mockSvc.select.mockResolvedValueOnce({ data: [], error: null })
+    expect((await resolveWhatsAppWelcomeTemplate(senderId, claimUntil, 'unsent')).ok).toBe(false)
+    expect(logAdminAction).not.toHaveBeenCalled()
   })
 })
 
@@ -111,14 +147,14 @@ describe('saveWhatsAppAccount', () => {
       .mockResolvedValueOnce({ data: null, error: null }) // existing config check
     mockSvc.select.mockReturnValue(mockSvc)
 
-    const newRow = { id: 'cfg-1', company_id: 'comp-1', status: 'pending_review', delivery_format: 'interactive' }
+    const newRow = { id: 'cfg-1', company_id: 'comp-1', status: 'pending_review', delivery_format: 'share_link' }
     mockSvc.insert.mockReturnValue(mockSvc)
     mockSvc.single.mockResolvedValue({ data: newRow, error: null })
 
-    const result = await saveWhatsAppAccount('comp-1', { deliveryFormat: 'interactive' })
+    const result = await saveWhatsAppAccount('comp-1', {})
 
     expect(result.ok).toBe(true)
-    expect(mockSvc.insert).toHaveBeenCalled()
+    expect(mockSvc.insert).toHaveBeenCalledWith(expect.objectContaining({ delivery_format: 'share_link' }))
     expect(logAdminAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'whatsapp.account.save',
@@ -131,7 +167,7 @@ describe('saveWhatsAppAccount', () => {
   it('rejects invalid status transitions', async () => {
     mockSvc.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'comp-1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'active', delivery_format: 'interactive' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'active', delivery_format: 'share_link' }, error: null })
     mockSvc.select.mockReturnValue(mockSvc)
 
     // active -> pending_review is NOT a valid transition
@@ -143,12 +179,12 @@ describe('saveWhatsAppAccount', () => {
   it('allows valid status transitions', async () => {
     mockSvc.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'comp-1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'suspended', delivery_format: 'interactive' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'suspended', delivery_format: 'share_link' }, error: null })
     mockSvc.select.mockReturnValue(mockSvc)
 
     mockSvc.update.mockReturnValue(mockSvc)
     mockSvc.single.mockResolvedValue({
-      data: { id: 'cfg-1', company_id: 'comp-1', status: 'active', delivery_format: 'interactive' },
+      data: { id: 'cfg-1', company_id: 'comp-1', status: 'active', delivery_format: 'share_link' },
       error: null,
     })
 
@@ -160,10 +196,10 @@ describe('saveWhatsAppAccount', () => {
   it('rejects invalid delivery format', async () => {
     mockSvc.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'comp-1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'active', delivery_format: 'interactive' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'active', delivery_format: 'share_link' }, error: null })
     mockSvc.select.mockReturnValue(mockSvc)
 
-    const result = await saveWhatsAppAccount('comp-1', { deliveryFormat: 'invalid' })
+    const result = await saveWhatsAppAccount('comp-1', { deliveryFormat: 'interactive' })
     expect(result.ok).toBe(false)
     expect(result.message).toContain('Invalid delivery format')
   })
@@ -171,12 +207,12 @@ describe('saveWhatsAppAccount', () => {
   it('audit metadata does not contain full phone', async () => {
     mockSvc.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'comp-1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'pending_review', delivery_format: 'interactive' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'cfg-1', status: 'pending_review', delivery_format: 'share_link' }, error: null })
     mockSvc.select.mockReturnValue(mockSvc)
 
     mockSvc.update.mockReturnValue(mockSvc)
     mockSvc.single.mockResolvedValue({
-      data: { id: 'cfg-1', company_id: 'comp-1', status: 'active', delivery_format: 'interactive' },
+      data: { id: 'cfg-1', company_id: 'comp-1', status: 'active', delivery_format: 'share_link' },
       error: null,
     })
 
@@ -204,15 +240,16 @@ describe('saveWhatsAppSender', () => {
     expect(result.message).toContain('WhatsApp config')
   })
 
-  it('returns error when user is not a company member', async () => {
+  it('requires a matching verified phone on an enabled company member account', async () => {
     mockSvc.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'cfg-1' }, error: null }) // config check
-      .mockResolvedValueOnce({ data: null, error: null }) // membership check
     mockSvc.select.mockReturnValue(mockSvc)
 
     const result = await saveWhatsAppSender('comp-1', '+15551234567', { userId: 'user-999' })
     expect(result.ok).toBe(false)
-    expect(result.message).toContain('not a member')
+    expect(result.message).toContain('enabled account that belongs to this company')
+    expect(isCurrentWhatsAppLinkedIdentity).toHaveBeenCalledWith('comp-1', 'user-999', '+15551234567')
+    expect(mockSvc.insert).not.toHaveBeenCalled()
   })
 
   it('rejects duplicate active phone on another company', async () => {
@@ -250,12 +287,31 @@ describe('saveWhatsAppSender', () => {
 
     const result = await saveWhatsAppSender('comp-1', '+15551234567')
     expect(result.ok).toBe(true)
+    expect(mockSvc.insert).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'active', admin_phone_only: true, user_id: null, verified_at: expect.any(String),
+    }))
     expect(logAdminAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'whatsapp.sender.save',
         targetType: 'whatsapp_sender',
       }),
     )
+  })
+
+  it('preserves the linked user when saving an existing sender without a replacement user', async () => {
+    vi.mocked(isCurrentWhatsAppLinkedIdentity).mockResolvedValue(true)
+    mockSvc.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'cfg-1' }, error: null })
+      .mockResolvedValueOnce({ data: {
+        id: 'sender-1', user_id: 'user-1', status: 'active', updated_at: '2026-01-01',
+      }, error: null })
+    mockSvc.limit.mockResolvedValue({ data: [], error: null })
+    mockSvc.single.mockResolvedValue({ data: { id: 'sender-1' }, error: null })
+
+    expect(await saveWhatsAppSender('comp-1', '+15551234567', { senderId: 'sender-1' })).toMatchObject({ ok: true })
+    expect(mockSvc.update).toHaveBeenCalledWith(expect.objectContaining({
+      user_id: 'user-1', admin_phone_only: false,
+    }))
   })
 
   it('audit metadata contains only last4 of phone', async () => {
@@ -308,7 +364,7 @@ describe('setWhatsAppSenderStatus', () => {
     })
     mockSvc.select.mockReturnValue(mockSvc)
 
-    const result = await setWhatsAppSenderStatus('sender-1', 'pending')
+    const result = await setWhatsAppSenderStatus('sender-1', 'pending_review')
     expect(result.ok).toBe(false)
     expect(result.message).toContain('Cannot transition')
   })
@@ -323,6 +379,7 @@ describe('setWhatsAppSenderStatus', () => {
 
     const result = await setWhatsAppSenderStatus('sender-1', 'suspended')
     expect(result.ok).toBe(true)
+    expect(mockSvc.update).toHaveBeenCalledWith(expect.objectContaining({ suspension_reason: 'admin' }))
     expect(logAdminAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'whatsapp.sender.status',
@@ -330,16 +387,39 @@ describe('setWhatsAppSenderStatus', () => {
     )
   })
 
-  it('requires verified_at for activation', async () => {
+  it('requires admin attestation before activating an unlinked legacy sender', async () => {
     mockSvc.maybeSingle.mockResolvedValue({
-      data: { id: 'sender-1', status: 'pending', phone_e164: '+15551234567', company_id: 'comp-1', verified_at: null },
+      data: { id: 'sender-1', status: 'pending_review', user_id: null, admin_phone_only: false, phone_e164: '+15551234567', company_id: 'comp-1', verified_at: null },
       error: null,
     })
     mockSvc.select.mockReturnValue(mockSvc)
 
     const result = await setWhatsAppSenderStatus('sender-1', 'active')
     expect(result.ok).toBe(false)
-    expect(result.message).toContain('verification timestamp')
+    expect(result.message).toContain('without a linked account')
+  })
+
+  it('can reactivate an explicitly attested phone-only sender', async () => {
+    mockSvc.maybeSingle.mockResolvedValue({
+      data: { id: 'sender-1', status: 'suspended', user_id: null, admin_phone_only: true, phone_e164: '+15551234567', company_id: 'comp-1' },
+      error: null,
+    })
+
+    expect(await setWhatsAppSenderStatus('sender-1', 'active')).toMatchObject({ ok: true })
+    expect(mockSvc.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'active', suspension_reason: null }))
+  })
+
+  it('records an explicit re-attestation for a previously admin-created phone-only sender', async () => {
+    mockSvc.maybeSingle.mockResolvedValue({
+      data: { id: 'sender-1', status: 'suspended', user_id: null, created_by_admin: true, admin_phone_only: false, phone_e164: '+15551234567', company_id: 'comp-1' },
+      error: null,
+    })
+
+    expect(await setWhatsAppSenderStatus('sender-1', 'active', { confirmPhoneOnly: true })).toMatchObject({ ok: true })
+    expect(mockSvc.update).toHaveBeenCalledWith(expect.objectContaining({ admin_phone_only: true }))
+    expect(logAdminAction).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ confirmedPhoneOnly: true }),
+    }))
   })
 })
 
@@ -355,7 +435,7 @@ describe('removeWhatsAppSender', () => {
 
   it('returns error when already suspended', async () => {
     mockSvc.maybeSingle.mockResolvedValue({
-      data: { id: 'sender-1', status: 'suspended', phone_e164: '+15551234567', company_id: 'comp-1' },
+      data: { id: 'sender-1', status: 'suspended', suspension_reason: 'admin', phone_e164: '+15551234567', company_id: 'comp-1' },
       error: null,
     })
     mockSvc.select.mockReturnValue(mockSvc)
@@ -381,6 +461,16 @@ describe('removeWhatsAppSender', () => {
         action: 'whatsapp.sender.remove',
       }),
     )
+  })
+
+  it('turns an automatic suspension into an explicit revocation', async () => {
+    mockSvc.maybeSingle.mockResolvedValue({
+      data: { id: 'sender-1', status: 'suspended', suspension_reason: 'phone_change', phone_e164: '+15551234567', company_id: 'comp-1' },
+      error: null,
+    })
+
+    expect(await removeWhatsAppSender('sender-1')).toMatchObject({ ok: true })
+    expect(mockSvc.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'suspended', suspension_reason: 'admin' }))
   })
 
   it('audit metadata has only last4 phone', async () => {

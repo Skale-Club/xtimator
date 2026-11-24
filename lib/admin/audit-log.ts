@@ -40,6 +40,7 @@ export type AuditAction =
   | 'price_research.set'
   | 'billing_config.save'
   | 'whatsapp.account.save'
+  | 'whatsapp.welcome.reconcile'
   | 'whatsapp.sender.save'
   | 'whatsapp.sender.status'
   | 'whatsapp.sender.remove'

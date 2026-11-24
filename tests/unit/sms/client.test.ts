@@ -105,6 +105,7 @@ describe('lib/sms/client — sendSms() (NOTIF-04 RED)', () => {
 
     const result = await sendSms('+15551234567', 'Hi')
     expect(result.ok).toBe(false)
+    expect(result.deliveryFailure).toBe('ambiguous')
   })
 
   it('never throws on a non-ok Twilio response → returns { ok: false }', async () => {
@@ -118,6 +119,19 @@ describe('lib/sms/client — sendSms() (NOTIF-04 RED)', () => {
 
     const result = await sendSms('+15551234567', 'Hi')
     expect(result.ok).toBe(false)
+    expect(result.deliveryFailure).toBe('permanent')
+  })
+
+  it('marks documented rate limits retryable and unclassified server failures ambiguous', async () => {
+    const { sendSms } = await import('@/lib/sms/client')
+    const { getTwilioConfig } = await import('@/lib/platform-config')
+    vi.mocked(getTwilioConfig).mockResolvedValue(TWILIO_PLACEHOLDER)
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ code: 20429 }) })
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) }))
+
+    await expect(sendSms('+15551234567', 'Hi')).resolves.toMatchObject({ ok: false, deliveryFailure: 'retryable' })
+    await expect(sendSms('+15551234567', 'Hi')).resolves.toMatchObject({ ok: false, deliveryFailure: 'ambiguous' })
   })
 })
 

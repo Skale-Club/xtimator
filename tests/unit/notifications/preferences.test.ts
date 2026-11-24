@@ -62,6 +62,19 @@ describe('lib/notifications/preferences — resolveChannels() (NOTIF-02 + NOTIF-
     expect(result.email).toBe(true)
   })
 
+  it('distinguishes a queued send preference read failure from missing consent', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const service = vi.mocked(requireServiceClient)
+    service.mockReturnValue(makePrefsClient({ data: null, error: { message: 'timeout' } }) as unknown as ReturnType<typeof requireServiceClient>)
+    await expect(resolveChannels('estimate.viewed', 'user_1', undefined, { throwOnReadError: true }))
+      .rejects.toThrow('Could not read notification preferences')
+
+    service.mockReturnValue(makePrefsClient({ data: null, error: null }) as unknown as ReturnType<typeof requireServiceClient>)
+    await expect(resolveChannels('estimate.viewed', 'user_1', undefined, { throwOnReadError: true }))
+      .resolves.toMatchObject({ whatsapp: false, sms: false })
+  })
+
   it('honors per-category override from prefs.categories JSONB', async () => {
     const { resolveChannels } = await import('@/lib/notifications/preferences')
     const { requireServiceClient } = await import('@/lib/supabase/service')

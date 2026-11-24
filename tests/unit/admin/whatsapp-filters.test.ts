@@ -18,6 +18,7 @@ vi.mock('@/lib/auth/admin-context', () => ({
 type ChainableResult = {
   data: unknown
   count: number | null
+  error?: { message: string }
 }
 
 function createChainableStub(initialData: unknown[] = [], totalCount: number | null = null) {
@@ -44,6 +45,7 @@ function createChainableStub(initialData: unknown[] = [], totalCount: number | n
 
   let resolvedData: unknown = initialData
   let resolvedCount: number | null = totalCount
+  let resolvedError: ChainableResult['error']
 
   for (const method of methods) {
     chain[method] = (...args: unknown[]) => {
@@ -55,7 +57,7 @@ function createChainableStub(initialData: unknown[] = [], totalCount: number | n
   // Override thenable so `await chain` returns the result
   ;(chain as unknown as { then: (resolve: (val: ChainableResult) => void) => void }).then =
     (resolve) => {
-      resolve({ data: resolvedData, count: resolvedCount })
+      resolve({ data: resolvedData, count: resolvedCount, error: resolvedError })
     }
 
   return {
@@ -67,6 +69,7 @@ function createChainableStub(initialData: unknown[] = [], totalCount: number | n
     setCount: (c: number | null) => {
       resolvedCount = c
     },
+    setError: (error: ChainableResult['error']) => { resolvedError = error },
   }
 }
 
@@ -153,6 +156,13 @@ describe('parseAdminWhatsAppFilters', () => {
   it('trims whitespace from q', () => {
     const result = parseAdminWhatsAppFilters({ q: '  hello world  ' })
     expect(result.q).toBe('hello world')
+  })
+
+  it('ignores invalid calendar dates while keeping other valid filters', () => {
+    const filters = parseAdminWhatsAppFilters({ dateFrom: 'not-a-date', dateTo: '2026-02-30', status: 'active' })
+    expect(filters.dateFrom).toBeUndefined()
+    expect(filters.dateTo).toBeUndefined()
+    expect(filters.status).toBe('active')
   })
 
   it('rejects invalid status value gracefully', () => {
@@ -249,9 +259,30 @@ describe('listAdminWhatsAppConversations', () => {
     )
     expect(result.rows).toHaveLength(1)
     const gteCalls = convStub.calls.filter((c) => c.method === 'gte')
-    const lteCalls = convStub.calls.filter((c) => c.method === 'lte')
     expect(gteCalls.some((c) => c.args[0] === 'last_message_at')).toBe(true)
-    expect(lteCalls.some((c) => c.args[0] === 'last_message_at')).toBe(true)
+    expect(convStub.calls).toContainEqual({ method: 'lt', args: ['last_message_at', '2026-07-01T00:00:00.000Z'] })
+  })
+
+  it('embeds the status relation through companies before applying the filter and range', async () => {
+    await listAdminWhatsAppConversations(parseAdminWhatsAppFilters({ status: 'active' }))
+    expect(convStub.calls[0]).toMatchObject({
+      method: 'select',
+      args: [expect.stringContaining('companies!inner(whatsapp_company_configs!inner(status))'), { count: 'exact' }],
+    })
+    expect(convStub.calls).toContainEqual({ method: 'eq', args: ['companies.whatsapp_company_configs.status', 'active'] })
+  })
+
+  it('targets only the selected sender phone in its company', async () => {
+    senderStub.setData({ company_id: 'comp-1', phone_e164: '+15551234567' })
+    await listAdminWhatsAppConversations(parseAdminWhatsAppFilters({ senderId: '550e8400-e29b-41d4-a716-446655440001' }))
+    expect(convStub.calls).toContainEqual({ method: 'eq', args: ['company_id', 'comp-1'] })
+    expect(convStub.calls).toContainEqual({ method: 'eq', args: ['contact_phone', '+15551234567'] })
+  })
+
+  it('distinguishes a query failure from an empty inbox', async () => {
+    convStub.setError({ message: 'query failed' })
+    const result = await listAdminWhatsAppConversations(parseAdminWhatsAppFilters({}))
+    expect(result.error).toBe('Could not load WhatsApp conversations.')
   })
 
   it('fetches company labels only for result IDs (not all companies)', async () => {
@@ -291,7 +322,7 @@ describe('listAdminWhatsAppConversations', () => {
   })
 
   it('returns empty when senderId not found', async () => {
-    senderStub = createChainableStub([], null)
+    senderStub.setData(null)
     const result = await listAdminWhatsAppConversations(
       parseAdminWhatsAppFilters({ senderId: '550e8400-e29b-41d4-a716-446655440001' }),
     )

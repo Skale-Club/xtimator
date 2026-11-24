@@ -104,12 +104,13 @@ import { AIMessage } from '@langchain/core/messages'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 // Chainable supabase mock for history loading (returns no conversation → empty history)
-function makeSupabase() {
+function makeSupabase(language = 'en') {
   const chain: Record<string, unknown> = {}
   chain.select = vi.fn(() => chain)
   chain.eq = vi.fn(() => chain)
   chain.order = vi.fn(() => chain)
   chain.limit = vi.fn(() => Promise.resolve({ data: [], error: null }))
+  chain.single = vi.fn().mockResolvedValue({ data: { default_estimate_language: language }, error: null })
   chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }))
   return { from: vi.fn(() => chain) } as never
 }
@@ -169,7 +170,7 @@ describe('classifyAndRoute', () => {
     expect(mockProcessInboundMessages).not.toHaveBeenCalled()
   })
 
-  it('Test 2: new audio job while awaiting_confirm → CREATE → actionCancel then processInboundMessages', async () => {
+  it('Test 2: new audio job while awaiting_confirm → CREATE preserves the draft and dispatches the replacement', async () => {
     mockNormalize.mockResolvedValue({
       text: 'build a new deck 20x20',
       kind: 'audio',
@@ -186,7 +187,7 @@ describe('classifyAndRoute', () => {
       supabase: makeSupabase(),
     })
 
-    expect(mockActionCancel).toHaveBeenCalledTimes(1)
+    expect(mockActionCancel).not.toHaveBeenCalled()
     expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
     // processInboundMessages(messages, companyId, fromPhone, supabase) — fromPhone has NO '+'
     expect(mockProcessInboundMessages.mock.calls[0][1]).toBe('company-1')
@@ -243,23 +244,26 @@ describe('classifyAndRoute', () => {
     expect(mockProcessConfirmationReply).not.toHaveBeenCalled()
   })
 
-  it('unrecognized classifier output defaults to CREATE (safe default)', async () => {
+  it('unrecognized classifier output keeps the pending draft and asks for clarification', async () => {
     mockNormalize.mockResolvedValue({ text: 'something', kind: 'text', ok: true })
-    mockInvoke.mockResolvedValue(new AIMessage('garbage-not-a-label'))
+    mockInvoke.mockResolvedValue(new AIMessage('I would EDIT or CREATE'))
 
     await classifyAndRoute({
       companyId: 'company-1',
       ownerPhone: '+15551112222',
       fromPhone: '15551112222',
       message: TEXT('something'),
-      session: null,
+      session: SESSION,
       supabase: makeSupabase(),
     })
 
-    expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
+    expect(mockProcessInboundMessages).not.toHaveBeenCalled()
+    expect(mockActionCancel).not.toHaveBeenCalled()
+    expect(mockRunConfirmationAgent).not.toHaveBeenCalled()
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/what you want to do/i)
   })
 
-  it('classifier failure defaults to CREATE so inbound messages still get processed', async () => {
+  it('classifier provider failure preserves a pending draft and replies in the owner language', async () => {
     mockNormalize.mockResolvedValue({
       text: 'replace the bathroom vanity',
       kind: 'text',
@@ -272,13 +276,13 @@ describe('classifyAndRoute', () => {
       ownerPhone: '+15551112222',
       fromPhone: '15551112222',
       message: TEXT('replace the bathroom vanity'),
-      session: null,
-      supabase: makeSupabase(),
+      session: SESSION,
+      supabase: makeSupabase('pt'),
     })
 
-    expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
-    expect(mockProcessInboundMessages.mock.calls[0][1]).toBe('company-1')
-    expect(mockProcessInboundMessages.mock.calls[0][2]).toBe('15551112222')
+    expect(mockProcessInboundMessages).not.toHaveBeenCalled()
+    expect(mockActionCancel).not.toHaveBeenCalled()
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/Tente novamente/)
   })
 })
 

@@ -97,14 +97,6 @@ function makeChainableClient() {
   const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 
   const from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'whatsapp_sessions') {
-      return {
-        insert: (payload: Record<string, unknown>) => {
-          sessionInserts.push(payload)
-          return Promise.resolve({ error: null })
-        },
-      }
-    }
     if (table === 'estimates') {
       return { select, delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
     }
@@ -119,7 +111,10 @@ function makeChainableClient() {
     }
   })
 
-  return { from } as never
+  return { from, rpc: (_name: string, payload: Record<string, unknown>) => {
+    sessionInserts.push(payload)
+    return Promise.resolve({ data: true, error: null })
+  } } as never
 }
 
 vi.mock('@/lib/supabase/service', () => ({
@@ -188,8 +183,8 @@ describe('HARD-07: replay-safe session TTL (expires_at derived from requestedAt)
     })
 
     expect(sessionInserts.length).toBe(2)
-    const first = sessionInserts[0].expires_at as string
-    const second = sessionInserts[1].expires_at as string
+    const first = sessionInserts[0].p_expires_at as string
+    const second = sessionInserts[1].p_expires_at as string
 
     // RED today: finalize mints Date.now(), so first !== second and neither
     // equals the requestedAt-derived value.
@@ -208,7 +203,7 @@ describe('HARD-07: replay-safe session TTL (expires_at derived from requestedAt)
     })
 
     expect(sessionInserts.length).toBe(1)
-    const expiresAt = new Date(sessionInserts[0].expires_at as string).getTime()
+    const expiresAt = new Date(sessionInserts[0].p_expires_at as string).getTime()
 
     // A value derived from requestedAt is FIXED_MS + TTL, far in the past relative
     // to "now + TTL". A Date.now()-re-minted value would be ~now + TTL.

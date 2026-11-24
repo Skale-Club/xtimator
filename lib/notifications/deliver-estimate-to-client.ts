@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { assertSendAllowed, type SendChannel } from '@/lib/notifications/customer-send-gate'
 import { sendCustomerMessage } from '@/lib/notifications/customer-send'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
+import { runClaimedCommandRpc, type CommandClaim } from '@/lib/whatsapp/session-commands'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 /**
  * Deliver an estimate to the END CLIENT through the platform: email and/or SMS
@@ -48,12 +50,13 @@ export async function getClientContacts(
   clientId: string | null,
 ): Promise<ClientContacts | null> {
   if (!clientId) return null
-  const { data } = await svc
+  const { data, error } = await svc
     .from('clients')
     .select('name, email, phone')
     .eq('id', clientId)
     .eq('company_id', companyId)
     .maybeSingle()
+  if (error) throw new Error('Could not read the client contact', { cause: error })
   if (!data) return null
   const email = ((data.email as string | null) ?? '').trim()
   const phone = ((data.phone as string | null) ?? '').trim()
@@ -73,8 +76,9 @@ export async function deliverEstimateToClient(params: {
   businessName: string
   shareUrl: string
   contacts: ClientContacts
+  command?: CommandClaim
 }): Promise<DeliverEstimateOutcome> {
-  const { svc, companyId, estimateId, projectId, businessName, shareUrl, contacts } = params
+  const { svc, companyId, estimateId, projectId, businessName, shareUrl, contacts, command } = params
 
   const wanted: SendChannel[] = []
   if (contacts.email) wanted.push('email')
@@ -93,8 +97,22 @@ export async function deliverEstimateToClient(params: {
 
   const sent: SendChannel[] = []
   const failed: ChannelOutcome[] = []
+  const channelHistory = new Map<string, string>()
+  if (command) {
+    const { data, error } = await svc.from('whatsapp_estimate_delivery_channels')
+      .select('channel, status').eq('company_id', companyId).eq('estimate_id', estimateId)
+    if (error) throw new Error('Could not read the estimate delivery history', { cause: error })
+    for (const row of data ?? []) channelHistory.set(row.channel, row.status)
+  }
 
   for (const channel of wanted) {
+    const previous = channelHistory.get(channel)
+    if (previous) {
+      if (previous === 'sent') sent.push(channel)
+      else failed.push({ channel, ok: false, reason: 'delivery_unverified' })
+      continue
+    }
+
     if (channel === 'sms' && !smsEnabled) {
       failed.push({ channel, ok: false, reason: 'sms_disabled' })
       continue
@@ -104,6 +122,20 @@ export async function deliverEstimateToClient(params: {
     if (!gate.allowed || !gate.permit) {
       failed.push({ channel, ok: false, reason: gate.reason ?? 'gate_denied' })
       continue
+    }
+
+    if (command) {
+      const reservation = await runClaimedCommandRpc(svc, 'whatsapp_claim_estimate_delivery_channel', command, {
+        p_client_id: contacts.clientId,
+        p_channel: channel,
+      })
+      if (reservation !== 'claimed') {
+        if (reservation === 'sent') sent.push(channel)
+        else if (reservation === 'dispatching' || reservation === 'unverified') {
+          failed.push({ channel, ok: false, reason: 'delivery_unverified' })
+        } else throw new Error('Could not reserve the estimate delivery channel')
+        continue
+      }
     }
 
     const result = await sendCustomerMessage({
@@ -117,6 +149,23 @@ export async function deliverEstimateToClient(params: {
         vars: { businessName, shareUrl, clientName: contacts.clientName ?? undefined },
       },
     })
+
+    if (command) {
+      // A reservation is written before the network call and never replayed.
+      // An interrupted or ambiguous provider response requires review in-app.
+      await runClaimedCommandRpc(svc, 'whatsapp_record_estimate_delivery_channel', command, {
+        p_channel: channel,
+        p_client_id: contacts.clientId,
+        p_recipient_email: channel === 'email' ? contacts.email : null,
+        p_recipient_phone: channel === 'sms' ? contacts.phone : null,
+        p_provider_message_id: result.providerMessageId ?? null,
+        p_sent: result.ok,
+        p_error: result.ok ? null : (result.error ?? 'Could not verify delivery'),
+      })
+      if (result.ok) sent.push(channel)
+      else failed.push({ channel, ok: false, reason: 'delivery_unverified' })
+      continue
+    }
 
     const now = new Date().toISOString()
     await svc.from('estimate_deliveries').insert({
@@ -148,6 +197,7 @@ export async function deliverEstimateToClient(params: {
   }
 
   if (sent.length === 0) return { status: 'not_delivered', failed }
+  if (command) return { status: 'sent', sent, failed }
 
   // Same bookkeeping as the editor's Send: first send stamps sent_at, every send
   // refreshes the share-link expiry, the project moves to 'sent'.
@@ -160,14 +210,33 @@ export async function deliverEstimateToClient(params: {
 }
 
 /** Human label for the owner confirmation: "email", "SMS" or "email and SMS". */
-export function describeChannels(channels: SendChannel[]): string {
+export function describeChannels(channels: SendChannel[], language: EstimateLanguage = 'en'): string {
   const labels = channels.map((c) => (c === 'email' ? 'email' : 'SMS'))
-  return labels.join(' and ')
+  return labels.join({ en: ' and ', pt: ' e ', es: ' y ' }[language])
 }
 
 /** One short reason per failed channel, for the owner. */
-export function describeFailure(f: ChannelOutcome): string {
+export function describeFailure(f: ChannelOutcome, language: EstimateLanguage = 'en'): string {
   const label = f.channel === 'email' ? 'email' : 'SMS'
+  if (language === 'pt' || language === 'es') {
+    const copy = language === 'pt' ? {
+      suppressed: `o cliente desativou o recebimento por ${label}`,
+      no_consent: 'o cliente ainda não autorizou o envio por SMS',
+      quiet_hours: 'o horário permitido para SMS terminou, tente mais tarde',
+      sms_disabled: 'o envio por SMS está desativado para esta empresa',
+      delivery_unverified: `não consegui confirmar a entrega por ${label}. Confira o histórico antes de reenviar`,
+      other: `não foi possível entregar por ${label}`,
+    } : {
+      suppressed: `el cliente desactivó los mensajes por ${label}`,
+      no_consent: 'el cliente aún no autorizó los mensajes por SMS',
+      quiet_hours: 'el SMS está fuera del horario permitido, vuelve a intentar más tarde',
+      sms_disabled: 'el envío por SMS está desactivado para esta empresa',
+      delivery_unverified: `no pude confirmar la entrega por ${label}. Revisa el historial antes de volver a enviarlo`,
+      other: `no se pudo entregar por ${label}`,
+    }
+    if (f.reason === 'unresolvable_timezone') return copy.quiet_hours
+    return f.reason && Object.hasOwn(copy, f.reason) ? copy[f.reason as keyof typeof copy] : copy.other
+  }
   switch (f.reason) {
     case 'suppressed':
       return `the client opted out of ${label}`
@@ -178,6 +247,8 @@ export function describeFailure(f: ChannelOutcome): string {
       return 'SMS is outside the client\'s allowed hours, try again later'
     case 'sms_disabled':
       return 'SMS delivery is off for this company'
+    case 'delivery_unverified':
+      return `${label} delivery could not be verified. Check the estimate's delivery history before sending it again`
     default:
       return `the ${label} could not be delivered`
   }

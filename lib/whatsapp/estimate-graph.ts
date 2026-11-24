@@ -43,6 +43,7 @@ interface WhatsAppInitialState {
   companyId: string
   projectId: string
   ownerPhone: string
+  senderUserId?: string | null
   /** Discriminator passed by whatsapp-process.ts; the wiring hardcodes 'whatsapp'. */
   channel?: 'whatsapp'
   messages: WhatsAppMessage[]
@@ -81,6 +82,7 @@ export function buildEstimateGraph() {
         companyId: initial.companyId,
         supabase,
         ownerPhone: initial.ownerPhone,
+        senderUserId: initial.senderUserId,
         messages: initial.messages ?? [],
       })
       const graph = buildSharedEstimateGraph(adapter)

@@ -10,6 +10,16 @@ vi.mock('@/lib/whatsapp/owner-send', () => ({
   getOwnerLastInboundAt: vi.fn(async () => null),
 }))
 
+vi.mock('@/lib/whatsapp/account-registry', () => ({
+  findActiveWhatsAppSender: async (phoneE164: string) => ({ phoneE164, companyId: 'c1', userId: 'u1' }),
+}))
+vi.mock('@/lib/notifications/preferences', () => ({
+  getUserPreferences: async () => ({ whatsapp_opt_in_at: '2026-11-09T00:00:00Z' }),
+}))
+vi.mock('@/lib/notifications/whatsapp-registry', () => ({
+  getApprovedOwnerUpdateTemplate: async () => ({ name: 'owner_update', languageCode: 'en_US', bodyVariables: ['Expired'] }),
+}))
+
 import { GET } from '@/app/api/cron/cleanup-whatsapp-sessions/route'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { sendOwnerWhatsApp } from '@/lib/whatsapp/owner-send'
@@ -23,7 +33,7 @@ function makeRequest(authHeader?: string) {
   })
 }
 
-function makeSupabase(expiredSessions: Array<{ id: string; phone_number: string; draft_project_id: string | null }>) {
+function makeSupabase(expiredSessions: Array<{ id: string; company_id: string; phone_number: string; draft_project_id: string | null }>) {
   const deleteSpy = vi.fn().mockReturnValue({
     eq: vi.fn().mockResolvedValue({ error: null }),
   })
@@ -78,8 +88,8 @@ describe('GET /api/cron/cleanup-whatsapp-sessions', () => {
 
   it('sends expiry notification and deletes each expired session', async () => {
     const expiredSessions = [
-      { id: 'session-1', phone_number: '+15551111111', draft_project_id: 'project-1' },
-      { id: 'session-2', phone_number: '+15552222222', draft_project_id: null },
+      { company_id: 'c1', id: 'session-1', phone_number: '+15551111111', draft_project_id: 'project-1' },
+      { company_id: 'c1', id: 'session-2', phone_number: '+15552222222', draft_project_id: null },
     ]
     const { from, deleteSpy } = makeSupabase(expiredSessions)
     mockServiceClient.mockReturnValue({ from } as never)
@@ -103,7 +113,7 @@ describe('GET /api/cron/cleanup-whatsapp-sessions', () => {
 
   it('still deletes session even when the owner send fails', async () => {
     const expiredSessions = [
-      { id: 'session-1', phone_number: '+15551111111', draft_project_id: null },
+      { company_id: 'c1', id: 'session-1', phone_number: '+15551111111', draft_project_id: null },
     ]
     const { from, deleteSpy } = makeSupabase(expiredSessions)
     mockServiceClient.mockReturnValue({ from } as never)

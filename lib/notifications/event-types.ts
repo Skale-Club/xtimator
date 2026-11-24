@@ -67,6 +67,15 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
   'ai_job.completed': '_dropped',
 }
 
+export const WHATSAPP_NOTIFICATION_EVENTS = (Object.keys(EVENT_CATEGORIES) as EventType[])
+  .filter((event) => EVENT_CATEGORIES[event] !== '_dropped')
+
+export const WHATSAPP_NOTIFICATION_CATEGORIES = ['estimate', 'billing', 'system'] as const
+
+export function isWhatsAppNotificationEvent(value: string): value is EventType {
+  return WHATSAPP_NOTIFICATION_EVENTS.some((event) => event === value)
+}
+
 export const DROPPED_EVENT_TYPES = (
   Object.keys(EVENT_CATEGORIES) as EventType[]
 ).filter((eventType) => EVENT_CATEGORIES[eventType] === '_dropped')

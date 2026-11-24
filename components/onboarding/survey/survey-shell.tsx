@@ -217,7 +217,7 @@ export function SurveyShell({
                           className="mt-0.5"
                         />
                         <Label htmlFor="survey-whatsapp-opt-in" className="text-sm font-normal leading-snug text-muted-foreground">
-                          {t('Get your estimates and updates on WhatsApp from the Xtimator assistant.')}
+                          {t('Receive estimate, billing and system updates from Xtimator on WhatsApp. You can turn these off in Notifications.')}
                         </Label>
                       </div>
                     )}

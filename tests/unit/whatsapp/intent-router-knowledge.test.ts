@@ -12,9 +12,9 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
  *
  * classifyAndRoute gains a 5th KNOWLEDGE intent that routes a generic trade
  * how-to question to dispatchKnowledge → lib/knowledge/answer, scoped by the
- * resolved company's industries[] (caller-supplied, NEVER from the LLM). The
- * existing 4 intents and the safe CREATE default for unrecognized output are
- * untouched. Mock harness cloned from intent-router.test.ts.
+ * resolved company's industries[] (caller-supplied, NEVER from the LLM).
+ * Unrecognized intent labels ask for clarification and provider failures ask
+ * the owner to retry. Both preserve the active estimate.
  */
 
 // --- classifier LLM (ChatOpenAI) ------------------------------------------
@@ -53,11 +53,6 @@ vi.mock('@/lib/whatsapp/agent', () => ({
   runConfirmationAgent: (...a: unknown[]) => mockRunConfirmationAgent(...a),
 }))
 
-const mockActionCancel = vi.fn()
-vi.mock('@/lib/whatsapp/confirm-actions', () => ({
-  actionCancel: (...a: unknown[]) => mockActionCancel(...a),
-}))
-
 const mockProcessInboundMessages = vi.fn()
 vi.mock('@/lib/whatsapp/handler', () => ({
   processInboundMessages: (...a: unknown[]) => mockProcessInboundMessages(...a),
@@ -90,23 +85,24 @@ import { classifyAndRoute } from '@/lib/whatsapp/intent-router'
 import { AIMessage } from '@langchain/core/messages'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
-// Dual-purpose supabase mock. maybeSingle() resolves a row that satisfies BOTH
+// maybeSingle() resolves a row that satisfies both
 // callers: (1) loadConversationHistory's `.select('id')...maybeSingle()` — a row
 // with `id` is harmless, and `limit()` returns [] so history degrades empty;
 // (2) dispatchKnowledge's `.select('industries, default_estimate_language')
 // ...maybeSingle()` — the industries fixture drives the retrieval scope.
-function makeSupabase() {
+function makeSupabase(language = 'en') {
   const chain: Record<string, unknown> = {}
   chain.select = vi.fn(() => chain)
   chain.eq = vi.fn(() => chain)
   chain.order = vi.fn(() => chain)
   chain.limit = vi.fn(() => Promise.resolve({ data: [], error: null }))
+  chain.single = vi.fn(async () => ({ data: { default_estimate_language: language }, error: null }))
   chain.maybeSingle = vi.fn(() =>
     Promise.resolve({
       data: {
         id: 'conv-1',
         industries: ['carpet_cleaning'],
-        default_estimate_language: 'en',
+        default_estimate_language: language,
       },
       error: null,
     })
@@ -122,11 +118,14 @@ const TEXT = (body: string): WhatsAppMessage => ({
   text: { body },
 })
 
+const SESSION = {
+  id: 'session-1', state: 'awaiting_confirm', draft_project_id: 'project-1', draft_estimate_id: 'estimate-1',
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockLogOutbound.mockResolvedValue(undefined)
   mockSendWhatsAppMessage.mockResolvedValue(undefined)
-  mockActionCancel.mockResolvedValue(undefined)
   mockProcessInboundMessages.mockResolvedValue(undefined)
   mockProcessConfirmationReply.mockResolvedValue(undefined)
   mockRunConfirmationAgent.mockResolvedValue(undefined)
@@ -162,7 +161,7 @@ describe('classifyAndRoute — KNOWLEDGE intent', () => {
     expect(mockSendWhatsAppMessage.mock.calls[0][0]).toBe('+15551112222')
   })
 
-  it('Test B (WAKB-01 regression): unrecognized output STILL → CREATE; answer() NOT called', async () => {
+  it('asks the owner for clarification when the classifier returns an unknown label', async () => {
     mockNormalize.mockResolvedValue({ text: 'something', kind: 'text', ok: true })
     mockInvoke.mockResolvedValue(new AIMessage('garbage-not-a-label'))
 
@@ -171,15 +170,19 @@ describe('classifyAndRoute — KNOWLEDGE intent', () => {
       ownerPhone: '+15551112222',
       fromPhone: '15551112222',
       message: TEXT('something'),
-      session: null,
+      session: SESSION,
       supabase: makeSupabase(),
     })
 
-    expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
+    expect(mockProcessInboundMessages).not.toHaveBeenCalled()
+    expect(mockRunConfirmationAgent).not.toHaveBeenCalled()
+    expect(mockProcessConfirmationReply).not.toHaveBeenCalled()
     expect(mockAnswer).not.toHaveBeenCalled()
+    expect(mockSendWhatsAppMessage).toHaveBeenCalledOnce()
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/what you want to do with the estimate/i)
   })
 
-  it('Test C (WAKB-01 regression): classifier throws STILL → CREATE; answer() NOT called', async () => {
+  it('replies in the owner language when the classifier fails', async () => {
     mockNormalize.mockResolvedValue({
       text: 'replace the bathroom vanity',
       kind: 'text',
@@ -192,12 +195,16 @@ describe('classifyAndRoute — KNOWLEDGE intent', () => {
       ownerPhone: '+15551112222',
       fromPhone: '15551112222',
       message: TEXT('replace the bathroom vanity'),
-      session: null,
-      supabase: makeSupabase(),
+      session: SESSION,
+      supabase: makeSupabase('pt'),
     })
 
-    expect(mockProcessInboundMessages).toHaveBeenCalledTimes(1)
+    expect(mockProcessInboundMessages).not.toHaveBeenCalled()
+    expect(mockRunConfirmationAgent).not.toHaveBeenCalled()
+    expect(mockProcessConfirmationReply).not.toHaveBeenCalled()
     expect(mockAnswer).not.toHaveBeenCalled()
+    expect(mockSendWhatsAppMessage).toHaveBeenCalledOnce()
+    expect(mockSendWhatsAppMessage.mock.calls[0][1].text.body).toMatch(/Tente novamente/)
   })
 
   it('Test D (WAKB-02 scope): answer() called with { industries, companyId } from the trusted company read, not the LLM', async () => {
@@ -247,7 +254,5 @@ describe('classifyAndRoute — KNOWLEDGE intent', () => {
     // lib/knowledge/answer to the neutral lib/agent-tools/ask-knowledge wrapper
     // (which itself delegates to answer) — same behavior, neutral binding.
     expect(src).toMatch(/from '@\/lib\/agent-tools\/ask-knowledge'/)
-    // Negative: parseIntent's unconditional safe-default is still CREATE.
-    expect(src).toMatch(/return 'CREATE'/)
   })
 })

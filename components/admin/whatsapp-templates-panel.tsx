@@ -20,6 +20,7 @@ import { T } from '@/components/i18n/t'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
   createTemplate,
+  importApprovedTemplate,
   submitTemplateToMeta,
   checkTemplateStatus,
   updateTemplateAndResubmit,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/actions/admin-whatsapp-templates'
 import { WhatsAppTemplateComposer } from './whatsapp-template-composer'
 import type { ComposerParam } from '@/lib/whatsapp/template-composer'
+import { WHATSAPP_NOTIFICATION_EVENTS } from '@/lib/notifications/event-types'
 
 // Full status map — every status Plan 179-03 (applyTemplateStatusUpdate /
 // checkTemplateStatus's mapMetaEventToStatus) can write. Some statuses share
@@ -49,6 +51,7 @@ const STATUS_VARIANT: Record<
   in_appeal: 'secondary',
   locked: 'danger',
   archived: 'outline',
+  incompatible: 'danger',
 }
 
 /**
@@ -68,7 +71,13 @@ function asComposerParams(raw: unknown): ComposerParam[] {
     : []
 }
 
-export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[] }) {
+export function WhatsAppTemplatesPanel({
+  templates,
+  metaConfigured = true,
+}: {
+  templates: TemplateRow[]
+  metaConfigured?: boolean
+}) {
   const router = useRouter()
   const { t } = useTranslation()
   const [pending, startTransition] = useTransition()
@@ -79,7 +88,16 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
 
   const [name, setName] = useState('')
   const [language, setLanguage] = useState('en_US')
-  const [category, setCategory] = useState<string>('billing')
+  const [event, setEvent] = useState('unbound')
+  const [mode, setMode] = useState<'draft' | 'import'>('draft')
+
+  function templateIdentity() {
+    return {
+      template_name: name.trim(),
+      language_code: language.trim() || 'en_US',
+      event_type: event === 'unbound' ? null : event,
+    }
+  }
 
   // The composer is the SINGLE create entry point — there is no separate
   // bare-form submit path. handleCreateSubmit is only ever invoked from the
@@ -91,9 +109,7 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
     }
     startTransition(async () => {
       const res = await createTemplate({
-        template_name: name.trim(),
-        language_code: language.trim() || 'en_US',
-        event_category: category,
+        ...templateIdentity(),
         body_text: bodyText,
         variables_schema: params,
       })
@@ -103,6 +119,26 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
         router.refresh()
       } else {
         toast.error(res.error ?? t('Failed to create template'))
+      }
+    })
+  }
+
+  function handleImport() {
+    if (!name.trim()) {
+      toast.error(t('Template name is required'))
+      return
+    }
+    startTransition(async () => {
+      try {
+        const result = await importApprovedTemplate(templateIdentity())
+        if (!result.ok) {
+          toast.error(result.error)
+          return
+        }
+        toast.success(t('Approved template imported'))
+        router.refresh()
+      } catch {
+        toast.error(t('Could not import the approved template.'))
       }
     })
   }
@@ -119,7 +155,7 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
     if (res.reason === 'scope') {
       toast.info(
         t(
-          'Programmatic submit unavailable (token scope). Author + approve this template in Meta WhatsApp Manager, then register it here by name; the status webhook will sync it.'
+          'Check that the Meta token has WhatsApp Business Management permission, then use Import approved template for templates already approved in Meta.'
         )
       )
       return
@@ -156,19 +192,30 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
   }
 
   return (
-    <div className="space-y-8">
+    <div id="whatsapp-template-manager" className="scroll-mt-8 space-y-8">
       <Card variant="glass" className="p-6 space-y-5">
         <div>
           <h2 className="text-lg font-semibold mb-1">
-            <T>Create template</T>
+            <T>WhatsApp templates</T>
           </h2>
           <p className="text-sm text-muted-foreground">
             <T>
-              Register a WhatsApp notification template. The template name + language must match a
-              template authored in Meta WhatsApp Manager under the platform WABA. Compose the body
-              below by clicking &quot;Add variable&quot; — never type raw braces.
+              Bind a template to a notification event or leave it unbound for welcome and other separately configured messages.
             </T>
           </p>
+        </div>
+        {!metaConfigured && (
+          <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+            <T>Set the Meta access token and business account ID in Integrations to import, submit or check templates.</T>
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant={mode === 'draft' ? 'default' : 'outline'} aria-pressed={mode === 'draft'} onClick={() => setMode('draft')}>
+            <T>Compose draft</T>
+          </Button>
+          <Button type="button" variant={mode === 'import' ? 'default' : 'outline'} aria-pressed={mode === 'import'} onClick={() => setMode('import')}>
+            <T>Import from Meta</T>
+          </Button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
@@ -194,26 +241,37 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-cat">
-              <T>Category</T>
+            <Label htmlFor="tpl-event">
+              <T>Notification event</T>
             </Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="tpl-cat">
+            <Select value={event} onValueChange={setEvent}>
+              <SelectTrigger id="tpl-event">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="estimate">{t('Estimates')}</SelectItem>
-                <SelectItem value="billing">{t('Billing')}</SelectItem>
-                <SelectItem value="system">{t('System')}</SelectItem>
+                <SelectItem value="unbound">{t('No notification event')}</SelectItem>
+                {WHATSAPP_NOTIFICATION_EVENTS.map((eventType) => (
+                  <SelectItem key={eventType} value={eventType}>{eventType}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
-        <WhatsAppTemplateComposer
-          submitLabel={t('Create template')}
-          pending={pending}
-          onSubmit={handleCreateSubmit}
-        />
+        {event !== 'unbound' && (
+          <p className="text-sm text-muted-foreground"><T text="Use body variable {{1}} for the title and {{2}} for the details." /></p>
+        )}
+        {mode === 'draft' ? (
+          <WhatsAppTemplateComposer
+            submitLabel={t('Create template')}
+            pending={pending}
+            onSubmit={handleCreateSubmit}
+          />
+        ) : (
+          <Button type="button" onClick={handleImport} disabled={pending || !metaConfigured}>
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            <T>Import approved template</T>
+          </Button>
+        )}
       </Card>
 
       <Card variant="glass" className="p-0 overflow-hidden">
@@ -223,7 +281,7 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
               <tr>
                 <th className="text-left px-4 py-3 font-medium">{t('Template')}</th>
                 <th className="text-left px-4 py-3 font-medium">{t('Language')}</th>
-                <th className="text-left px-4 py-3 font-medium">{t('Category')}</th>
+                <th className="text-left px-4 py-3 font-medium">{t('Notification event')}</th>
                 <th className="text-left px-4 py-3 font-medium">{t('Status')}</th>
                 <th className="text-left px-4 py-3 font-medium">{t('Reason')}</th>
                 <th className="text-right px-4 py-3 font-medium">{t('Actions')}</th>
@@ -243,9 +301,7 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
                       <td className="px-4 py-3 font-mono text-xs">{row.template_name}</td>
                       <td className="px-4 py-3">{row.language_code}</td>
                       <td className="px-4 py-3">
-                        {row.event_category ?? (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        {row.event_type ?? <span className="text-muted-foreground"><T>Unbound</T></span>}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={STATUS_VARIANT[row.status] ?? 'outline'}>{row.status}</Badge>
@@ -258,7 +314,7 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={submittingId === row.id}
+                            disabled={!metaConfigured || submittingId === row.id}
                             onClick={() => onSubmitToMeta(row.id)}
                           >
                             {submittingId === row.id ? (
@@ -269,11 +325,10 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
                             <T>Submit to Meta</T>
                           </Button>
                         )}
-                        {row.meta_template_id && (
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={checkingId === row.id}
+                            disabled={!metaConfigured || checkingId === row.id}
                             onClick={() => handleCheckStatus(row.id)}
                           >
                             {checkingId === row.id && (
@@ -281,11 +336,11 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
                             )}
                             <T>Check status now</T>
                           </Button>
-                        )}
-                        {(row.status === 'rejected' || row.status === 'approved') && (
+                        {row.meta_template_id && !row.quick_reply_count && (row.status === 'rejected' || row.status === 'approved') && (
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={!metaConfigured}
                             onClick={() => setEditingId(editingId === row.id ? null : row.id)}
                           >
                             <T>Edit & Resubmit</T>
