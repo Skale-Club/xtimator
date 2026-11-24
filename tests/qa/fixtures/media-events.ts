@@ -8,8 +8,7 @@ export async function observeMicrophoneEvents(page: Page) {
     let installedGetUserMedia: MediaDevices['getUserMedia'] | undefined
     document.addEventListener('DOMContentLoaded', () => {
       const device = navigator.mediaDevices
-      const ownMethod = device && Object.getOwnPropertyDescriptor(device, 'getUserMedia')?.value
-      if (typeof ownMethod === 'function') installedGetUserMedia = ownMethod
+      if (typeof device?.getUserMedia === 'function') installedGetUserMedia = device.getUserMedia
     }, { once: true })
     if (typeof PerformanceObserver === 'function') {
       const observer = new PerformanceObserver(list => {

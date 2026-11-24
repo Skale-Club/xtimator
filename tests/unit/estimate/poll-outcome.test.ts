@@ -214,6 +214,23 @@ describe('260707-lyq (P4 Wave 2): pollEstimateOutcome — journal-first', () => 
     expect(outcome).toEqual({ state: 'completed', estimateId: 'est-fallback' })
   })
 
+  it('journal-only polling ignores an unrelated current estimate until this attempt completes', async () => {
+    fallbackEstimateId = 'est-from-another-attempt'
+    mockGetAttemptOutcome.mockResolvedValueOnce({
+      state: 'pending', lastStep: 'generate_estimate', lastStatus: 'started',
+      completedSteps: [], activeStepStartedAt: null,
+    }).mockResolvedValueOnce({ state: 'completed', estimateId: 'est-from-this-attempt' })
+
+    const outcome = await pollEstimateOutcome({
+      projectId: 'proj-1', previousEstimateId: null, signal: new AbortController().signal,
+      attemptId: 'attempt-1', requireAttemptResult: true, intervalMs: 1,
+    })
+
+    expect(outcome).toEqual({ state: 'completed', estimateId: 'est-from-this-attempt' })
+    expect(mockGetAttemptOutcome.mock.calls).toEqual([['attempt-1'], ['attempt-1']])
+    expect(mockCreateClient).not.toHaveBeenCalled()
+  })
+
   it('journal unauthorized is treated as pending -> falls through without failing the UI', async () => {
     mockGetAttemptOutcome.mockResolvedValue({ state: 'unauthorized' })
     fallbackEstimateId = 'est-fallback-2'

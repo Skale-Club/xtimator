@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -8,14 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { createTextRecording } from '@/lib/actions/recording'
 import { showBillingBlockToast } from '@/lib/billing/block-toast'
-import {
-  storeClientSuggestion,
-  type GenerateEstimateResponse,
-} from '@/components/workspace/estimate/client-suggestion-toast'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { pollJob } from '@/hooks/use-job-status'
+import { waitForDedicatedEstimate } from './dedicated-generation-outcome'
 
 interface TextDescribeProps {
   project: ProjectDetail
@@ -29,12 +25,7 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
   const [text, setText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  // Phase 92 (EVENT-03 / D-08): mint a stable attemptId once, reuse on Retry.
-  const attemptIdRef = useRef<string | null>(null)
-  const ensureAttempt = useCallback(() => {
-    if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
-    return attemptIdRef.current
-  }, [])
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const handleTextGenerate = async () => {
     if (!text.trim()) return
@@ -42,10 +33,11 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    const attemptId = crypto.randomUUID()
 
     setIsGenerating(true)
     try {
-      const saved = await createTextRecording(projectId, text.trim())
+      const saved = await createTextRecording(projectId, text.trim(), attemptId)
       if (saved.error || !saved.data) {
         if (!showBillingBlockToast((saved as { code?: unknown }).code, router, t)) {
           toast.error(saved.error ?? t('Failed to save description'))
@@ -58,7 +50,7 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Phase 92 (EVENT-03 / D-07): explicit manual_text inputType for lineage.
-        body: JSON.stringify({ projectId, attemptId: ensureAttempt(), inputType: 'manual_text' }),
+        body: JSON.stringify({ projectId, attemptId, inputType: 'manual_text' }),
         signal: controller.signal,
       })
 
@@ -69,29 +61,12 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
         return
       }
 
-      const { jobId } = (await res.json()) as { jobId: string }
-
-      // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
-      // Phase 91-02: pollJob resolves Plan 01's JobResult discriminant and never
-      // throws on failure — branch on result.state (no masking cast).
-      const result = await pollJob(jobId, controller.signal)
-      if (result.state !== 'completed') {
-        toast.error(
-          result.state === 'config_unavailable'
-            ? t('Processing service is temporarily unavailable — your description is saved.')
-            : t('Failed to generate estimate')
-        )
-        setIsGenerating(false)
-        return
-      }
-
-      // The run output IS the GenerateEstimateResponse (clientSuggestion lives on
-      // it); it now sits UNDER result.output. Narrow-cast result.output only.
-      const output = result.output as GenerateEstimateResponse | null
-      storeClientSuggestion(projectId, output?.clientSuggestion ?? null)
-      // The Overview now renders the live estimate as primary content
-      // (project A R3). No need for ?tab=estimate&estimate=...
-      router.push(`/projects/${projectId}`)
+      const completed = await waitForDedicatedEstimate({
+        projectId, attemptId, signal: controller.signal, router, t,
+        vagueMessage: t('Description too vague — please add more detail with specific tasks, materials, and quantities'),
+        timeoutMessage: t('Processing service is temporarily unavailable — your description is saved.'),
+      })
+      if (!completed && !controller.signal.aborted) setIsGenerating(false)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       console.error('Text describe error:', err)

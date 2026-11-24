@@ -75,6 +75,7 @@ test('[QA:ADM-DENIAL] an authenticated tenant cannot read the admin UI or admin 
       page.goto('/admin', { waitUntil: 'commit' }),
     ])
     expect(logout.status()).toBe(307)
+    expect(new URL(logout.headers().location, baseURL).origin).toBe(origin)
     expect(new URL(logout.headers().location, baseURL).pathname).toBe('/')
     expect(new URL(logout.headers().location, baseURL).searchParams.get('auth')).toBe('login')
     const revoked = await page.request.get('/api/auth/session', { maxRedirects: 0 })

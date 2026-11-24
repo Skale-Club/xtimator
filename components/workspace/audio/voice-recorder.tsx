@@ -102,12 +102,7 @@ export function VoiceRecorder(props: VoiceRecorderProps) {
   const micButton = (
     <button
       type="button"
-      onClick={() => {
-        if (process.env.NODE_ENV === 'development' && micTestId === 'capture-mic') {
-          performance.mark('xtimator:capture-mic:react-click')
-        }
-        onToggle()
-      }}
+      onClick={onToggle}
       disabled={disabled || !clientReady}
       className={cn(micBase, micSizeClass, micState)}
       aria-label={isRecording ? t('Stop recording') : t('Start recording')}

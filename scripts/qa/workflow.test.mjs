@@ -14,7 +14,9 @@ function enabled(condition, github, inputs) {
   // Evaluate only the comparison/boolean subset used here, with no calls,
   // assignments, indexing or access to the host process.
   assert.match(expression, /^[A-Za-z0-9_.\s'!&|=/-]+$/)
-  return Boolean(vm.runInNewContext(expression, { github, inputs }, { timeout: 50 }))
+  // Constrained hosts can pause this thread for more than50ms even though
+  // these validated Boolean expressions execute immediately.
+  return Boolean(vm.runInNewContext(expression, { github, inputs }, { timeout: 1000 }))
 }
 
 test('manual acceptance and focused diagnostics cannot bypass main/dev regression', () => {

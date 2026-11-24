@@ -45,7 +45,9 @@ async function installSyntheticMicrophone(page: Page) {
     if (!navigator.mediaDevices) return
     // Supply synthetic PCM as a native browser MediaStream. The product still
     // owns the MediaRecorder, container choice, timing, upload and dispatch.
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    // WebKit can replace the MediaDevices wrapper and discard own properties.
+    // Its shared prototype keeps the fixture installed for the page lifetime.
+    Object.defineProperty(Object.getPrototypeOf(navigator.mediaDevices), 'getUserMedia', {
       configurable: true,
       value: async (constraints: MediaStreamConstraints) => {
         diagnostics.calls++

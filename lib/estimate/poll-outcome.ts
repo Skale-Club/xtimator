@@ -186,6 +186,8 @@ export async function pollEstimateOutcome(opts: {
    * below (see module doc for the full precedence + stale-status rationale).
    */
   attemptId?: string
+  /** Require the specific attempt's journal when another run could change the same project. */
+  requireAttemptResult?: boolean
   /**
    * Fires on every tick the journal read comes back `pending`, with the
    * journal-derived {@link StageProgress} payload (lastStep for stage
@@ -203,8 +205,10 @@ export async function pollEstimateOutcome(opts: {
     maxTotalMs = 20 * 60_000,
     intervalMs = 2_500,
     attemptId,
+    requireAttemptResult = false,
     onStageProgress,
   } = opts
+  if (requireAttemptResult && !attemptId) throw new Error('An attempt ID is required for journal-only polling')
   const startedAt = Date.now()
   // 260927: heartbeat. The newest journal row seen so far; when it changes,
   // the server is demonstrably still working and the idle window restarts.
@@ -270,27 +274,24 @@ export async function pollEstimateOutcome(opts: {
         // fail the UI on it. Falls through silently to the DB-truth check.
       }
 
-      const supabase = createClient()
-      const [estRes, projRes] = await Promise.all([
-        supabase
-          .from('estimates')
-          .select('id')
-          .eq('project_id', projectId)
-          .eq('is_current', true)
-          .maybeSingle(),
-        supabase.from('projects').select('status').eq('id', projectId).maybeSingle(),
-      ])
+      if (!requireAttemptResult) {
+        const supabase = createClient()
+        const [estRes, projRes] = await Promise.all([
+          supabase
+            .from('estimates')
+            .select('id')
+            .eq('project_id', projectId)
+            .eq('is_current', true)
+            .maybeSingle(),
+          supabase.from('projects').select('status').eq('id', projectId).maybeSingle(),
+        ])
 
-      const currentEstimateId = (estRes.data as { id?: string } | null)?.id ?? null
-      const projectStatus = (projRes.data as { status?: string } | null)?.status ?? null
+        const currentEstimateId = (estRes.data as { id?: string } | null)?.id ?? null
+        const projectStatus = (projRes.data as { status?: string } | null)?.status ?? null
 
-      const outcome = evaluateOutcomeTick({ currentEstimateId, projectStatus, previousEstimateId })
-      // The fallback's own `awaiting_details` branch is a known stale-status
-      // false positive once a journal is in play (see module doc) — skip it
-      // when attemptId is present. Its `completed` branch (genuinely new
-      // current estimate id) still stays as belt-and-braces either way.
-      if (outcome && !(attemptId && outcome.state === 'awaiting_details')) {
-        return outcome
+        const outcome = evaluateOutcomeTick({ currentEstimateId, projectStatus, previousEstimateId })
+        // The project status can describe a different attempt when journal polling is active.
+        if (outcome && !(attemptId && outcome.state === 'awaiting_details')) return outcome
       }
     } catch {
       // Transient network error (mobile cell handoff) — skip this tick, retry next interval.

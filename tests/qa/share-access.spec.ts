@@ -1,6 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test'
 import { generatePublicSlugToken, slugify } from '../../lib/estimate/public-url'
 import { createQaFixture } from './fixtures/tenant'
+import { typeSignature } from './fixtures/keyboard-signature'
 import { expect, test } from './test'
 
 type Tenant = ReturnType<typeof createQaFixture>
@@ -129,7 +130,7 @@ test('[QA:SHARE-BRANDED] the owner opens a branded estimate link that resolves b
   })
 })
 
-test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate unlocks only after the correct password', async ({ page, baseURL }) => {
+test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate unlocks only after the correct password', async ({ page, baseURL }, info) => {
   test.setTimeout(240_000)
   await withTenant(page, baseURL!, { brandedShare: true }, async fixture => {
     const path = `/estimate/${fixture.shareToken}`
@@ -175,6 +176,22 @@ test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate u
     await expectEstimateContent(page, fixture)
     expect((await page.goto(path))?.status()).toBe(200)
     await expectEstimateContent(page, fixture)
+    // Anonymous PDF access exposes only a signed, frozen copy. Unlocking an
+    // unsigned estimate must not bypass that separate contract.
+    await expectSignedPdfDenied(page, fixture, 404, 'Signed estimate not found')
+    const accept = info.project.name === 'chromium'
+      ? page.getByTestId('proposal-bar').getByRole('button', { name: 'Accept', exact: true })
+      : page.getByTestId('mobile-accept-bar').getByRole('button', { name: 'Accept Estimate', exact: true })
+    await accept.click()
+    const signature = page.getByRole('dialog', { name: 'Sign to accept this estimate', exact: true })
+    await typeSignature(page, signature, 'QA Protected Estimate Signer')
+    const [signed] = await Promise.all([
+      page.waitForResponse(r => new URL(r.url()).pathname === `/api/estimates/${fixture.estimateId}/sign` && r.request().method() === 'POST'),
+      signature.getByRole('button', { name: 'Sign & Accept Estimate', exact: true }).click(),
+    ])
+    expect(signed.status()).toBe(200)
+    await expect(page.getByTestId('response-status')).toContainText('Estimate Accepted')
+    expect((await fixture.readSignature())?.signer_name).toBe('QA Protected Estimate Signer')
     const pdf = await page.request.get(`/api/estimates/${fixture.estimateId}/pdf?token=${fixture.shareToken}`, { maxRedirects: 0 })
     expect(pdf.status()).toBe(200)
     expect(pdf.headers()['content-type']).toContain('application/pdf')

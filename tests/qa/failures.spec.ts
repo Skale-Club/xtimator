@@ -138,7 +138,7 @@ test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture 
       }
       Object.assign(window, { __qaDeniedMicrophone: diagnostics })
       if (!navigator.mediaDevices) throw new Error('No browser mediaDevices API in the QA profile')
-      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+      Object.defineProperty(Object.getPrototypeOf(navigator.mediaDevices), 'getUserMedia', {
         configurable: true,
         value: async () => {
           diagnostics.calls++

@@ -1,21 +1,17 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PhotoDropZone } from '@/components/workspace/photos/photo-drop-zone'
-import {
-  storeClientSuggestion,
-  type GenerateEstimateResponse,
-} from '@/components/workspace/estimate/client-suggestion-toast'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { Photo } from '@/lib/queries/photo'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { pollJob } from '@/hooks/use-job-status'
+import { waitForDedicatedEstimate } from './dedicated-generation-outcome'
 
 interface PhotosInputProps {
   project: ProjectDetail
@@ -29,13 +25,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  // Phase 92 (EVENT-03 / D-08): mint a stable attemptId once, reuse on Retry so
-  // the lineage survives a re-dispatch. Copies capture-recorder's ensureAttempt.
-  const attemptIdRef = useRef<string | null>(null)
-  const ensureAttempt = useCallback(() => {
-    if (!attemptIdRef.current) attemptIdRef.current = crypto.randomUUID()
-    return attemptIdRef.current
-  }, [])
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const handlePhotosUploaded = useCallback((newPhotos: Photo[]) => {
     setPhotos((prev) => [...prev, ...newPhotos])
@@ -47,6 +37,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    const attemptId = crypto.randomUUID()
 
     setIsGenerating(true)
     try {
@@ -55,7 +46,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
         headers: { 'Content-Type': 'application/json' },
         // Phase 92 (EVENT-03 / D-07): explicit inputType so the route forwards
         // it to pipeline_events instead of guessing.
-        body: JSON.stringify({ projectId, attemptId: ensureAttempt(), inputType: 'photo' }),
+        body: JSON.stringify({ projectId, attemptId, inputType: 'photo' }),
         signal: controller.signal,
       })
 
@@ -66,28 +57,12 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
         return
       }
 
-      const { jobId } = (await res.json()) as { jobId: string }
-
-      // Phase 67: /api/generate-estimate returns { jobId }; poll until terminal.
-      // Phase 91-02: pollJob resolves Plan 01's JobResult discriminant and never
-      // throws on failure — branch on result.state (no masking cast).
-      const result = await pollJob(jobId, controller.signal)
-      if (result.state !== 'completed') {
-        toast.error(
-          result.state === 'config_unavailable'
-            ? t('Processing service is temporarily unavailable — your photos are saved.')
-            : t('Failed to generate estimate')
-        )
-        setIsGenerating(false)
-        return
-      }
-
-      // The run output IS the GenerateEstimateResponse; it now sits UNDER
-      // result.output. Narrow-cast result.output only.
-      const output = result.output as GenerateEstimateResponse | null
-      storeClientSuggestion(projectId, output?.clientSuggestion ?? null)
-      // Overview is now the live estimate (project A R3) — drop ?tab=estimate.
-      router.push(`/projects/${projectId}`)
+      const completed = await waitForDedicatedEstimate({
+        projectId, attemptId, signal: controller.signal, router, t,
+        vagueMessage: t('Photos too vague — please add a voice description or more detailed photos'),
+        timeoutMessage: t('Processing service is temporarily unavailable — your photos are saved.'),
+      })
+      if (!completed && !controller.signal.aborted) setIsGenerating(false)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       console.error('Photos input error:', err)

@@ -1,9 +1,10 @@
-import type { Page } from '@playwright/test'
+import type { Page, Response, TestInfo } from '@playwright/test'
 import { createQaFixture } from './fixtures/tenant'
 import { expect, test } from './test'
 
 type Tenant = ReturnType<typeof createQaFixture>
 const DESCRIPTION = 'Install 20 linear feet of cedar fence, including two posts and cleanup. Labor is 400 dollars and materials are 600 dollars.'
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
 
 async function withTenant(page: Page, baseURL: string, work: (fixture: Tenant) => Promise<void>) {
   const fixture = createQaFixture(baseURL, { captureStorage: true })
@@ -16,14 +17,46 @@ async function withTenant(page: Page, baseURL: string, work: (fixture: Tenant) =
   }
 }
 
-async function expectGenerated(page: Page, fixture: Tenant, inputType: 'manual_text' | 'photo') {
-  await expect(page).toHaveURL(url => url.pathname === `/projects/${fixture.projectId}`, { timeout: 150_000 })
-  const evidence = await fixture.readGenerationEvidence()
+async function expectGenerated(page: Page, fixture: Tenant, response: Response, inputType: 'manual_text' | 'photo', info: TestInfo) {
+  expect(response.status()).toBe(202)
+  const dispatch = response.request().postDataJSON()
+  expect(dispatch).toMatchObject({ projectId: fixture.projectId, inputType, attemptId: expect.stringMatching(UUID) })
+  const { jobId } = await response.json()
+  expect(jobId).toMatch(/^[A-Z0-9]{26}$/)
+
+  let evidence: Awaited<ReturnType<Tenant['readGenerationEvidence']>> | undefined
+  try {
+    await expect(page).toHaveURL(url => url.pathname === `/projects/${fixture.projectId}`
+      && url.searchParams.get('tab') === 'estimate' && UUID.test(url.searchParams.get('estimate') ?? ''), { timeout: 150_000 })
+    evidence = await fixture.readGenerationEvidence()
+  } finally {
+    const observed = evidence ?? await fixture.readGenerationEvidence().catch(() => null)
+    const attemptEvents = observed?.events.filter(event => event.attempt_id === dispatch.attemptId)
+    await info.attach('dedicated-generation-journal.json', {
+      body: JSON.stringify({ inputType, jobId, attemptId: dispatch.attemptId,
+        estimates: observed?.estimates.map(({ id, version, is_current, total }) => ({ id, version, is_current, total })) ?? null,
+        events: attemptEvents?.map(({ step, status, input_type }) => ({ step, status, input_type })) ?? null }),
+      contentType: 'application/json',
+    })
+    // Keep the original failure. Give a known in-flight synthetic worker a
+    // bounded chance to finish before the fixture finally deletes its rows.
+    const generationTerminal = ({ step, status }: { step: string; status: string }) =>
+      step === 'generate_estimate' && (status === 'succeeded' || status === 'failed')
+    if (!evidence && attemptEvents?.length && !attemptEvents.some(generationTerminal)) {
+      await expect.poll(async () => (await fixture.readGenerationEvidence()).events
+        .some(event => event.attempt_id === dispatch.attemptId && generationTerminal(event)), { timeout: 30_000 })
+        .toBe(true).catch(() => undefined)
+    }
+  }
+  if (!evidence) throw new Error('The generated estimate has no persisted completion evidence')
+  const editorEstimateId = new URL(page.url()).searchParams.get('estimate')
   expect(evidence.estimates).toHaveLength(2)
   expect(evidence.estimates).toContainEqual(expect.objectContaining({ id: fixture.estimateId, version: 1, is_current: false }))
   const current = evidence.estimates.find(estimate => estimate.is_current)
-  expect(current).toMatchObject({ version: 2, total: 1000 })
-  expect(evidence.events).toContainEqual(expect.objectContaining({ input_type: inputType, step: 'generate_estimate', status: 'succeeded' }))
+  expect(current).toMatchObject({ id: editorEstimateId, version: 2, total: 1000 })
+  expect(evidence.events).toContainEqual(expect.objectContaining({
+    attempt_id: dispatch.attemptId, input_type: inputType, step: 'generate_estimate', status: 'succeeded',
+  }))
   const estimate = await fixture.readEstimate(current!.id)
   expect(estimate).toMatchObject({ company_id: fixture.companyId, project_id: fixture.projectId, total: 1000 })
   expect(typeof estimate?.share_token).toBe('string')
@@ -51,9 +84,7 @@ test('[QA:DESCRIBE-GENERATE] a manual description produces the next persisted es
       page.waitForResponse(r => new URL(r.url()).pathname === '/api/generate-estimate' && r.request().method() === 'POST'),
       generate.click(),
     ])
-    expect(response.status()).toBe(202)
-    expect(response.request().postDataJSON()).toMatchObject({ projectId: fixture.projectId, inputType: 'manual_text' })
-    await expectGenerated(page, fixture, 'manual_text')
+    await expectGenerated(page, fixture, response, 'manual_text', info)
     const { recordings, photos } = await fixture.readCapture()
     expect(recordings).toEqual([expect.objectContaining({ transcript: DESCRIPTION, storage_path: null, duration_seconds: 0 })])
     expect(photos).toEqual([])
@@ -91,9 +122,7 @@ test('[QA:PHOTOS-GENERATE] the photo-only screen requires an upload and generate
       page.waitForResponse(r => new URL(r.url()).pathname === '/api/generate-estimate' && r.request().method() === 'POST'),
       generate.click(),
     ])
-    expect(response.status()).toBe(202)
-    expect(response.request().postDataJSON()).toMatchObject({ projectId: fixture.projectId, inputType: 'photo' })
-    await expectGenerated(page, fixture, 'photo')
+    await expectGenerated(page, fixture, response, 'photo', info)
     const { recordings, photos } = await fixture.readCapture()
     expect(recordings).toEqual([])
     expect(photos).toEqual([expect.objectContaining({ id: uploaded[0].id, ai_description: 'Cedar fence location on level ground' })])

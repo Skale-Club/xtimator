@@ -536,16 +536,14 @@ function ChangeOrderViewInner({
         <nav className="flex flex-col gap-1 px-1 text-sm sm:flex-row sm:gap-6">
           <a
             href={estimate.publicPath}
-            className="inline-flex min-h-10 items-center gap-2 underline underline-offset-2 hover:text-foreground"
-            style={{ color: brandText }}
+            className="inline-flex min-h-10 items-center gap-2 text-slate-200 underline underline-offset-2 hover:text-white"
           >
             <FileText className="h-4 w-4" />
             {t('See the accepted estimate')}
           </a>
           <a
             href={pdfHref}
-            className="inline-flex min-h-10 items-center gap-2 underline underline-offset-2 hover:text-foreground"
-            style={{ color: brandText }}
+            className="inline-flex min-h-10 items-center gap-2 text-slate-200 underline underline-offset-2 hover:text-white"
           >
             <Download className="h-4 w-4" />
             {t('Download PDF')}
