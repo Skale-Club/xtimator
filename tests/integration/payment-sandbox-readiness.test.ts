@@ -177,7 +177,9 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
   saveEvidence()
   // The browser and its child processes receive only operating system settings.
   // Pass the short-lived Checkout URL on stdin and discard process diagnostics.
-  const env: NodeJS.ProcessEnv = {}
+  // This child intentionally lacks the application keys required by our global
+  // ProcessEnv augmentation; only the OS allowlist below is populated.
+  const env = Object.create(null) as NodeJS.ProcessEnv
   for (const key of ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'WINDIR', 'TMPDIR', 'TEMP', 'TMP', 'LANG']) {
     if (process.env[key]) env[key] = process.env[key]
   }
