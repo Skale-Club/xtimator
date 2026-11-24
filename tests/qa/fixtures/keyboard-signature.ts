@@ -3,13 +3,14 @@ import type { Locator, Page, TestInfo } from '@playwright/test'
 import { expect } from '../test'
 import { focusTraversalKey } from './keyboard-navigation'
 
-export async function tabTo(page: Page, target: Locator) {
+export async function tabTo(page: Page, target: Locator, traversalKey?: 'Tab' | 'Alt+Tab') {
   await expect(target).toBeVisible()
-  const key = focusTraversalKey(process.platform, page.context().browser()?.browserType().name())
+  const key = traversalKey ?? focusTraversalKey(process.platform, page.context().browser()?.browserType().name())
   for (let count = 0; count < 60; count++) {
     if (await target.evaluate(element => element === document.activeElement)) return
     await page.keyboard.press(key)
   }
+  if (await target.evaluate(element => element === document.activeElement)) return
   throw new Error('Keyboard navigation could not reach the required visible control')
 }
 

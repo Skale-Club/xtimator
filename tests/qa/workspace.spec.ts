@@ -58,6 +58,8 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
       if (typeof originalName !== 'string' || !originalName) throw new Error('The new project has no saved name')
       const originalHeading = page.getByRole('heading', { level: 1, name: originalName, exact: true })
       await expect(originalHeading).toBeVisible()
+      await page.bringToFront()
+      await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
       await page.evaluate(() => {
         const root = document.documentElement
         root.dataset.qaRenamePointers = '0'
@@ -67,13 +69,13 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
       })
 
       await page.evaluate(() => {
-        const diagnostics = window as Window & { __qaRenameTraversal?: (startProbe?: boolean) => unknown }
+        const diagnostics = window as Window & { __qaRenameTraversal?: () => unknown }
         const tags = ['A', 'BODY', 'BUTTON', 'DIV', 'HTML', 'INPUT', 'P', 'SELECT', 'TEXTAREA']
         const roles = ['button', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'tab', 'textbox']
         const inputTypes = ['button', 'checkbox', 'hidden', 'number', 'radio', 'search', 'submit', 'text']
         const indexedControls = 'a[href],button,input,select,textarea,[tabindex],[contenteditable]'
         const started = performance.now()
-        let phase = 'traversal'
+        const phase = 'traversal'
 
         function snapshot(name: string, event?: Event) {
           const active = document.activeElement
@@ -105,7 +107,7 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
         const records: ReturnType<typeof snapshot>[] = []
         let dropped = 0
         const record = (name: string, event: Event) => {
-          if (records.length >= (phase === 'traversal' ? 330 : 398)) dropped++
+          if (records.length >= 398) dropped++
           else records.push(snapshot(name, event))
         }
         const keyCapture = (event: Event) => record(`${event.type}:capture`, event)
@@ -117,11 +119,7 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
         window.addEventListener('keyup', keyBubble)
         document.addEventListener('focusin', focus, true)
         document.addEventListener('focusout', focus, true)
-        diagnostics.__qaRenameTraversal = (startProbe = false) => {
-          if (startProbe) {
-            phase = 'plain-tab-probe'
-            return
-          }
+        diagnostics.__qaRenameTraversal = () => {
           window.removeEventListener('keydown', keyCapture, true)
           window.removeEventListener('keydown', keyBubble)
           window.removeEventListener('keyup', keyBubble)
@@ -131,34 +129,17 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
           return { before, records, after: snapshot('after'), dropped }
         }
       })
-      const plainTabProbe = { attempts: 0, startedOnTrigger: false, reached: false }
       try {
-        await tabTo(page, rename)
-      } catch (traversalError) {
-        try {
-          plainTabProbe.startedOnTrigger = await page.evaluate(() => {
-            const diagnostics = window as Window & { __qaRenameTraversal?: (startProbe?: boolean) => unknown }
-            diagnostics.__qaRenameTraversal?.(true)
-            return document.activeElement?.matches('button[aria-label="Rename project"]') ?? false
-          })
-          while (!plainTabProbe.startedOnTrigger && plainTabProbe.attempts < 12 && !plainTabProbe.reached) {
-            plainTabProbe.attempts++
-            await page.keyboard.press('Tab')
-            plainTabProbe.reached = await page.evaluate(() =>
-              document.activeElement?.matches('button[aria-label="Rename project"]') ?? false,
-            )
-          }
-        } catch {
-          // The original keyboard failure remains authoritative if the probe also fails.
-        }
-        throw traversalError
+        // Option temporarily reverses WebKit's traversal preference. Start with
+        // ordinary Tab on the freshly activated editor, before focus can leave it.
+        await tabTo(page, rename, 'Tab')
       } finally {
         const observation = await page.evaluate(() => {
-          const diagnostics = window as Window & { __qaRenameTraversal?: (startProbe?: boolean) => unknown }
+          const diagnostics = window as Window & { __qaRenameTraversal?: () => unknown }
           return diagnostics.__qaRenameTraversal?.() ?? null
         }).catch(() => null)
         await info.attach('project-rename-focus.json', {
-          body: JSON.stringify({ browser: page.context().browser()?.browserType().name(), platform: process.platform, plainTabProbe, observation }),
+          body: JSON.stringify({ browser: page.context().browser()?.browserType().name(), platform: process.platform, traversalKey: 'Tab', observation }),
           contentType: 'application/json',
         })
       }
