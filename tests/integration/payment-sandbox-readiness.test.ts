@@ -56,6 +56,7 @@ const evidence = {
   preflightPassed: false, customerId: null as string | null, subscriptionSession: null as string | null,
   hostedCheckout: process.env.RUN_PAYMENT_BROWSER === '1' ? 'pending' : 'disabled',
   hostedFailureStage: null as string | null,
+  hostedTarget: null as { sessionFormat: boolean; origin: boolean; exactPath: boolean; segments: number } | null,
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
@@ -160,6 +161,12 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
     || session.success_url !== 'https://example.com/?xtimator_sandbox_complete=1' || !session.url) {
     throw new SandboxGuardError('Refused a non-open or unexpected Stripe test subscription Checkout')
   }
+  const target = new URL(session.url)
+  evidence.hostedTarget = { sessionFormat: /^cs_test_[A-Za-z0-9]+$/.test(session.id),
+    origin: target.origin === 'https://checkout.stripe.com',
+    exactPath: [`/c/pay/${session.id}`, `/pay/${session.id}`].includes(target.pathname),
+    segments: target.pathname.split('/').filter(Boolean).length }
+  saveEvidence()
   // The browser and its child processes receive only operating system settings.
   // Pass the short-lived Checkout URL on stdin and discard process diagnostics.
   const env: NodeJS.ProcessEnv = {}
