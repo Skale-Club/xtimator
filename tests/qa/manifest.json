@@ -8,8 +8,8 @@
       "requiredForExecution": true,
       "requiredForLaunch": true,
       "routes": ["/", "/dashboard"],
-      "hypothesis": "The app recognizes a current owned session and rejects a private request without one.",
-      "expectedEvidence": "The synthetic owner reaches the workspace through the normal session reader. An anonymous browser is redirected to sign in."
+      "hypothesis": "The app recognizes a current owned session, revokes it on sign-out and rejects absent or replayed revoked cookies.",
+      "expectedEvidence": "The synthetic owner reaches the workspace through the normal session reader. Actual sign-out revokes the server session; restoring the old cookie returns no user or data token and cannot reopen the private dashboard. An absent session is also denied."
     },
     {
       "id": "TENANT-ISOLATION",

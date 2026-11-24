@@ -28,8 +28,9 @@ async function screenshot(page: Page, info: TestInfo, name: string) {
   await info.attach(name, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' })
 }
 
-test('[QA:SESSION-OWNED] current owned session authenticates the synthetic tenant and rejects an absent session', async ({ page }) => {
-  await owner(page)
+test('[QA:SESSION-OWNED] the owner signs out and neither an absent nor replayed revoked cookie reopens the dashboard', async ({ page, context }, info) => {
+  const originalCookies = fixture.cookies()
+  await context.addCookies(originalCookies)
   const session = await page.request.get('/api/auth/session')
   expect(session.status()).toBe(200)
   const payload = await session.json()
@@ -38,12 +39,46 @@ test('[QA:SESSION-OWNED] current owned session authenticates the synthetic tenan
   expect((await page.goto('/dashboard'))?.status()).toBe(200)
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByText(fixture.projectName, { exact: true }).filter({ visible: true }).first()).toBeVisible()
+
+  const desktop = info.project.name === 'chromium'
+  if (desktop) {
+    await page.getByTestId('app-sidebar').getByRole('button', { name: /Switch company$/ }).click()
+  } else {
+    await page.getByTestId('mobile-header').getByRole('button')
+      .and(page.locator('button[aria-haspopup="dialog"]')).click()
+  }
+  const signOut = desktop
+    ? page.getByRole('menuitem', { name: 'Sign Out', exact: true })
+    : page.getByRole('dialog', { name: 'Account', exact: true }).getByRole('button', { name: 'Sign Out', exact: true })
+  const origin = new URL(page.url()).origin
+  const [logout] = await Promise.all([
+    page.waitForResponse(response => response.url() === `${origin}/api/auth/session`
+      && response.request().method() === 'DELETE', { timeout: 20_000 }),
+    signOut.click(),
+  ])
+  expect(logout.status()).toBe(200)
+  expect((await logout.json()).success === true).toBe(true)
+  await expect(page).toHaveURL(url => url.origin === origin && url.pathname === '/')
+  expect((await context.cookies()).some(({ name }) => name === 'xtimator_session')).toBe(false)
+
   await page.goto('about:blank')
-  await page.context().clearCookies()
+  await context.clearCookies()
   const absent = await page.request.get('/api/auth/session')
-  expect((await absent.json()).user).toBeNull()
+  expect(absent.status()).toBe(200)
+  const anonymous = await absent.json()
+  expect(anonymous.user === null && anonymous.accessToken === null).toBe(true)
   await page.goto('/dashboard', { waitUntil: 'commit' })
   await expect(page).not.toHaveURL(/\/dashboard(?:[?#]|$)/)
+
+  await page.goto('about:blank')
+  await context.addCookies(originalCookies)
+  const replayed = await page.request.get('/api/auth/session')
+  expect(replayed.status()).toBe(200)
+  const revoked = await replayed.json()
+  expect(revoked.user === null && revoked.accessToken === null, 'The revoked cookie cannot authenticate').toBe(true)
+  await page.goto('/dashboard', { waitUntil: 'commit' })
+  await expect(page).not.toHaveURL(/\/dashboard(?:[?#]|$)/)
+  await expect(page.getByText(fixture.projectName, { exact: true })).toHaveCount(0)
 })
 
 test('[QA:TENANT-ISOLATION] tenant identity cannot read another tenant project or owner PDF', async ({ page, baseURL }) => {
