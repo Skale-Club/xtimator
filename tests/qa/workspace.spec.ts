@@ -66,7 +66,102 @@ test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new r
         }, true)
       })
 
-      await tabTo(page, rename)
+      await page.evaluate(() => {
+        const diagnostics = window as Window & { __qaRenameTraversal?: (startProbe?: boolean) => unknown }
+        const tags = ['A', 'BODY', 'BUTTON', 'DIV', 'HTML', 'INPUT', 'P', 'SELECT', 'TEXTAREA']
+        const roles = ['button', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'tab', 'textbox']
+        const inputTypes = ['button', 'checkbox', 'hidden', 'number', 'radio', 'search', 'submit', 'text']
+        const indexedControls = 'a[href],button,input,select,textarea,[tabindex],[contenteditable]'
+        const started = performance.now()
+        let phase = 'traversal'
+
+        function snapshot(name: string, event?: Event) {
+          const active = document.activeElement
+          const role = active?.getAttribute('role')
+          const type = active instanceof HTMLButtonElement || active instanceof HTMLInputElement ? active.type : null
+          const isKey = event instanceof KeyboardEvent
+          return {
+            event: name,
+            phase,
+            elapsedMs: Math.round(performance.now() - started),
+            key: isKey ? (['Tab', 'Alt'].includes(event.key) ? event.key : 'other') : null,
+            altKey: isKey ? event.altKey : null,
+            defaultPrevented: event?.defaultPrevented ?? null,
+            hasFocus: document.hasFocus(),
+            visibility: document.visibilityState,
+            active: active ? {
+              tag: tags.includes(active.tagName) ? active.tagName : 'other',
+              type: type && inputTypes.includes(type) ? type : null,
+              role: role && roles.includes(role) ? role : null,
+              tabIndex: active instanceof HTMLElement ? active.tabIndex : null,
+              disabled: active.matches(':disabled') || active.getAttribute('aria-disabled') === 'true',
+              controlIndex: Array.from(document.querySelectorAll(indexedControls)).indexOf(active),
+              isRenameTrigger: active.tagName === 'BUTTON' && active.getAttribute('aria-label') === 'Rename project',
+            } : null,
+          }
+        }
+
+        const before = snapshot('before')
+        const records: ReturnType<typeof snapshot>[] = []
+        let dropped = 0
+        const record = (name: string, event: Event) => {
+          if (records.length >= (phase === 'traversal' ? 330 : 398)) dropped++
+          else records.push(snapshot(name, event))
+        }
+        const keyCapture = (event: Event) => record(`${event.type}:capture`, event)
+        const keyBubble = (event: Event) => record(`${event.type}:bubble`, event)
+        const focus = (event: Event) => record(event.type, event)
+
+        window.addEventListener('keydown', keyCapture, true)
+        window.addEventListener('keydown', keyBubble)
+        window.addEventListener('keyup', keyBubble)
+        document.addEventListener('focusin', focus, true)
+        document.addEventListener('focusout', focus, true)
+        diagnostics.__qaRenameTraversal = (startProbe = false) => {
+          if (startProbe) {
+            phase = 'plain-tab-probe'
+            return
+          }
+          window.removeEventListener('keydown', keyCapture, true)
+          window.removeEventListener('keydown', keyBubble)
+          window.removeEventListener('keyup', keyBubble)
+          document.removeEventListener('focusin', focus, true)
+          document.removeEventListener('focusout', focus, true)
+          delete diagnostics.__qaRenameTraversal
+          return { before, records, after: snapshot('after'), dropped }
+        }
+      })
+      const plainTabProbe = { attempts: 0, startedOnTrigger: false, reached: false }
+      try {
+        await tabTo(page, rename)
+      } catch (traversalError) {
+        try {
+          plainTabProbe.startedOnTrigger = await page.evaluate(() => {
+            const diagnostics = window as Window & { __qaRenameTraversal?: (startProbe?: boolean) => unknown }
+            diagnostics.__qaRenameTraversal?.(true)
+            return document.activeElement?.matches('button[aria-label="Rename project"]') ?? false
+          })
+          while (!plainTabProbe.startedOnTrigger && plainTabProbe.attempts < 12 && !plainTabProbe.reached) {
+            plainTabProbe.attempts++
+            await page.keyboard.press('Tab')
+            plainTabProbe.reached = await page.evaluate(() =>
+              document.activeElement?.matches('button[aria-label="Rename project"]') ?? false,
+            )
+          }
+        } catch {
+          // The original keyboard failure remains authoritative if the probe also fails.
+        }
+        throw traversalError
+      } finally {
+        const observation = await page.evaluate(() => {
+          const diagnostics = window as Window & { __qaRenameTraversal?: (startProbe?: boolean) => unknown }
+          return diagnostics.__qaRenameTraversal?.() ?? null
+        }).catch(() => null)
+        await info.attach('project-rename-focus.json', {
+          body: JSON.stringify({ browser: page.context().browser()?.browserType().name(), platform: process.platform, plainTabProbe, observation }),
+          contentType: 'application/json',
+        })
+      }
       await expect(rename).toBeFocused()
       await expect(rename).toHaveCSS('opacity', '1')
       await page.keyboard.press('Enter')
