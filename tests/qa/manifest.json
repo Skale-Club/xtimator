@@ -155,6 +155,42 @@
       "routes": ["/clients"],
       "hypothesis": "A keyboard user can open Add Client, understand required-field errors and resume from the same control after closing.",
       "expectedEvidence": "Tab and Enter reach and open Add Client. The name has a label, required state and associated validation message. Escape closes the form and restores focus to its opener. The open invalid form also has full axe output with zero serious or critical violations."
+    },
+    {
+      "id": "SETTINGS-SCREENS",
+      "titleToken": "[QA:SETTINGS-SCREENS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/settings", "/settings/company", "/settings/account", "/settings/general", "/settings/appearance", "/settings/notifications", "/settings/team", "/settings/staff"],
+      "hypothesis": "An owned workspace can render company branding, account, appearance, notification preferences and the team roster. Legacy settings URLs go to their current screens.",
+      "expectedEvidence": "Routing and rendering smoke only. Each final document returns HTTP 200 at the expected URL without browser exceptions, first-party server errors or horizontal overflow. The synthetic company name, primary fields, roster owner and documented invite preview are visible. Screenshots and navigation evidence are retained."
+    },
+    {
+      "id": "ESTIMATE-SETTINGS-SCREENS",
+      "titleToken": "[QA:ESTIMATE-SETTINGS-SCREENS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/settings/estimates", "/settings/defaults", "/settings/delivery", "/settings/estimate-templates", "/settings/client-actions", "/settings/payments", "/settings/integrations/stripe", "/settings/billing", "/settings/integrations", "/settings/integrations/mcp", "/settings/knowledge", "/settings/knowledge/new"],
+      "hypothesis": "Estimate settings, billing, integrations and knowledge screens render for an owned workspace, including the current destinations of legacy delivery and payment links.",
+      "expectedEvidence": "Routing and rendering smoke only. Each final document returns HTTP 200 at the expected URL without browser exceptions, first-party server errors or horizontal overflow. Default email and SMS switches are off and the disabled tenant has no pay-online switch. Message, client action, plan and credit usage, integration, and knowledge controls appear. Screenshots and navigation evidence are retained."
+    },
+    {
+      "id": "WORKSPACE-SCREENS",
+      "titleToken": "[QA:WORKSPACE-SCREENS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/notifications", "/academy", "/chat/[[...id]]"],
+      "hypothesis": "The synthetic owner sees the empty notifications screen and Academy catalog. The retired chat base URL resolves to the dashboard.",
+      "expectedEvidence": "Routing and rendering smoke only. Each final document returns HTTP 200 at the expected URL without browser exceptions, first-party server errors or horizontal overflow. The notification filter and empty state, a course link, and the dashboard heading are visible. Screenshots and navigation evidence are retained."
+    },
+    {
+      "id": "PUBLIC-SCREENS",
+      "titleToken": "[QA:PUBLIC-SCREENS]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/", "/login", "/industries", "/industries/[slug]", "/blog", "/privacy-policy", "/terms-of-service", "/delete-account", "/offline"],
+      "hypothesis": "An anonymous browser can read the landing, sign-in, industry, publication, legal and offline fallback screens.",
+      "expectedEvidence": "Routing and rendering smoke only. Each document returns HTTP 200 at the expected URL without browser exceptions, first-party server errors or horizontal overflow. The sign-in controls, legal content, a sample industry, and either a blog card on the index or its empty state are visible. The offline fallback is rendered while online. Screenshots and navigation evidence are retained."
     }
   ],
   "capabilities": [
