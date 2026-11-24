@@ -175,6 +175,10 @@ test('[QA:SHARE-PASSWORD] the owner sets a password and the anonymous estimate u
     await expectEstimateContent(page, fixture)
     expect((await page.goto(path))?.status()).toBe(200)
     await expectEstimateContent(page, fixture)
+    const pdf = await page.request.get(`/api/estimates/${fixture.estimateId}/pdf?token=${fixture.shareToken}`, { maxRedirects: 0 })
+    expect(pdf.status()).toBe(200)
+    expect(pdf.headers()['content-type']).toContain('application/pdf')
+    expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-')
   })
 })
 

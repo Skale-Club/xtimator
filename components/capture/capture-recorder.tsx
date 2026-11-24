@@ -1529,7 +1529,18 @@ export function CaptureRecorder({
     inflightSeqRef.current = 0
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaDevices = navigator.mediaDevices
+      if (process.env.NODE_ENV === 'development') {
+        if (typeof mediaDevices?.getUserMedia !== 'function') {
+          performance.mark('xtimator:capture-mic:request-unavailable')
+        } else if (Object.prototype.hasOwnProperty.call(mediaDevices, 'getUserMedia')) {
+          performance.mark('xtimator:capture-mic:request-own-method')
+        } else {
+          performance.mark('xtimator:capture-mic:request-prototype-method')
+        }
+      }
+      const stream = await mediaDevices.getUserMedia({ audio: true })
+      if (process.env.NODE_ENV === 'development') performance.mark('xtimator:capture-mic:request-resolved')
       streamRef.current = stream
 
       // Create AudioContext inside click handler (iOS Safari requires user gesture — Pitfall 1)
@@ -1664,6 +1675,7 @@ export function CaptureRecorder({
       // Portuguese speech). Whisper (server-side, multilingual auto-detect)
       // is the only transcription; recording shows waveform + timer only.
     } catch (err: unknown) {
+      if (process.env.NODE_ENV === 'development') performance.mark('xtimator:capture-mic:startup-rejected')
       const error = err as { name?: string }
       if (error?.name === 'NotAllowedError') {
         toast.error(t('Microphone permission denied. Please allow microphone access and try again.'))
@@ -1677,8 +1689,10 @@ export function CaptureRecorder({
 
   const handleToggleRecording = useCallback(() => {
     if (isRecording) {
+      if (process.env.NODE_ENV === 'development') performance.mark('xtimator:capture-mic:toggle-stop')
       stopRecording()
     } else {
+      if (process.env.NODE_ENV === 'development') performance.mark('xtimator:capture-mic:toggle-start')
       startRecording()
     }
   }, [isRecording, startRecording, stopRecording])
