@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import pg from 'pg'
 import type Stripe from 'stripe'
 
@@ -50,6 +50,7 @@ const evidence = {
   companyId, runMarker, environment: 'development + Stripe test mode', checks: [] as string[],
   preflightStage: 'environment',
   preflightPassed: false, customerId: null as string | null, subscriptionSession: null as string | null,
+  failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
   cleanupFailures: [] as string[],
@@ -82,7 +83,9 @@ function databaseConfig() {
       || (sslMode && !['require', 'verify-full'].includes(sslMode))) throw new Error('Invalid target')
     return {
       host: DEV_POOLER, port: 6543, database: 'postgres', user: url.username,
-      password: decodeURIComponent(url.password), ssl: { rejectUnauthorized: true }, connectionTimeoutMillis: 10_000,
+      password: decodeURIComponent(url.password),
+      ssl: { ca: readFileSync(new URL('../fixtures/supabase-dev-root.crt', import.meta.url), 'utf8'), rejectUnauthorized: true },
+      connectionTimeoutMillis: 10_000,
     }
   } catch {
     throw new SandboxGuardError('The exact TLS Supabase development transaction pooler is required')
@@ -112,6 +115,10 @@ async function event(type: Stripe.Event.Type, objectId: string) {
 }
 async function safe(fn: () => Promise<void>) {
   try { await fn() } catch (err) {
+    const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : ''
+    const diagnosticCodes = new Set(['SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED',
+      'ECONNREFUSED', 'ETIMEDOUT', 'ENETUNREACH', 'EHOSTUNREACH', 'ENOTFOUND', '28P01', '3D000', '53300', '42501', '42P01', '23503'])
+    if (diagnosticCodes.has(code)) evidence.failureCode = code
     if (err instanceof SandboxGuardError) throw err
     if (err instanceof Error && err.name === 'AssertionError') throw new Error('Sandbox assertion failed')
     throw new Error('Sandbox verification failed at the named test step')
