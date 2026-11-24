@@ -514,7 +514,7 @@
       "id": "DEPENDENCY-READINESS",
       "state": "blocked",
       "requiredForLaunch": true,
-      "routes": ["/", "/api/mcp", "/storage/[bucket]/[...key]"],
+      "routes": ["/", "/projects/[id]/capture", "/estimate/[token]"],
       "reason": "The2026-11-24 production dependency inventory reports3 critical and21 high package alerts before path triage. A reviewed Next/Sentry/sharp/MCP/Zod upgrade and proxy lock refresh are being resolved remotely. Candidate versions, audit deltas, compatibility and full regression/browser evidence must be verified; an audit count alone does not prove exploitability or remediation."
     },
     {
