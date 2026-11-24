@@ -86,7 +86,7 @@ jobs:
   acceptance:
     name: Isolated acceptance campaign
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.qa }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     concurrency:
       group: xtimator-development-qa

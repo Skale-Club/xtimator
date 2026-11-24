@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 
 export const TRANSCRIPT = 'Install 20 linear feet of cedar fence, including two posts and cleanup. Labor is 400 dollars and materials are 600 dollars.'
 export const ESTIMATE = {
-  project_name: 'QA cedar fence installation', detected_trade: 'landscaping',
+  suggested_project_name: 'QA cedar fence installation', detected_trade: 'landscaping',
   summary: 'Install 20 linear feet of cedar fence with two posts and job-site cleanup.',
   notes: 'Synthetic QA provider output. No market-price or live-AI quality claim.',
   timeline: 'One working day', payment_terms: 'Payment due on completion.',
@@ -25,7 +25,7 @@ export function startProviders(port = 9651) {
     if (request.url === '/openrouter/audio/transcriptions') {
       for await (const _chunk of request) { /* consume synthetic audio without saving it */ }
       history.push({ kind: 'transcription' })
-      return json(200, { text: TRANSCRIPT, duration: 3 })
+      return json(200, { text: TRANSCRIPT, usage: { seconds: 3 } })
     }
     if (request.url !== '/openrouter/chat/completions') return json(404, { error: 'Unknown synthetic provider operation' })
     let body
@@ -36,9 +36,10 @@ export function startProviders(port = 9651) {
     history.push({ kind: 'chat', tool: name ?? null, streamed: body.stream === true })
     let output
     if (name === 'create_estimate') output = ESTIMATE
-    else if (name === 'extract_photo_context') output = { description: 'Cedar fence location on level ground', observations: [], measurements: [], materials: [], conditions: [], uncertainties: [] }
+    else if (name === 'extract_photo') output = { overall_description: 'Cedar fence location on level ground', materials: [], dimensions: [], damage: [], trade_signals: ['landscaping'], access_notes: 'Level and accessible ground' }
     else if (!name) {
-      return json(200, { id: 'qa-synthetic', choices: [{ message: { role: 'assistant', content: JSON.stringify({ needs_details: false, questions: [] }) }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, cost: 0 } })
+      const image = body.messages?.some(message => Array.isArray(message.content) && message.content.some(part => part.type === 'image_url'))
+      return json(200, { id: 'qa-synthetic', choices: [{ message: { role: 'assistant', content: image ? 'Cedar fence location on level ground' : JSON.stringify({ needs_details: false, questions: [] }) }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, cost: 0 } })
     } else return json(422, { error: `Unimplemented synthetic tool: ${name}` })
     const tool = { id: 'qa-tool', type: 'function', function: { name, arguments: JSON.stringify(output) } }
     const usage = { prompt_tokens: 10, completion_tokens: 10, cost: 0 }
