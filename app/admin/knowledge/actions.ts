@@ -17,8 +17,8 @@ import type { KnowledgeImportRow } from '@/lib/csv/knowledge-import'
  *   write -> revalidatePath -> void logAdminAction(...) -> { ok:true }
  *
  * Industry rows are service-role-write BY DESIGN (Phase 117 created NO industry
- * write policy; the service client bypasses RLS). The requireAdmin() gate is the
- * ONLY access control — it MUST run before any service-client write.
+ * write policy; the service client bypasses RLS). Require admin before using
+ * that client and scope reads and mutations to industry entries.
  *
  * KCUR-02: embed `title + '\n\n' + body` BEFORE the write. If embed() throws the
  * save is BLOCKED (return ok:false, no row written) — a NULL-embedding industry
@@ -92,15 +92,17 @@ export async function updateEntry(
   }
 
   const svc = requireServiceClient()
-  const { data: existing } = await svc
+  const { data: existing, error: readError } = await svc
     .from('knowledge_entries')
     .select('title, body')
     .eq('id', id)
-    .single()
+    .eq('scope', 'industry')
+    .maybeSingle()
+  if (readError) return { ok: false, message: readError.message }
+  if (!existing) return { ok: false, message: 'Knowledge entry not found.' }
 
   // Re-embed ONLY when title or body changed (source-only edits skip the embed).
-  const needsEmbed =
-    !existing || existing.title !== parsed.data.title || existing.body !== parsed.data.body
+  const needsEmbed = existing.title !== parsed.data.title || existing.body !== parsed.data.body
 
   let embedding: number[] | undefined
   if (needsEmbed) {
@@ -120,8 +122,13 @@ export async function updateEntry(
     ...(needsEmbed && embedding ? { embedding: toVectorLiteral(embedding) } : {}),
   }
 
-  const { error } = await svc.from('knowledge_entries').update(payload).eq('id', id)
+  const { data: updated, error } = await svc.from('knowledge_entries').update(payload)
+    .eq('id', id)
+    .eq('scope', 'industry')
+    .select('id')
+    .maybeSingle()
   if (error) return { ok: false, message: error.message }
+  if (!updated) return { ok: false, message: 'Knowledge entry not found.' }
   revalidatePath('/admin/knowledge')
 
   void logAdminAction({
@@ -139,8 +146,21 @@ export async function updateEntry(
 export async function deleteEntry(id: string): Promise<KnowledgeActionResult> {
   const ctx = await requireAdmin() // gate FIRST
   const svc = requireServiceClient()
-  const { error } = await svc.from('knowledge_entries').delete().eq('id', id)
+  const { data: existing, error: readError } = await svc.from('knowledge_entries')
+    .select('id')
+    .eq('id', id)
+    .eq('scope', 'industry')
+    .maybeSingle()
+  if (readError) return { ok: false, message: readError.message }
+  if (!existing) return { ok: false, message: 'Knowledge entry not found.' }
+
+  const { data: deleted, error } = await svc.from('knowledge_entries').delete()
+    .eq('id', id)
+    .eq('scope', 'industry')
+    .select('id')
+    .maybeSingle()
   if (error) return { ok: false, message: error.message }
+  if (!deleted) return { ok: false, message: 'Knowledge entry not found.' }
   revalidatePath('/admin/knowledge')
 
   void logAdminAction({

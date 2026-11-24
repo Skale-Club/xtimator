@@ -3,10 +3,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const retrieveMock = vi.fn()
 vi.mock('@/lib/knowledge/retrieve', () => ({ retrieve: (...a: unknown[]) => retrieveMock(...a) }))
 
-const existsMock = vi.fn()
+type ExistenceQuery = { scope?: string; not?: [column: string, operator: string, value: unknown]; limit: number }
+const existsMock = vi.fn<(query: ExistenceQuery) => Promise<{ data: { id: string }[] | null; error: { message: string } | null }>>()
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
-    from: () => ({ select: () => ({ or: () => ({ limit: () => existsMock() }) }) }),
+    from: () => ({
+      select: () => {
+        const filters: Omit<ExistenceQuery, 'limit'> = {}
+        const query = {
+          or(scope: string) { filters.scope = scope; return query },
+          not(...predicate: NonNullable<ExistenceQuery['not']>) { filters.not = predicate; return query },
+          limit: (limit: number) => existsMock({ ...filters, limit }),
+        }
+        return query
+      },
+    }),
   }),
 }))
 
@@ -20,6 +31,16 @@ const passage = (n: number) => ({
   scope: 'company' as const,
   similarity: 0.9,
 })
+
+function simulateStoredEntries(entries: { id: string; embedding: number[] | null }[]) {
+  existsMock.mockImplementation(async ({ not, limit }) => {
+    const [column, operator, value] = not ?? []
+    const matching = column === 'embedding' && operator === 'is' && value === null
+      ? entries.filter(entry => entry.embedding !== null)
+      : entries
+    return { data: matching.slice(0, limit).map(({ id }) => ({ id })), error: null }
+  })
+}
 
 describe('loadKnowledgeContext (SEED-057 E5)', () => {
   beforeEach(() => {
@@ -69,6 +90,34 @@ describe('loadKnowledgeContext (SEED-057 E5)', () => {
     existsMock.mockResolvedValue({ data: [], error: null })
     expect(await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })).toEqual([])
     expect(retrieveMock).not.toHaveBeenCalled()
+  })
+
+  it('does not retrieve when all eligible industry and company rows are dormant', async () => {
+    simulateStoredEntries([
+      { id: 'dormant-industry', embedding: null },
+      { id: 'dormant-company', embedding: null },
+    ])
+
+    expect(await loadKnowledgeContext({ companyId: 'c1', industries: ['painting'], query: 'repaint the room' })).toEqual([])
+    expect(existsMock).toHaveBeenCalledExactlyOnceWith({
+      scope: 'scope.eq.industry,and(scope.eq.company,company_id.eq.c1)',
+      not: ['embedding', 'is', null],
+      limit: 1,
+    })
+    expect(retrieveMock).not.toHaveBeenCalled()
+  })
+
+  it('still retrieves indexed knowledge when a dormant row precedes it', async () => {
+    simulateStoredEntries([
+      { id: 'dormant-industry', embedding: null },
+      { id: 'indexed-company', embedding: [1] },
+    ])
+    retrieveMock.mockResolvedValue([passage(1)])
+
+    expect(await loadKnowledgeContext({ companyId: 'c1', industries: ['painting'], query: 'repaint the room' })).toEqual([
+      { title: 'Title 1', body: 'Body 1' },
+    ])
+    expect(retrieveMock).toHaveBeenCalledOnce()
   })
 
   it('fails OPEN: if the existence check errors, retrieval still runs', async () => {

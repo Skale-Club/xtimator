@@ -31,9 +31,8 @@ const QUERY_MAX_CHARS = 800
 export const KNOWLEDGE_MIN_SIMILARITY = 0.3
 
 /**
- * Cheap guard: is there ANYTHING the lookup could return (an industry entry, or one of this
- * company's own)? One indexed row read instead of an embedding call per generation. Fails
- * OPEN: if the check itself errors, retrieval runs as before.
+ * Skip the embedding call when there are no indexed industry or company entries.
+ * Fails OPEN: if the check itself errors, retrieval runs as before.
  */
 async function hasAnyKnowledge(companyId: string): Promise<boolean> {
   try {
@@ -41,6 +40,7 @@ async function hasAnyKnowledge(companyId: string): Promise<boolean> {
       .from('knowledge_entries')
       .select('id')
       .or(`scope.eq.industry,and(scope.eq.company,company_id.eq.${companyId})`)
+      .not('embedding', 'is', null)
       .limit(1)
     if (error || !Array.isArray(data)) return true
     return data.length > 0

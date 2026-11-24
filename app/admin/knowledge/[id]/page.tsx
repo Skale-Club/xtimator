@@ -23,7 +23,11 @@ export default async function EditKnowledgeEntryPage({
   await requireAdmin()
   const { id } = await params
   const svc = requireServiceClient()
-  const { data } = await svc.from('knowledge_entries').select('*').eq('id', id).maybeSingle()
+  const { data } = await svc.from('knowledge_entries')
+    .select('id, industry_id, title, body, source')
+    .eq('id', id)
+    .eq('scope', 'industry')
+    .maybeSingle()
   if (!data) notFound()
   return (
     <div className="flex flex-col gap-8">
