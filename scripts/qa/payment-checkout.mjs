@@ -73,15 +73,22 @@ let phase = 'input'
 const failureCodes = { input: 10, module: 11, proxy: 12, browser: 13, navigation: 14, card: 15, submit: 16, redirect: 17 }
 
 async function visibleChallenge() {
-  if (!page) return challengeRequested
+  if (!page) return false
   try {
     return await page.locator('iframe[src*="captcha" i], iframe[title*="challenge" i], [role="alert"]')
-      .evaluateAll(elements => elements.some(element => element.getBoundingClientRect().height > 1
-        && /captcha|verify (?:that )?you(?: are|'re) human|security challenge/i.test(
+      .evaluateAll(elements => elements.some(element => {
+        const rect = element.getBoundingClientRect()
+        if (rect.width <= 1 || rect.height <= 1 || rect.bottom <= 0 || rect.top >= innerHeight) return false
+        for (let parent = element; parent; parent = parent.parentElement) {
+          const style = getComputedStyle(parent)
+          if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false
+        }
+        return /captcha|verify (?:that )?you(?: are|'re) human|security challenge/i.test(
           `${element.getAttribute('src')} ${element.getAttribute('title')} ${element.textContent}`,
-        ))) || challengeRequested
+        )
+      }))
   } catch {
-    return challengeRequested
+    return false
   }
 }
 
@@ -191,6 +198,7 @@ try {
   }
   process.stdout.write(JSON.stringify({
     timeout: error?.name === 'TimeoutError',
+    blockedChallengeResource: challengeRequested,
     frameCount: page?.frames().length ?? 0,
     strictSelector: typeof error?.message === 'string' && error.message.includes('strict mode violation'),
     frames, blockedHosts: [...blockedHosts].slice(0, 12),

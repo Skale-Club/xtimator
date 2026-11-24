@@ -193,6 +193,7 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
         const parsed = JSON.parse(diagnostics)
         evidence.hostedDiagnostics = {
           timeout: parsed.timeout === true, strictSelector: parsed.strictSelector === true,
+          blockedChallengeResource: parsed.blockedChallengeResource === true,
           frameCount: Number(parsed.frameCount),
           frames: Array.isArray(parsed.frames) ? parsed.frames.slice(0, 24).map(frame => ({
             cardFields: Number(frame.cardFields), emailFields: Number(frame.emailFields), inputs: Number(frame.inputs),

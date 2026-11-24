@@ -78,6 +78,9 @@ the verified test Checkout URL through stdin and an operating-system-only
 environment. A CONNECT proxy and browser routing restrict destinations.
 Browser traces, screenshots, videos and provider responses are not recorded.
 A required security challenge fails the case without bypassing it.
+Normal provider assets, wallet initialization scripts and hCaptcha resources
+may load. The helper only enters the public test card; it does not select a
+wallet, solve a challenge, replace CAPTCHA tokens or change provider settings.
 
 The seventh case requires Stripe to report the session complete and paid,
 then processes retrieved official invoice and Checkout events through the
@@ -86,7 +89,10 @@ ownership before deleting the generated customer and company, cancelling
 the generated subscription and archiving its tagged catalog. Historical
 Stripe TEST objects remain as provider audit records. External notifications
 and unrelated integrations are disabled. These cases do not exercise live
-payments or delivery of signed callbacks to the deployed HTTP endpoint.
+payments or delivery of signed callbacks to the deployed HTTP endpoint. The
+API suite does invoke the actual Next.js webhook handler with an official
+retrieved event and ephemeral receiver signatures. It checks missing, altered,
+expired and unconfigured signatures before verifying inbox and ledger replay.
 
 ## Hypothesis, evidence and retest
 
