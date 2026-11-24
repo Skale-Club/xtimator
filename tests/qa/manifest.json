@@ -290,6 +290,29 @@
       ],
       "hypothesis": "An expired link discloses neither the estimate document nor its PDF.",
       "expectedEvidence": "Only the synthetic estimate is seeded in the past. Both routes show expiration; token PDF returns410 and unauthenticated owner PDF401."
+    },
+    {
+      "id": "SIGNATURE-KEYBOARD",
+      "routes": [
+        "/estimate/[token]"
+      ],
+      "hypothesis": "A recipient can accept an estimate without a pointer by choosing a typed signature and explicitly submitting the existing consent.",
+      "expectedEvidence": "Actual Tab, arrow and Enter keys complete acceptance with zero pointerdown events. A600x160PNG, matching frozen snapshot hash and signer persist; the signed PDF contains the signer, scope, amount and image. Reload preserves acceptance.",
+      "titleToken": "[QA:SIGNATURE-KEYBOARD]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true
+    },
+    {
+      "id": "CO-KEYBOARD-SIGN",
+      "routes": [
+        "/projects/[id]/change-orders/[coId]",
+        "/change-order/[token]"
+      ],
+      "hypothesis": "A recipient can approve a change order with only keyboard interaction and receive the same frozen contract and PDF evidence.",
+      "expectedEvidence": "After ordinary seller preparation, public Tab/arrow/Enter approval records no pointer events, persists the exact PNG and matching contract snapshot hash, updates project total to1075, preserves the original signature and renders the signed PDF after reload.",
+      "titleToken": "[QA:CO-KEYBOARD-SIGN]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true
     }
   ],
   "capabilities": [
@@ -333,7 +356,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/", "/dashboard", "/clients", "/onboarding", "/projects/[id]", "/estimate/[token]"],
-      "reason": "The initial automated scans and client keyboard scenario need browser evidence. Broader keyboard journeys, a non-pointer way to sign and validation with real screen readers remain open. Automated rule results do not establish WCAG conformance."
+      "reason": "Initial automated scans and client keyboard behavior have browser evidence. New keyboard-only estimate and change-order signing need fresh passing evidence; broader keyboard journeys and real screen-reader validation remain open. Automated rules do not establish WCAG conformance."
     },
     {
       "id": "ADMIN",

@@ -9,6 +9,13 @@ type Dict = Record<string, string>
 export const shareTranslations: Record<'pt' | 'es', Dict> = {
   pt: {
     'Awaiting answer': 'Aguardando resposta',
+    'Signature method': 'Método de assinatura',
+    'Draw': 'Desenhar',
+    'Type': 'Digitar',
+    'Typed signature preview': 'Prévia da assinatura digitada',
+    'Your typed name will be used as your signature.': 'Seu nome digitado será usado como assinatura.',
+    'Enter your full name to preview your signature.': 'Digite seu nome completo para ver a prévia da assinatura.',
+    'Please add your signature.': 'Adicione sua assinatura.',
     // Public estimate page (components/share, app/estimate/[token])
     'This estimate link has expired': 'Este link do orçamento expirou',
     'For your security, estimate links expire after a period of inactivity. Please ask the sender to re-send the estimate — that will give you a fresh, working link.': 'Por segurança, os links de orçamento expiram após um período sem uso. Peça a quem enviou para reenviar o orçamento: você receberá um link novo e funcionando.',
@@ -77,6 +84,13 @@ export const shareTranslations: Record<'pt' | 'es', Dict> = {
     'Download PDF': 'Baixar PDF',
   },
   es: {
+    'Signature method': 'Método de firma',
+    'Draw': 'Dibujar',
+    'Type': 'Escribir',
+    'Typed signature preview': 'Vista previa de la firma escrita',
+    'Your typed name will be used as your signature.': 'El nombre que escriba se usará como firma.',
+    'Enter your full name to preview your signature.': 'Escriba su nombre completo para ver la vista previa de la firma.',
+    'Please add your signature.': 'Agregue su firma.',
     'Awaiting answer': 'Esperando respuesta',
     // Public estimate page (components/share, app/estimate/[token])
     'This estimate link has expired': 'Este enlace del presupuesto ha caducado',

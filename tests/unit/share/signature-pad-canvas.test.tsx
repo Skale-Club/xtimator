@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
+import { useState } from 'react'
 import { SignaturePad } from '@/components/share/signature-pad'
 
 // jsdom has no canvas: stub a recording 2D context, layout sizes, DPR and
@@ -59,16 +60,24 @@ afterEach(() => {
   delete HTMLCanvasElement.prototype.clientHeight
 })
 
-function mount(onSignatureChange = vi.fn()) {
-  const utils = render(
+function ControlledPad({ initialName, onSignatureChange }: {
+  initialName: string
+  onSignatureChange: (image: string | null) => void
+}) {
+  const [name, setName] = useState(initialName)
+  return (
     <SignaturePad
-      signerName=""
-      onSignerNameChange={() => {}}
+      signerName={name}
+      onSignerNameChange={setName}
       signerEmail=""
       onSignerEmailChange={() => {}}
       onSignatureChange={onSignatureChange}
     />
   )
+}
+
+function mount(onSignatureChange = vi.fn(), initialName = '') {
+  const utils = render(<ControlledPad initialName={initialName} onSignatureChange={onSignatureChange} />)
   const canvas = utils.container.querySelector('canvas') as HTMLCanvasElement
   return { ...utils, canvas, onSignatureChange }
 }
@@ -149,5 +158,94 @@ describe('SignaturePad canvas', () => {
     fireEvent.click(screen.getByText('Clear'))
     expect(onSignatureChange).toHaveBeenLastCalledWith(null)
     expect(screen.queryByText('Clear')).toBeNull()
+  })
+})
+
+describe('SignaturePad typed signature', () => {
+  it('offers native grouped radios with Draw selected initially', () => {
+    mount()
+    const group = screen.getByRole('group', { name: 'Signature method' })
+    const draw = screen.getByRole<HTMLInputElement>('radio', { name: 'Draw' })
+    const type = screen.getByRole<HTMLInputElement>('radio', { name: 'Type' })
+    expect(group.contains(draw) && group.contains(type)).toBe(true)
+    expect(draw.type).toBe('radio')
+    expect(type.type).toBe('radio')
+    expect(draw.name).toBe(type.name)
+    expect(draw.checked).toBe(true)
+    expect(type.checked).toBe(false)
+  })
+
+  it('exports the same bitmap shown in the preview, regenerates on edits, and clears on blank', () => {
+    const { onSignatureChange } = mount()
+    fireEvent.click(screen.getByRole('radio', { name: 'Type' }))
+    expect(onSignatureChange).toHaveBeenLastCalledWith(null)
+    expect(screen.queryByRole('img')).toBeNull()
+
+    const name = screen.getByRole('textbox', { name: 'Your full name' })
+    const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL)
+    toDataURL.mockReturnValueOnce('data:image/png;base64,NAME1')
+    fireEvent.change(name, { target: { value: '  Ana Ruiz  ' } })
+    const preview = screen.getByRole<HTMLCanvasElement>('img', { name: 'Typed signature preview · Ana Ruiz' })
+    expect(preview.width).toBe(600)
+    expect(preview.height).toBe(160)
+    expect(toDataURL.mock.contexts.at(-1)).toBe(preview)
+    expect(toDataURL).toHaveBeenLastCalledWith('image/png')
+    expect(calls.findLast(call => call.fn === 'fillText')?.args).toEqual(['Ana Ruiz', 300, 80, 568])
+    expect(onSignatureChange).toHaveBeenLastCalledWith('data:image/png;base64,NAME1')
+
+    toDataURL.mockReturnValueOnce('data:image/png;base64,NAME2')
+    fireEvent.change(name, { target: { value: 'Ana López' } })
+    expect(screen.getByRole('img', { name: 'Typed signature preview · Ana López' })).toBe(preview)
+    expect(calls.findLast(call => call.fn === 'fillText')?.args[0]).toBe('Ana López')
+    expect(onSignatureChange).toHaveBeenLastCalledWith('data:image/png;base64,NAME2')
+
+    fireEvent.change(name, { target: { value: '   ' } })
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(onSignatureChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('keeps a 200-character name in the image and clears oversized input', () => {
+    const name = 'W'.repeat(200)
+    const { onSignatureChange } = mount(vi.fn(), name)
+    fireEvent.click(screen.getByRole('radio', { name: 'Type' }))
+    const lines = calls.filter(call => call.fn === 'fillText')
+    expect(lines.length).toBeGreaterThan(1)
+    expect(lines.map(line => line.args[0]).join('')).toBe(name)
+    for (const { args: [, x, y, maxWidth] } of lines) {
+      expect(x).toBe(300)
+      expect(y).toBeGreaterThanOrEqual(12)
+      expect(y).toBeLessThanOrEqual(148)
+      expect(maxWidth).toBe(568)
+    }
+    expect(onSignatureChange).toHaveBeenLastCalledWith('data:image/png;base64,AAAA')
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your full name' }), { target: { value: `${name}W` } })
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(onSignatureChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('switches between distinct exports and restores only completed drawing strokes', () => {
+    const { canvas, onSignatureChange } = mount(vi.fn(), 'Ana Ruiz')
+    stroke(canvas, [[20, 40], [200, 60]])
+    expect(onSignatureChange).toHaveBeenLastCalledWith('data:image/png;base64,AAAA')
+
+    fireEvent.pointerDown(canvas, { pointerId: 2, pointerType: 'touch', clientX: 30, clientY: 80 })
+    fireEvent.pointerMove(canvas, { pointerId: 2, pointerType: 'touch', clientX: 200, clientY: 110 })
+    expect(onSignatureChange).toHaveBeenLastCalledWith(null)
+
+    vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockReturnValueOnce('data:image/png;base64,TYPED')
+    fireEvent.click(screen.getByRole('radio', { name: 'Type' }))
+    expect(onSignatureChange).toHaveBeenLastCalledWith('data:image/png;base64,TYPED')
+    expect(canvas.isConnected).toBe(false)
+
+    calls.length = 0
+    fireEvent.click(screen.getByRole('radio', { name: 'Draw' }))
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(onSignatureChange).toHaveBeenLastCalledWith('data:image/png;base64,AAAA')
+    // One completed stroke is exported and repainted, with no partial stroke.
+    expect(calls.filter(call => call.fn === 'moveTo')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(onSignatureChange).toHaveBeenLastCalledWith(null)
   })
 })

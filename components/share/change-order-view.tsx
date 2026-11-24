@@ -186,7 +186,7 @@ function ChangeOrderViewInner({
       return
     }
     if (!signatureData) {
-      setError(t('Please draw your signature.'))
+      setError(t('Please add your signature.'))
       return
     }
     setIsSubmitting(true)
@@ -592,7 +592,7 @@ function ChangeOrderViewInner({
               <div className="mx-auto flex max-w-2xl gap-2 sm:justify-start">
                 <Button
                   size="lg"
-                  className="min-h-11 flex-1 bg-green-600 text-white hover:bg-green-700 sm:flex-none"
+                  className="min-h-11 flex-1 bg-green-700 text-white hover:bg-green-800 sm:flex-none"
                   onClick={openSignature}
                 >
                   <PenLine className="mr-2 h-4 w-4" />
@@ -678,7 +678,7 @@ function ChangeOrderViewInner({
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                className="min-h-11 bg-green-600 text-white hover:bg-green-700"
+                className="min-h-11 bg-green-700 text-white hover:bg-green-800"
                 onClick={handleSign}
                 disabled={isSubmitting || !signerName.trim() || !signatureData}
               >

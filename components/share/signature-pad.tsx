@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useId, useLayoutEffect, useState, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { shareText } from '@/lib/i18n/share-translations'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
   PEN_WIDTH_CSS,
@@ -25,6 +26,9 @@ interface SignaturePadProps {
   onSignatureChange: (dataUrl: string | null) => void
   brandColor?: string
 }
+
+type SignatureMethod = 'draw' | 'type'
+const MAX_SIGNER_NAME_LENGTH = 200
 
 /**
  * Render the strokes into a fresh, fixed-size (600x160, 3.75:1) PNG. The
@@ -60,6 +64,25 @@ function exportSignature(strokes: Stroke[]): string | null {
   return out.toDataURL('image/png')
 }
 
+function exportTypedSignature(canvas: HTMLCanvasElement, name: string): string | null {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const { width, height } = canvas
+  // Prefer spaces as line breaks, and split long runs of characters to keep
+  // the entire name in the bitmap. fillText also bounds unusually wide glyphs.
+  const lines = (name.match(/.{1,48}(?:\s|$)|.{1,48}/gu) ?? [name]).map(line => line.trim()).filter(Boolean)
+  const lineHeight = Math.min(56, (height - 24) / lines.length)
+  const firstBaseline = (height - (lines.length - 1) * lineHeight) / 2
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  ctx.fillStyle = '#111827'
+  ctx.font = `italic ${Math.floor(lineHeight * 0.8)}px serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  lines.forEach((line, index) => ctx.fillText(line, width / 2, firstBaseline + index * lineHeight, width - 32))
+  return canvas.toDataURL('image/png')
+}
+
 export function SignaturePad({
   signerName,
   onSignerNameChange,
@@ -68,9 +91,15 @@ export function SignaturePad({
   onSignatureChange,
   brandColor = '#2563eb',
 }: SignaturePadProps) {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
+  const methodId = useId()
+  const typedHelpId = `${methodId}-typed-help`
+  const [method, setMethod] = useState<SignatureMethod>('draw')
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const typedCanvasRef = useRef<HTMLCanvasElement>(null)
   const [isEmpty, setIsEmpty] = useState(true)
+  const typedName = signerName.trim()
+  const showTypedPreview = typedName.length > 0 && typedName.length <= MAX_SIGNER_NAME_LENGTH
   // Completed and active strokes share the current canvas's CSS coordinates.
   // Keep the active stroke separate until pointer-up so a resize can transform
   // it independently, including the first point before any movement.
@@ -81,9 +110,16 @@ export function SignaturePad({
   const sizeRef = useRef({ width: 0, height: 0 })
 
   const onSignatureChangeRef = useRef(onSignatureChange)
-  useEffect(() => {
+  useLayoutEffect(() => {
     onSignatureChangeRef.current = onSignatureChange
   }, [onSignatureChange])
+
+  useLayoutEffect(() => {
+    if (method !== 'type') return
+    const preview = typedCanvasRef.current
+    // Publish the exact preview bitmap before the updated form can be submitted.
+    onSignatureChangeRef.current(preview && showTypedPreview ? exportTypedSignature(preview, typedName) : null)
+  }, [method, showTypedPreview, typedName])
 
   const paintStroke = useCallback((ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     if (stroke.length < 2) return
@@ -124,6 +160,7 @@ export function SignaturePad({
     const canvas = canvasRef.current
     if (!canvas) return
 
+    let painted = false
     const sync = () => {
       const width = canvas.clientWidth
       const height = canvas.clientHeight
@@ -131,7 +168,7 @@ export function SignaturePad({
       const bitmap = computeBitmapSize(width, height, window.devicePixelRatio || 1)
       const prev = sizeRef.current
       const sizeChanged = prev.width !== width || prev.height !== height
-      if (!sizeChanged && canvas.width === bitmap.width && canvas.height === bitmap.height) return
+      if (painted && !sizeChanged && canvas.width === bitmap.width && canvas.height === bitmap.height) return
 
       if (sizeChanged && prev.width > 0) {
         const transform = fitTransform(prev, { width, height })
@@ -147,6 +184,7 @@ export function SignaturePad({
       const ctx = canvas.getContext('2d')
       if (ctx) ctx.setTransform(bitmap.dpr, 0, 0, bitmap.dpr, 0, 0)
       repaint(canvas)
+      painted = true
     }
 
     sync()
@@ -154,7 +192,7 @@ export function SignaturePad({
     const observer = new ResizeObserver(sync)
     observer.observe(canvas)
     return () => observer.disconnect()
-  }, [repaint])
+  }, [method, repaint])
 
   function pointFromEvent(canvas: HTMLCanvasElement, e: React.PointerEvent<HTMLCanvasElement>) {
     return clientToCanvasPoint(
@@ -228,15 +266,51 @@ export function SignaturePad({
     onSignatureChange(null)
   }
 
+  function changeMethod(next: SignatureMethod) {
+    activePointerId.current = null
+    activeStroke.current = null
+    setIsEmpty(strokesRef.current.length === 0)
+    setMethod(next)
+    onSignatureChange(next === 'draw' ? exportSignature(strokesRef.current) : null)
+  }
+
   return (
     <div className="space-y-4">
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">{t('Signature method')}</legend>
+        <div className="flex flex-wrap gap-4">
+          <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name={methodId}
+              value="draw"
+              checked={method === 'draw'}
+              onChange={() => changeMethod('draw')}
+              className="size-4 accent-primary"
+            />
+            {shareText(language, 'Draw')}
+          </label>
+          <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name={methodId}
+              value="type"
+              checked={method === 'type'}
+              onChange={() => changeMethod('type')}
+              className="size-4 accent-primary"
+            />
+            {shareText(language, 'Type')}
+          </label>
+        </div>
+      </fieldset>
       <div className="space-y-2">
         <Label htmlFor="signer-name">{t('Your full name')}</Label>
         <Input
           id="signer-name"
           placeholder="John Smith"
           autoComplete="name"
-          maxLength={200}
+          maxLength={MAX_SIGNER_NAME_LENGTH}
+          aria-describedby={method === 'type' ? typedHelpId : undefined}
           autoCapitalize="words"
           enterKeyHint="next"
           onKeyDown={(e) => {
@@ -274,41 +348,59 @@ export function SignaturePad({
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>{t('Signature')}</Label>
-          {!isEmpty && (
-            <button
-              type="button"
-              onClick={clearSignature}
-              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            >
-              {t('Clear')}
-            </button>
+      {method === 'type' ? (
+        <div className="space-y-2">
+          <p id={typedHelpId} className="text-sm">{t('Your typed name will be used as your signature.')}</p>
+          {showTypedPreview ? (
+            <canvas
+              ref={typedCanvasRef}
+              width={SIGNATURE_EXPORT_WIDTH}
+              height={SIGNATURE_EXPORT_HEIGHT}
+              role="img"
+              aria-label={`${t('Typed signature preview')} · ${typedName}`}
+              className="block h-auto w-full rounded-[var(--radius-md)] border border-border bg-white"
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">{t('Enter your full name to preview your signature.')}</p>
           )}
         </div>
-        <div
-          className="rounded-[var(--radius-md)] border-2 border-dashed overflow-hidden bg-white"
-          style={{ borderColor: isEmpty ? 'hsl(var(--border))' : brandColor }}
-        >
-          <canvas
-            ref={canvasRef}
-            // Displayed size is CSS-only (the effect above sizes the bitmap to
-            // match). h-40 = 160px: comfortable for a finger on phones and
-            // still >= 140px on desktop.
-            className="block h-40 w-full touch-none cursor-crosshair"
-            onPointerDown={startDraw}
-            onPointerMove={draw}
-            onPointerUp={endDraw}
-            onPointerCancel={endDraw}
-          />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>{t('Signature')}</Label>
+            {!isEmpty && (
+              <button
+                type="button"
+                onClick={clearSignature}
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                {t('Clear')}
+              </button>
+            )}
+          </div>
+          <div
+            className="rounded-[var(--radius-md)] border-2 border-dashed overflow-hidden bg-white"
+            style={{ borderColor: isEmpty ? 'hsl(var(--border))' : brandColor }}
+          >
+            <canvas
+              ref={canvasRef}
+              // Displayed size is CSS-only (the effect above sizes the bitmap to
+              // match). h-40 = 160px: comfortable for a finger on phones and
+              // still >= 140px on desktop.
+              className="block h-40 w-full touch-none cursor-crosshair"
+              onPointerDown={startDraw}
+              onPointerMove={draw}
+              onPointerUp={endDraw}
+              onPointerCancel={endDraw}
+            />
+          </div>
+          {isEmpty && (
+            <p className="text-xs text-muted-foreground">
+              {t('Draw your signature above using your finger or mouse.')}
+            </p>
+          )}
         </div>
-        {isEmpty && (
-          <p className="text-xs text-muted-foreground">
-            {t('Draw your signature above using your finger or mouse.')}
-          </p>
-        )}
-      </div>
+      )}
     </div>
   )
 }

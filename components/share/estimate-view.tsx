@@ -385,7 +385,7 @@ function EstimateViewInner({
   async function handleSignAndAccept() {
     if (!canRespond || isSubmittingSignature || responding) return
     if (!signerName.trim()) { setError(t('Please enter your full name.')); return }
-    if (!signatureData) { setError(t('Please draw your signature.')); return }
+    if (!signatureData) { setError(t('Please add your signature.')); return }
     setIsSubmittingSignature(true)
     setError(null)
     try {

@@ -200,7 +200,7 @@ export function createQaFixture(baseURL: string, {
     const [items, signature] = await Promise.all([
       db.from('change_order_items').select('id,description,quantity,unit_price,total')
         .eq('change_order_id', id).eq('company_id', companyId).order('sort_order'),
-      db.from('change_order_signatures').select('signer_name,signed_at,signed_total,signed_content,snapshot_sha256')
+      db.from('change_order_signatures').select('signer_name,signed_at,signed_total,signed_content,snapshot_sha256,signature_data')
         .eq('change_order_id', id).eq('company_id', companyId).maybeSingle(),
     ])
     check('read the fixture change order items', items.error)
@@ -344,11 +344,11 @@ export function createQaFixture(baseURL: string, {
     companyName, clientName, projectName, summary, sectionTitle, lineDescription, total, userEmail: email,
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
     readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,
-    readClient: (id = clientId) => readOwn('clients', id),
-    readProject: (id = projectId) => readOwn('projects', id),
+    readClient: (id: string = clientId) => readOwn('clients', id),
+    readProject: (id: string = projectId) => readOwn('projects', id),
     readEstimate: (id: string = estimateId) => readOwn('estimates', id),
     readSignature: async () => {
-      const row = await db.from('estimate_signatures').select('signer_name,signed_at,signed_content,snapshot_sha256')
+      const row = await db.from('estimate_signatures').select('signer_name,signed_at,signed_content,snapshot_sha256,signature_data')
         .eq('company_id', companyId).eq('estimate_id', estimateId).maybeSingle()
       check('read the fixture signature', row.error)
       return row.data

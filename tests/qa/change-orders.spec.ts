@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { canonicalJsonStringify } from '../../lib/estimate/signed-snapshot'
 import { createQaFixture } from './fixtures/tenant'
+import { auditKeyboardSignature, expectNoSignaturePointer, expectSignaturePng, observeSignaturePointers, tabTo, typeSignature } from './fixtures/keyboard-signature'
 import { expect, test } from './test'
 
 type Tenant = ReturnType<typeof createQaFixture>
@@ -26,23 +27,30 @@ async function drawSignature(page: Page, dialog: Locator, signer: string) {
   await page.mouse.up()
 }
 
-async function signOriginalEstimate(page: Page, fixture: Tenant, info: TestInfo) {
+async function signOriginalEstimate(page: Page, fixture: Tenant, info: TestInfo, keyboard = false) {
   expect((await page.goto(`/estimate/${fixture.shareToken}`))?.status()).toBe(200)
   const open = info.project.name === 'chromium'
     ? page.getByTestId('proposal-bar').getByRole('button', { name: 'Accept', exact: true })
     : page.getByTestId('mobile-accept-bar').getByRole('button', { name: 'Accept Estimate', exact: true })
-  await open.click()
+  if (keyboard) {
+    await tabTo(page, open)
+    await page.keyboard.press('Enter')
+  } else await open.click()
   const dialog = page.getByRole('dialog', { name: 'Sign to accept this estimate', exact: true })
   const signer = 'QA Original Estimate Signer'
-  await drawSignature(page, dialog, signer)
+  if (keyboard) await typeSignature(page, dialog, signer)
+  else await drawSignature(page, dialog, signer)
+  const sign = dialog.getByRole('button', { name: 'Sign & Accept Estimate', exact: true })
+  if (keyboard) await tabTo(page, sign)
   const [response] = await Promise.all([
     page.waitForResponse(r => new URL(r.url()).pathname === `/api/estimates/${fixture.estimateId}/sign` && r.request().method() === 'POST', { timeout: 30_000 }),
-    dialog.getByRole('button', { name: 'Sign & Accept Estimate', exact: true }).click(),
+    keyboard ? page.keyboard.press('Enter') : sign.click(),
   ])
   expect(response.status()).toBe(200)
   await expect(page.getByTestId('response-status')).toContainText('Estimate Accepted')
   await expect.poll(async () => (await fixture.readSignature())?.signer_name).toBe(signer)
   expect((await fixture.readEstimate())?.client_response).toBe('accepted')
+  if (keyboard) await expectNoSignaturePointer(page)
   const digest = (await fixture.readSignature())?.snapshot_sha256
   expect(digest).toMatch(/^[a-f0-9]{64}$/)
   return digest
@@ -285,5 +293,53 @@ test('[QA:CO-DECLINE-CONTRACT] a declined change order leaves the contract and s
     const banner = page.getByTestId('change-order-lock-banner')
     await expect(banner).toContainText('Declined.')
     await expect(banner.getByRole('button', { name: 'Revise and reopen', exact: true })).toBeVisible()
+  })
+})
+
+test('[QA:CO-KEYBOARD-SIGN] the recipient approves a change order using only the keyboard and preserves its signed contract', async ({ page, baseURL }, info) => {
+  test.setTimeout(300_000)
+  await withTenant(page, baseURL!, async fixture => {
+    await observeSignaturePointers(page)
+    const originalDigest = await signOriginalEstimate(page, fixture, info, true)
+    const order: Order = {
+      title: 'Keyboard approved trim', reason: 'Add the agreed trim work.',
+      lines: [{ description: 'Install additional trim', quantity: 1, unitPrice: 75 }], total: 75,
+    }
+    // Seller preparation is the ordinary editor journey. From the fresh public
+    // navigation below, approval itself uses no pointer or scripted focus.
+    const { id } = await createOrder(page, fixture, order)
+    const publicPath = await shareOrder(page, baseURL!, fixture, id)
+    const approve = page.getByTestId('change-order-actions').getByRole('button', { name: 'Approve and sign', exact: true })
+    await tabTo(page, approve)
+    await page.keyboard.press('Enter')
+    const dialog = page.getByRole('dialog', { name: 'Sign to approve this change order', exact: true })
+    const signer = 'QA Keyboard Change Order Signer'
+    await typeSignature(page, dialog, signer)
+    const sign = dialog.getByRole('button', { name: 'Sign & Approve', exact: true })
+    await expect(sign).toBeEnabled()
+    await auditKeyboardSignature(page, info, 'typed-change-order-signature')
+    await tabTo(page, sign)
+    const [response] = await Promise.all([
+      page.waitForResponse(r => new URL(r.url()).pathname === `/api/change-orders/${id}/sign` && r.request().method() === 'POST'),
+      page.keyboard.press('Enter'),
+    ])
+    expect(response.status()).toBe(200)
+    await expect(page.getByTestId('response-status')).toContainText('Change order approved')
+    await expectNoSignaturePointer(page)
+    const evidence = await fixture.readOwnChangeOrderEvidence(id)
+    expect(evidence).toMatchObject({ order: { status: 'accepted', total: 75 }, signature: { signer_name: signer, signed_total: 75 } })
+    const signature = evidence!.signature!
+    expectSignaturePng(signature.signature_data)
+    const digest = createHash('sha256').update(canonicalJsonStringify(signature.signed_content)).digest('hex')
+    expect(signature.snapshot_sha256).toBe(digest)
+    expect(signature.signed_content).toMatchObject({
+      change_order_id: id, total: 75, contract: { before: 1000, after: 1075 },
+    })
+    expect((await fixture.readProject())?.total).toBe(1075)
+    expect((await fixture.readSignature())?.snapshot_sha256).toBe(originalDigest)
+    await verifyPdf(page, fixture, baseURL!, id, publicPath, order, signer, info)
+    expect((await page.reload())?.status()).toBe(200)
+    await expect(page.getByTestId('response-status')).toContainText('Change order approved')
+    expect((await fixture.readOwnChangeOrderEvidence(id))?.signature?.snapshot_sha256).toBe(digest)
   })
 })
