@@ -158,6 +158,8 @@ const nextConfig: NextConfig = {
       // Next forwards the Stripe return query to the canonical page.
       { source: '/settings/integrations/stripe', destination: '/settings/client-actions', permanent: false },
       { source: '/chat', destination: '/dashboard', permanent: false },
+      // Open the project dialog before React renders the authenticated shell.
+      { source: '/projects/new', destination: '/projects?modal=new-project', permanent: false },
       // Trash was removed (deletes are permanent); old links land on Projects.
       { source: '/trash', destination: '/projects', permanent: false },
     ];

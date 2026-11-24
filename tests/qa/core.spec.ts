@@ -15,7 +15,10 @@ test.beforeEach(async ({ context, baseURL }) => {
     return route.abort('blockedbyclient')
   })
 })
-test.afterEach(async () => { await fixture?.cleanup() })
+test.afterEach(async ({ page }) => {
+  // Stop application requests before deleting the owned session and tenant.
+  try { await page.close() } finally { await fixture?.cleanup() }
+})
 
 async function owner(page: Page) { await page.context().addCookies(fixture.cookies()) }
 async function noOverflow(page: Page) {
@@ -50,12 +53,18 @@ test('[QA:TENANT-ISOLATION] tenant identity cannot read another tenant project o
     await owner(page)
     const pdf = await page.request.get(`/api/estimates/${other.estimateId}/pdf`)
     expect([403, 404]).toContain(pdf.status())
-    await page.goto(`/projects/${other.projectId}`)
+    const denied = await page.goto(`/projects/${other.projectId}`)
+    // A streamed notFound response may have sent its 200 headers already.
+    expect([200, 404]).toContain(denied?.status())
+    await expect(page.getByRole('heading', { name: '404', exact: true })).toBeVisible()
+    await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached()
     await expect(page.getByText(other.projectName, { exact: true })).toHaveCount(0)
     await expect(page.getByText(other.lineDescription, { exact: true })).toHaveCount(0)
     expect((await other.readProject())?.name).toBe(other.projectName)
     expect((await fixture.readProject())?.name).toBe(fixture.projectName)
-  } finally { await other.cleanup() }
+  } finally {
+    try { await page.close() } finally { await other.cleanup() }
+  }
 })
 
 test('[QA:CLIENT-CRUD] client form edits persist and survive navigation and reload', async ({ page }) => {

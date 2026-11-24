@@ -24,7 +24,10 @@ async function withTenant(page: Page, baseURL: string, run: (fixture: Tenant) =>
 test('[QA:PROJECT-CRUD] create a manual project, rename it, and delete the new record only', async ({ page, baseURL }, info) => {
   await withTenant(page, baseURL!, async fixture => {
     const { projectId, estimateId } = await test.step('Create a project and blank estimate through New Xtimate', async () => {
-      await page.goto('/projects/new')
+      const opened = await page.goto('/projects/new')
+      expect(opened?.status()).toBe(200)
+      expect((await opened?.request().redirectedFrom()?.response())?.status()).toBe(307)
+      await expect(page).toHaveURL(url => url.pathname === '/projects' && url.searchParams.get('modal') === 'new-project')
       const wizard = page.getByRole('dialog', { name: 'New Xtimate', exact: true })
       await expect(wizard).toBeVisible()
       await wizard.getByTestId('start-from-scratch-btn').click()
