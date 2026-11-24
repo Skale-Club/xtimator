@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 import { connect } from 'node:net'
+import { checkoutTarget } from './checkout-target.mjs'
 
 const checkoutOrigin = 'https://checkout.stripe.com'
 const successUrl = 'https://example.com/?xtimator_sandbox_complete=1'
@@ -16,14 +17,7 @@ async function readCheckout() {
     input += chunk
     if (input.length > 8192) throw new Error('Invalid Checkout input')
   }
-  const { sessionId, checkoutUrl } = JSON.parse(input)
-  const url = new URL(checkoutUrl)
-  if (typeof sessionId !== 'string' || !/^cs_test_[A-Za-z0-9]+$/.test(sessionId)
-    || url.origin !== checkoutOrigin || url.username || url.password
-    || ![`/c/pay/${sessionId}`, `/pay/${sessionId}`].includes(url.pathname)) {
-    throw new Error('Invalid Checkout target')
-  }
-  return url.href
+  return checkoutTarget(input)
 }
 
 // Chromium routing alone may miss the targets of HTTP redirects. The CONNECT
