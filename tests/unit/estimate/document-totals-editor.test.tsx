@@ -90,13 +90,13 @@ describe('editor totals grid', () => {
     let unmount: (() => void) | undefined
     try {
       const editor = within(container)
-      const taxInput = () => editor.getByRole<HTMLInputElement>('textbox', { name: 'Tax', exact: true })
+      const taxInput = () => editor.getByRole<HTMLInputElement>('textbox', { name: 'Tax' })
       const controls = () => [
         taxInput(),
-        editor.getByRole<HTMLInputElement>('textbox', { name: 'Discount', exact: true }),
-        editor.getByRole<HTMLInputElement>('textbox', { name: 'Deposit', exact: true }),
+        editor.getByRole<HTMLInputElement>('textbox', { name: 'Discount' }),
+        editor.getByRole<HTMLInputElement>('textbox', { name: 'Deposit' }),
         ...['totals-discount-row', 'totals-deposit-row'].map(id =>
-          within(editor.getByTestId(id)).getByRole<HTMLButtonElement>('button', { name: '% → $', exact: true }),
+          within(editor.getByTestId(id)).getByRole<HTMLButtonElement>('button', { name: '% → $' }),
         ),
       ]
       for (const control of controls()) expect(control.disabled).toBe(true)
