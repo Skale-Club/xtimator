@@ -62,6 +62,14 @@ jobs:
           node-version: 24 # matches .nvmrc and the local dev node
           cache: npm
 
+      # Six real PDF layout/hyphenation assertions require pdftotext. Missing
+      # Poppler must fail setup in CI instead of silently skipping those checks.
+      - name: Install the PDF regression reader
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          pdftotext -v
+
       # Use `npm install` (not `npm ci`) on purpose — same as the Dockerfile.
       # Several deps ship a platform-specific WASM subtree (@emnapi/*) that is
       # NOT in the committed lock file (it resolves per-platform), so strict

@@ -150,6 +150,8 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // Resolve the settings alias before rendering the authenticated shell.
+      { source: '/settings', destination: '/settings/company', permanent: false },
       // Trash was removed (deletes are permanent); old links land on Projects.
       { source: '/trash', destination: '/projects', permanent: false },
     ];

@@ -5,6 +5,7 @@ import { expect, test } from './test'
 type Surface = {
   path: string
   destination?: string
+  redirectStatus?: number
   verify: (page: Page) => Promise<void>
 }
 
@@ -17,31 +18,42 @@ async function heading(page: Page, name: string | RegExp, level = 1) {
 }
 
 async function visitSurfaces(page: Page, baseURL: string, info: TestInfo, surfaces: Surface[]) {
-  const browserErrors: Array<{ url: string; error: string }> = []
-  const serverErrors: Array<{ url: string; status: number }> = []
-  const visits: Array<{ path: string; expectedPath: string; actualUrl: string; status: number | null; horizontalOverflow: number | null }> = []
-  const pageError = (error: Error) => browserErrors.push({ url: page.url(), error: error.message })
-  const responseError = (response: Awaited<ReturnType<Page['goto']>>) => {
-    if (response && new URL(response.url()).origin === baseURL && response.status() >= 500) {
-      serverErrors.push({ url: response.url(), status: response.status() })
-    }
-  }
+  const browserErrors: Array<{ path: string; url: string; error: string; stack?: string }> = []
+  const serverErrors: Array<{ path: string; url: string; status: number }> = []
+  const visits: Array<{ path: string; expectedPath: string; actualUrl: string; status: number | null; redirect: number | null; horizontalOverflow: number | null }> = []
+  const context = page.context()
 
-  page.on('pageerror', pageError)
-  page.on('response', responseError)
   try {
-    for (const { path, destination = path, verify } of surfaces) {
+    for (const { path, destination = path, redirectStatus, verify } of surfaces) {
       await test.step(`Render ${path}${destination === path ? '' : ` → ${destination}`}`, async () => {
+        // Each route is a separate document visit. Keep the shared owned
+        // session and browser egress boundary, with no previous page fetching
+        // or attempting a recovery navigation during the next visit.
+        const screen = await context.newPage()
+        screen.on('pageerror', error => browserErrors.push({
+          path, url: screen.url(), error: error.message, stack: error.stack?.split('\n').slice(0, 8).join('\n'),
+        }))
+        screen.on('response', response => {
+          if (new URL(response.url()).origin === baseURL && response.status() >= 500) {
+            serverErrors.push({ path, url: response.url(), status: response.status() })
+          }
+        })
         let status: number | null = null
+        let redirect: number | null = null
         let horizontalOverflow: number | null = null
         try {
-          const response = await page.goto(path, { waitUntil: 'load', timeout: 25_000 })
+          const response = await screen.goto(path, { waitUntil: 'load', timeout: 25_000 })
           status = response?.status() ?? null
           expect.soft(status, `${path} document HTTP status`).toBe(200)
-          await expect.soft(page, `${path} destination`).toHaveURL(new URL(destination, baseURL).href, { timeout: 5_000 })
-          await verify(page)
-          await expect.soft(page.getByText(/^(Something went wrong\.|Application error:)/)).toHaveCount(0, { timeout: 2_000 })
-          horizontalOverflow = await page.evaluate(() => {
+          if (redirectStatus !== undefined) {
+            const originalResponse = await response?.request().redirectedFrom()?.response()
+            redirect = originalResponse?.status() ?? null
+            expect.soft(redirect, `${path} initial HTTP redirect`).toBe(redirectStatus)
+          }
+          await expect.soft(screen, `${path} destination`).toHaveURL(new URL(destination, baseURL).href, { timeout: 5_000 })
+          await verify(screen)
+          await expect.soft(screen.getByText(/^(Something went wrong\.|Application error:)/)).toHaveCount(0, { timeout: 2_000 })
+          horizontalOverflow = await screen.evaluate(() => {
             const root = document.documentElement
             return Math.max(root.scrollWidth, document.body.scrollWidth) - root.clientWidth
           })
@@ -49,22 +61,22 @@ async function visitSurfaces(page: Page, baseURL: string, info: TestInfo, surfac
         } catch (error) {
           expect.soft(error, `${path} navigation or render error`).toBeUndefined()
         } finally {
-          visits.push({ path, expectedPath: destination, actualUrl: page.url(), status, horizontalOverflow })
+          visits.push({ path, expectedPath: destination, actualUrl: screen.url(), status, redirect, horizontalOverflow })
           const name = path === '/' ? 'landing' : path.slice(1).replace(/[^a-z0-9-]+/gi, '-')
           try {
             await info.attach(`${name}.png`, {
-              body: await page.screenshot({ animations: 'disabled', scale: 'css', timeout: 5_000 }),
+              body: await screen.screenshot({ animations: 'disabled', scale: 'css', timeout: 5_000 }),
               contentType: 'image/png',
             })
           } catch (error) {
             expect.soft(error, `${path} screenshot error`).toBeUndefined()
+          } finally {
+            await screen.close()
           }
         }
       })
     }
   } finally {
-    page.off('pageerror', pageError)
-    page.off('response', responseError)
     await info.attach('screen-evidence.json', {
       body: JSON.stringify({ visits, browserErrors, serverErrors }, null, 2),
       contentType: 'application/json',
@@ -107,7 +119,7 @@ test('[QA:SETTINGS-SCREENS] identity, appearance, notification and team settings
       await expect.soft(p.getByTestId('team-coming-soon')).toHaveText('Inviting teammates is on the way.', { timeout: 5_000 })
     }
     await visitSurfaces(page, baseURL!, info, [
-      { path: '/settings', destination: '/settings/company', verify: company },
+      { path: '/settings', destination: '/settings/company', redirectStatus: 307, verify: company },
       { path: '/settings/company', verify: company },
       { path: '/settings/account', verify: account },
       { path: '/settings/general', destination: '/settings/account', verify: account },
@@ -182,6 +194,7 @@ test('[QA:ESTIMATE-SETTINGS-SCREENS] estimate, billing, integrations and knowled
 })
 
 test('[QA:WORKSPACE-SCREENS] notifications, Academy catalog and retired chat route render expected states', async ({ page, baseURL }, info) => {
+  info.annotations.push({ type: 'academy-source', description: 'Built-in development catalog. No Notion request is exercised.' })
   await withTenant(page, baseURL!, async () => {
     await visitSurfaces(page, baseURL!, info, [
       { path: '/notifications', verify: async p => {
@@ -190,7 +203,9 @@ test('[QA:WORKSPACE-SCREENS] notifications, Academy catalog and retired chat rou
       } },
       { path: '/academy', verify: async p => {
         await heading(p, 'Academy')
-        await visible(p.locator('h2 a[href^="/academy/"]').first())
+        const course = p.getByRole('link', { name: 'Getting started with Xtimator', exact: true })
+        await visible(course)
+        await expect.soft(course).toHaveAttribute('href', '/academy/fixture-course-0001', { timeout: 5_000 })
       } },
       { path: '/chat', destination: '/dashboard', verify: async p => heading(p, 'Dashboard') },
     ])
@@ -207,6 +222,7 @@ test('[QA:PUBLIC-SCREENS] marketing, sign-in, publication and legal screens rend
     { path: '/', verify: async p => {
       await heading(p, /\S/)
       const demo = p.getByRole('link', { name: 'See Demo', exact: true })
+        .and(p.locator('[data-xt-cta="demo"][data-xt-cta-placement="hero"]'))
       await visible(demo)
       await expect.soft(demo).toHaveAttribute('href', '/demo/entry', { timeout: 5_000 })
     } },

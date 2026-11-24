@@ -17,7 +17,7 @@
  * eligible categories in the dedicated consent action.
  */
 
-import { useMemo, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { Bell, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -26,6 +26,7 @@ import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useAppLanguage } from '@/lib/i18n/language-context'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { CategoryIcon } from '@/components/notifications/category-icon'
 import {
   enableBrowserPush,
@@ -139,10 +140,9 @@ export function NotificationsForm({
     setSmsConsentPending(false)
   }
 
-  const pushSupported = useMemo(() => {
-    if (typeof window === 'undefined') return true
-    return isPushSupported()
-  }, [])
+  const clientReady = useClientReady()
+  // Capability detection can change the description after hydration.
+  const pushSupported = !clientReady || isPushSupported()
 
   const phoneOnFile = !!verifiedPhone
 
@@ -407,7 +407,7 @@ export function NotificationsForm({
             type="button"
             size="sm"
             variant={pushEnabled ? 'outline' : 'default'}
-            disabled={!pushSupported || pushBusy}
+            disabled={!clientReady || !pushSupported || pushBusy}
             onClick={onTogglePush}
             data-testid="enable-push"
           >
