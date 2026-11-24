@@ -449,6 +449,15 @@
       "routes": ["/admin/legal", "/admin/whatsapp", "/admin/whatsapp-templates"],
       "hypothesis": "An owned development platform admin can open legacy bookmarks and reach the canonical content or inbox screen.",
       "expectedEvidence": "Each alias ends at its exact canonical URL with the expected heading and selected tab or native control. Uncaught browser exceptions and first-party server errors fail; no settings are saved."
+    },
+    {
+      "id": "ADM-LEARNER-DETAIL",
+      "titleToken": "[QA:ADM-LEARNER-DETAIL]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/academy/[courseId]/[lessonId]", "/admin/academy/[userId]"],
+      "hypothesis": "An owned development platform admin can read a different synthetic learner's actual completion and recover it after reload.",
+      "expectedEvidence": "An ordinary owned learner manually completes the text lesson through its real tracking endpoint. After closing that page and changing to the marked admin session, the detail screen shows that learner/company,33% course completion, a completion date and one lesson_complete timeline event. Reload preserves the evidence. Both fixtures are independently cleaned; captures and global writes are disabled."
     }
   ],
   "capabilities": [
@@ -499,7 +508,14 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
-      "reason": "Five read-only admin surfaces and post-denial login have passing browser evidence; request-level denial covers all28 routes. Three new read-only scenarios add19 surfaces but await browser validation. Positive dynamic article/industry-knowledge/learner details, grant/revoke, global writes, support mode and audit interactions still require isolated acceptance."
+      "reason": "Five read-only admin surfaces and post-denial login have passing browser evidence; request-level denial covers all28 routes. Three new screen scenarios add19 surfaces and one new real learner-detail journey awaits browser validation. Positive dynamic article/industry-knowledge details, grant/revoke, global writes, support mode and audit interactions still require isolated acceptance."
+    },
+    {
+      "id": "DEPENDENCY-READINESS",
+      "state": "blocked",
+      "requiredForLaunch": true,
+      "routes": ["/", "/api/mcp", "/storage/[bucket]/[...key]"],
+      "reason": "The2026-11-24 production dependency inventory reports3 critical and21 high package alerts before path triage. A reviewed Next/Sentry/sharp/MCP/Zod upgrade and proxy lock refresh are being resolved remotely. Candidate versions, audit deltas, compatibility and full regression/browser evidence must be verified; an audit count alone does not prove exploitability or remediation."
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",
