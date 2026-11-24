@@ -6,6 +6,7 @@ import {
 import type { Category } from '@/lib/admin/integrations-providers'
 import { loadCategoryInitials } from '@/lib/admin/integrations-providers'
 import { loadPlatformEventToggles } from '@/lib/admin/platform-event-preferences'
+import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { T } from '@/components/i18n/t'
 
@@ -39,6 +40,7 @@ type IntegrationCategoryContentProps = {
 export async function IntegrationCategoryContent({
   category,
 }: IntegrationCategoryContentProps) {
+  await requireAdmin()
   const [initials, openRouterModel, transcriptionModel, aiSettings] =
     await Promise.all([
       loadCategoryInitials(category),
