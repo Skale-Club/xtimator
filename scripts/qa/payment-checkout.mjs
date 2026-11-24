@@ -138,6 +138,17 @@ async function submitSubscription() {
   throw new Error('Subscription confirmation unavailable')
 }
 
+async function chooseCardBilling() {
+  for (const frame of page.frames()) {
+    const country = frame.locator('select[name="country"], select[name="billingCountry"], #billingCountry, select[autocomplete~="country"]')
+    if (await country.count() === 1 && await country.isVisible()) await country.selectOption('US')
+    const saveWithLink = frame.getByRole('checkbox', { name: /save (?:my |your )?(?:information|info|payment).*checkout|save.*payment.*future/i })
+    if (await saveWithLink.count() === 1 && await saveWithLink.isVisible() && await saveWithLink.isChecked()) {
+      await saveWithLink.uncheck()
+    }
+  }
+}
+
 // All values below are synthetic. Use the card in the real hosted UI per
 // https://docs.stripe.com/testing#test-code, never in a Stripe API call.
 async function checkout() {
@@ -180,8 +191,9 @@ async function checkout() {
   const cvc = await cardControl('#cardCvc, input[autocomplete="cc-csc"], input[name="cvc"]')
   await cvc.fill('')
   await cvc.pressSequentially('123')
-  await fillOptional('#billingName, input[autocomplete="cc-name"]', 'Xtimator Sandbox')
-  await fillOptional('#billingPostalCode, input[autocomplete="postal-code"]', '10001')
+  await chooseCardBilling()
+  await fillOptional('#billingName, input[autocomplete~="cc-name"]', 'Xtimator Sandbox')
+  await fillOptional('#billingPostalCode, #postalCode, input[name="postalCode"], input[autocomplete~="postal-code"]', '10001')
 
   phase = 'submit'
   await submitSubscription()
@@ -216,6 +228,7 @@ try {
       inputs: await frame.locator('input').count().catch(() => -1),
       invalidFields: await frame.locator('input:invalid, input[aria-invalid="true"]').evaluateAll(elements => elements.slice(0, 8).map(element => ({
         field: /^[A-Za-z-]{1,40}$/.test(element.name || element.id) ? element.name || element.id : 'other',
+        hasValue: element.value.trim().length > 0,
         valueMissing: element.validity.valueMissing, patternMismatch: element.validity.patternMismatch,
         typeMismatch: element.validity.typeMismatch, customError: element.validity.customError,
       }))).catch(() => []),

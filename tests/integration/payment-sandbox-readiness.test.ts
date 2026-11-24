@@ -203,6 +203,7 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
             cardFields: Number(frame.cardFields), emailFields: Number(frame.emailFields), inputs: Number(frame.inputs),
             invalidFields: Array.isArray(frame.invalidFields) ? frame.invalidFields.slice(0, 8).map((field: Record<string, unknown>) => ({
               field: typeof field.field === 'string' && /^[A-Za-z-]{1,40}$/.test(field.field) ? field.field : 'other',
+              hasValue: field.hasValue === true,
               valueMissing: field.valueMissing === true, patternMismatch: field.patternMismatch === true,
               typeMismatch: field.typeMismatch === true, customError: field.customError === true,
             })) : [],
