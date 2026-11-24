@@ -37,7 +37,7 @@ const providers = await startProviders()
 const children = [
   spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', '9650'], { env, stdio: 'inherit' }),
   spawn(process.platform === 'win32' ? process.execPath : resolve('node_modules/.bin/inngest-cli'),
-    [...(process.platform === 'win32' ? ['node_modules/inngest-cli/bin/inngest'] : []), 'dev', '-u', 'http://127.0.0.1:9650/api/inngest'],
+    [...(process.platform === 'win32' ? ['node_modules/inngest-cli/bin/inngest'] : []), 'dev', '--no-discovery', '-u', 'http://127.0.0.1:9650/api/inngest'],
     { env: { ...env, NODE_OPTIONS: '' }, stdio: 'inherit' }),
 ]
 let stopping = false

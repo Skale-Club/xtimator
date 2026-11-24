@@ -9,6 +9,7 @@
  */
 import { serve } from 'inngest/next'
 import { inngest } from '@/lib/inngest/client'
+import { isQaDevelopmentRuntime } from '@/lib/qa/runtime'
 import {
   generateEstimateJob,
   transcribeAudioJob,
@@ -43,7 +44,10 @@ import {
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [
+  // The development QA campaign must not register global maintenance crons
+  // against the shared development database. These three jobs operate only
+  // on explicitly dispatched synthetic project events.
+  functions: isQaDevelopmentRuntime() ? [generateEstimateJob, transcribeAudioJob, analyzePhotosJob] : [
     generateEstimateJob,
     transcribeAudioJob,
     analyzePhotosJob,
