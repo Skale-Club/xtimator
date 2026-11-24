@@ -56,7 +56,8 @@ const evidence = {
   preflightPassed: false, customerId: null as string | null, subscriptionSession: null as string | null,
   hostedCheckout: process.env.RUN_PAYMENT_BROWSER === '1' ? 'pending' : 'disabled',
   hostedFailureStage: null as string | null,
-  hostedTarget: null as { sessionFormat: boolean; origin: boolean; exactPath: boolean; segments: number } | null,
+  hostedTarget: null as { sessionFormat: boolean; origin: boolean; exactPath: boolean; segments: number;
+    canonicalPrefix: boolean; testToken: boolean; startsSession: boolean; extraLength: number; inputWithinLimit: boolean } | null,
   failureCode: null as string | null,
   companyDeleted: false, customerDeleted: false, archivedProducts: 0, archivedPrices: 0,
   unmarkedCreditCatalogRetained: false, suppressedProviderLogs: 0,
@@ -162,10 +163,14 @@ async function completeHostedCheckout(session: Stripe.Checkout.Session) {
     throw new SandboxGuardError('Refused a non-open or unexpected Stripe test subscription Checkout')
   }
   const target = new URL(session.url)
+  const opaquePart = target.pathname.split('/').filter(Boolean).at(-1) ?? ''
   evidence.hostedTarget = { sessionFormat: /^cs_test_[A-Za-z0-9]+$/.test(session.id),
     origin: target.origin === 'https://checkout.stripe.com',
     exactPath: [`/c/pay/${session.id}`, `/pay/${session.id}`].includes(target.pathname),
-    segments: target.pathname.split('/').filter(Boolean).length }
+    segments: target.pathname.split('/').filter(Boolean).length,
+    canonicalPrefix: target.pathname.startsWith('/c/pay/'), testToken: /^cs_test_[A-Za-z0-9]+$/.test(opaquePart),
+    startsSession: opaquePart.startsWith(session.id), extraLength: opaquePart.length - session.id.length,
+    inputWithinLimit: Buffer.byteLength(JSON.stringify({ sessionId: session.id, checkoutUrl: session.url }), 'utf8') <= 8192 }
   saveEvidence()
   // The browser and its child processes receive only operating system settings.
   // Pass the short-lived Checkout URL on stdin and discard process diagnostics.
