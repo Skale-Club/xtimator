@@ -22,7 +22,14 @@ test('[QA:PROJECT-CLIENT-RELINK] changing the owned project recipient updates th
   const desktop = info.project.name === 'chromium'
   const projectPath = `/projects/${fixture.projectId}`
   async function verifyWidthRecipient() {
-    if (!desktop) await page.getByRole('button', { name: 'Show estimate details', exact: true }).click()
+    if (!desktop) {
+      const compactDetails = page.getByTestId('mobile-doc-top-compact')
+      await expect(compactDetails).toBeVisible({ timeout: 20_000 })
+      await expect(compactDetails.getByText('Show estimate details', { exact: true })).toBeVisible()
+      await compactDetails.click({ timeout: 20_000 })
+      await expect(compactDetails).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Hide estimate details', exact: true })).toBeVisible()
+    }
     await expect(billTo(page).getByText(replacement, { exact: true })).toBeVisible()
     await expect(billTo(page).getByText(fixture.clientName, { exact: true })).toHaveCount(0)
   }

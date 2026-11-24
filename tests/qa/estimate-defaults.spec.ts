@@ -89,7 +89,12 @@ test('[QA:ESTIMATE-DEFAULTS-APPLY] changed workspace defaults apply to a new man
     await expect(taxField).toHaveValue(TAX_PERCENT)
     await expect(paymentBlock.getByRole('textbox', { name: 'Payment Terms', exact: true })).toHaveValue(PAYMENT_TEXT)
     if (info.project.name !== 'chromium') {
-      await page.getByRole('button', { name: 'Show estimate details', exact: true }).click()
+      const compactDetails = page.getByTestId('mobile-doc-top-compact')
+      await expect(compactDetails).toBeVisible({ timeout: 20_000 })
+      await expect(compactDetails.getByText('Show estimate details', { exact: true })).toBeVisible()
+      await compactDetails.click({ timeout: 20_000 })
+      await expect(compactDetails).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Hide estimate details', exact: true })).toBeVisible()
     }
     await expect(page.getByText(/^Valid until:/i).filter({ visible: true })).toBeVisible()
   } finally {
