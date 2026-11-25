@@ -596,7 +596,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/", "/projects/[id]/capture", "/estimate/[token]"],
-      "reason": "The baseline production inventory reports3critical/21high package entries. The reviewed Next/Sentry/sharp/MCP/Zod upgrade and compatible transitive/telemetry refresh reduce the candidate to0critical/6high entries. Remaining Firebase gRPC and Inngest Zod chains need reachability/mitigation evidence. Full compatibility and browser regression remain pending; package metadata or audit counts alone cannot prove exploitability, absence from compiled bundles, or remediation."
+      "reason": "The committed lock (0 critical/6 high) passed full regression twice and the 160-case acceptance campaign twice with zero retries. All 6 high entries come from two advisories with reachability evidence in docs/qa/DEPENDENCY-READINESS-2026-11-25.md. Firestore's nested @grpc/grpc-js: Firestore is never imported, and Firebase runs browser-only auth. Inngest's nested zod 3: the signature is checked before any zod parse, and production answers 401 to unsigned requests. Owner acceptance of these two documented residual advisories, or a requested hygiene change, remains; moderate/low entries are not individually triaged."
     },
     {
       "id": "CHANGE-ORDER-LIFECYCLE",
