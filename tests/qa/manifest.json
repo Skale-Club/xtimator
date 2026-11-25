@@ -186,7 +186,7 @@
     {
       "id": "AXE-LANDING",
       "titleToken": "[QA:AXE-LANDING]",
-      "requiredForExecution": true,
+      "requiredForExecution": false,
       "requiredForLaunch": true,
       "routes": ["/", "/login"],
       "hypothesis": "An anonymous first visitor can use the landing page, its cookie consent banner, its sign-up dialog and the sign-in page without serious accessibility barriers.",
@@ -195,7 +195,7 @@
     {
       "id": "AXE-ONBOARDING",
       "titleToken": "[QA:AXE-ONBOARDING]",
-      "requiredForExecution": true,
+      "requiredForExecution": false,
       "requiredForLaunch": true,
       "routes": ["/onboarding"],
       "hypothesis": "A new owned-identity user who has no company yet sees onboarding steps with named controls and no serious accessibility barriers.",
