@@ -195,11 +195,10 @@ test('[QA:AXE-LANDING] anonymous landing page with its consent banner and sign-u
     await test.step('Scan the landing page with the sign-up dialog open', async () => {
       // The landing header has no hamburger menu at any width: its only control is the sign-up call to action.
       const dialog = page.locator('[role="dialog"][aria-modal="true"]')
-      // The header CTA ignores clicks until hydrated and the dialog chunk loads on demand.
-      await expect(async () => {
-        if (!await dialog.isVisible()) await page.locator('header').first().getByRole('button').first().click({ timeout: 5_000 })
-        await expect(dialog).toBeVisible({ timeout: 5_000 })
-      }).toPass({ timeout: 30_000 })
+      // The landing page's own deep link (?auth=signup, used by CTAs and emails) opens the
+      // on-demand dialog without depending on which header CTA the configured content renders.
+      expect((await page.goto('/?auth=signup'))?.status()).toBe(200)
+      await expect(dialog).toBeVisible({ timeout: 20_000 })
       await expect(dialog).toHaveAccessibleName(/\S/)
       await expect.soft(dialog.getByRole('button', { name: 'Close', exact: true })).toBeVisible()
       await audit(page, info, 'landing-auth-dialog')
