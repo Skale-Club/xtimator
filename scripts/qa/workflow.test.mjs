@@ -160,6 +160,17 @@ test('production-mode compilation uses the same trusted development boundary', (
   }
 })
 
+test('the isolated acceptance job requires test types before opening a browser', () => {
+  const acceptance = source.split('\n  acceptance:')[1]?.split('\n  payment-sandbox:')[0]
+  const typeCheck = acceptance?.match(/name: Verify acceptance test types\r?\n\s+run: npx tsc --noEmit/)?.[0]
+  assert.ok(typeCheck)
+  assert.ok(acceptance.indexOf(typeCheck) < acceptance.indexOf('name: Exercise required initial scenarios'))
+  assert.match(source, /name: Bare typecheck \(advisory, non-blocking\)\r?\n\s+continue-on-error: true/)
+  for (const event_name of ['push', 'workflow_dispatch']) {
+    assert.equal(enabled(job('acceptance'), { ref: 'refs/heads/main', ref_type: 'branch', event_name }, { qa: true }), false)
+  }
+})
+
 test('dependency resolution is a secret-free manual candidate and cannot replace protected regression', () => {
   const github = { ref: 'refs/heads/feat/autonomous-launch-qa', ref_type: 'branch', event_name: 'workflow_dispatch', repository: 'Skale-Club/xtimator' }
   const inputs = { qa: false, payment_sandbox: false, unit_scope: 'dependency-lock' }

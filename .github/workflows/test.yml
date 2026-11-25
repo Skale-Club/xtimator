@@ -261,6 +261,10 @@ jobs:
           echo "XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION=1" >> "$GITHUB_ENV"
       - name: Verify campaign infrastructure
         run: npm run qa:infrastructure
+      # Acceptance never runs on main. Its test contracts have a strict check;
+      # the separate main/deploy unit job keeps its existing advisory check.
+      - name: Verify acceptance test types
+        run: npx tsc --noEmit
       - name: Verify browser fixture loading without browser startup
         run: npm run qa:loader
       - name: Retain the resolved dependency lock for review
