@@ -194,7 +194,7 @@ test('[QA:AXE-LANDING] anonymous landing page with its consent banner and sign-u
 
     await test.step('Scan the landing page with the sign-up dialog open', async () => {
       // The landing header has no hamburger menu at any width: its only control is the sign-up call to action.
-      const dialog = page.locator('[role="dialog"][aria-modal="true"]')
+      const dialog = page.getByRole('dialog')
       // The landing page's own deep link (?auth=signup, used by CTAs and emails) opens the
       // on-demand dialog without depending on which header CTA the configured content renders.
       expect((await page.goto('/?auth=signup'))?.status()).toBe(200)
