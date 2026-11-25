@@ -11,6 +11,7 @@ const ADMIN_SPEC_FILES = new Set([
   'admin-route-denial.spec.ts',
   'admin-surfaces.spec.ts',
   'admin-content-details.spec.ts',
+  'admin-workflows.spec.ts',
 ].map(name => resolve(QA_SOURCE_DIR, name)))
 
 export const REDACTED_ADMIN_ERROR = 'Admin QA error details redacted.'
