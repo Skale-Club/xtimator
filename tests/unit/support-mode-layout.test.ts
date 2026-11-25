@@ -74,11 +74,15 @@ describe('components/admin/support-mode-banner.tsx: contract', () => {
     }
   })
 
-  it('exit CTA calls endSupportSession via a form action', () => {
+  it('exit CTA calls endSupportSession through a Server Action bound to the form', () => {
     try {
       const src = readBanner()
-      expect(src).toMatch(/endSupportSession/)
-      expect(src).toMatch(/<form\s+action=\{?\s*endSupportSession/)
+      // support-mode.ts is server-only, not 'use server': binding it directly broke the layout render.
+      expect(src).toMatch(/from '@\/lib\/auth\/support-mode-actions'/)
+      expect(src).toMatch(/<form\s+action=\{?\s*endSupportSessionAction/)
+      const action = readFileSync(resolve(process.cwd(), 'lib/auth/support-mode-actions.ts'), 'utf8')
+      expect(action).toMatch(/^'use server'/)
+      expect(action).toMatch(/await endSupportSession\(\)/)
     } catch {
       expect.fail('Wave 0: components/admin/support-mode-banner.tsx not yet written')
     }

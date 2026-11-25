@@ -1,5 +1,5 @@
 import { ShieldCheck } from 'lucide-react'
-import { endSupportSession } from '@/lib/auth/support-mode'
+import { endSupportSessionAction } from '@/lib/auth/support-mode-actions'
 
 interface SupportModeBannerProps {
   companyName: string
@@ -19,7 +19,7 @@ export function SupportModeBanner({ companyName, adminEmail }: SupportModeBanner
       <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
       <span className="text-center">
         Viewing <strong>{companyName}</strong> as {adminEmail}.{' '}
-        <form action={endSupportSession} className="inline">
+        <form action={endSupportSessionAction} className="inline">
           <button
             type="submit"
             className="font-semibold underline underline-offset-2 hover:no-underline"
