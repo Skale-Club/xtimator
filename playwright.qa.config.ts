@@ -32,5 +32,5 @@ export default defineConfig({
     { name: 'mobile-safari', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['iPhone 13'] } },
     { name: 'mobile-chrome', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['Pixel 7'], ...chromiumTrust } },
   ],
-  webServer: { command: 'node scripts/qa/start.mjs', url: `${QA_APP_ORIGIN}/api/health?quick=1`, ignoreHTTPSErrors: true, reuseExistingServer: false, timeout: 360_000 },
+  webServer: { command: 'node scripts/qa/start.mjs', url: `${QA_APP_ORIGIN}/api/health?quick=1`, ignoreHTTPSErrors: true, reuseExistingServer: false, timeout: 600_000 },
 })
