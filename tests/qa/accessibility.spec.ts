@@ -194,7 +194,8 @@ test('[QA:AXE-LANDING] anonymous landing page with its consent banner and sign-u
 
     await test.step('Scan the landing page with the sign-up dialog open', async () => {
       // The landing header has no hamburger menu at any width: its only control is the sign-up call to action.
-      const dialog = page.getByRole('dialog')
+      // Named: the consent banner is also role=dialog and re-enters the tree once Radix closes this one.
+      const dialog = page.getByRole('dialog', { name: /^Sign in to / })
       // The landing page's own deep link (?auth=signup, used by CTAs and emails) opens the
       // on-demand dialog without depending on which header CTA the configured content renders.
       expect((await page.goto('/?auth=signup'))?.status()).toBe(200)
