@@ -31,25 +31,37 @@ async function waitForStreamedSegmentsRevealed(page: Page, response: Response | 
   }
 }
 
+const settledPages = new WeakSet<Page>()
+
+/** Make goto/reload wait for streamed segments on this page (idempotent). */
+function settleNavigation(page: Page) {
+  if (settledPages.has(page)) return
+  settledPages.add(page)
+  const goto = page.goto.bind(page)
+  const reload = page.reload.bind(page)
+  page.goto = (async (...args: Parameters<Page['goto']>) => {
+    const response = await goto(...args)
+    await waitForStreamedSegmentsRevealed(page, response)
+    return response
+  }) as Page['goto']
+  page.reload = (async (...args: Parameters<Page['reload']>) => {
+    const response = await reload(...args)
+    await waitForStreamedSegmentsRevealed(page, response)
+    return response
+  }) as Page['reload']
+}
+
 /** Apply the same browser boundary to every QA journey, including new specs. */
 export const test = base.extend({
   page: async ({ page }, use) => {
-    const goto = page.goto.bind(page)
-    const reload = page.reload.bind(page)
-    page.goto = (async (...args: Parameters<Page['goto']>) => {
-      const response = await goto(...args)
-      await waitForStreamedSegmentsRevealed(page, response)
-      return response
-    }) as Page['goto']
-    page.reload = (async (...args: Parameters<Page['reload']>) => {
-      const response = await reload(...args)
-      await waitForStreamedSegmentsRevealed(page, response)
-      return response
-    }) as Page['reload']
+    settleNavigation(page)
     await use(page)
   },
   context: async ({ context, baseURL }, use, info) => {
     if (!baseURL) throw new Error('The QA browser boundary requires the local app origin')
+    // Specs also open extra pages with context.newPage() (admin surfaces, PDFs);
+    // they need the same streamed-segment settling as the fixture page.
+    context.on('page', settleNavigation)
     const blocked = new Set<string>()
     await context.route('**/*', route => {
       const url = new URL(route.request().url())
