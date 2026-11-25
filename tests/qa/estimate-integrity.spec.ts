@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import type { Page } from '@playwright/test'
+import { drawSignatureStroke } from './fixtures/signature-canvas'
 import { createQaFixture } from './fixtures/tenant'
 import { expect, test } from './test'
 
@@ -37,15 +38,7 @@ async function signEstimate(page: Page, fixture: Tenant, desktop: boolean) {
   const signer = 'QA Estimate Lock Signer'
   await dialog.getByLabel('Your full name').fill(signer)
   const canvas = dialog.locator('canvas')
-  await canvas.scrollIntoViewIfNeeded()
-  const box = await canvas.boundingBox()
-  if (!box) throw new Error('Signature canvas is not visible')
-  await page.mouse.move(box.x + box.width * 0.1, box.y + box.height * 0.6)
-  await page.mouse.down()
-  for (const [x, y] of [[0.25, 0.3], [0.4, 0.7], [0.6, 0.25], [0.8, 0.6]]) {
-    await page.mouse.move(box.x + box.width * x, box.y + box.height * y, { steps: 3 })
-  }
-  await page.mouse.up()
+  await drawSignatureStroke(page, canvas)
   const [response] = await Promise.all([
     page.waitForResponse(r => new URL(r.url()).pathname === `/api/estimates/${fixture.estimateId}/sign` && r.request().method() === 'POST', { timeout: 30_000 }),
     dialog.getByRole('button', { name: 'Sign & Accept Estimate', exact: true }).click(),

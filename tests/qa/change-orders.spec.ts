@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { canonicalJsonStringify } from '../../lib/estimate/signed-snapshot'
+import { drawSignatureStroke } from './fixtures/signature-canvas'
 import { createQaFixture } from './fixtures/tenant'
 import { auditKeyboardSignature, expectNoSignaturePointer, expectSignaturePng, observeSignaturePointers, tabTo, typeSignature } from './fixtures/keyboard-signature'
 import { expect, test } from './test'
@@ -24,15 +25,7 @@ function utcResponseDate(value: unknown) {
 async function drawSignature(page: Page, dialog: Locator, signer: string) {
   await dialog.getByLabel('Your full name').fill(signer)
   const canvas = dialog.locator('canvas')
-  await canvas.scrollIntoViewIfNeeded()
-  const box = await canvas.boundingBox()
-  if (!box) throw new Error('Signature canvas is not visible')
-  await page.mouse.move(box.x + box.width * 0.1, box.y + box.height * 0.6)
-  await page.mouse.down()
-  for (const [x, y] of [[0.25, 0.3], [0.4, 0.7], [0.6, 0.25], [0.8, 0.6]]) {
-    await page.mouse.move(box.x + box.width * x, box.y + box.height * y, { steps: 3 })
-  }
-  await page.mouse.up()
+  await drawSignatureStroke(page, canvas)
 }
 
 async function signOriginalEstimate(page: Page, fixture: Tenant, info: TestInfo, keyboard = false) {

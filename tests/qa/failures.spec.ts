@@ -1,6 +1,7 @@
 import type { Locator, Page, TestInfo } from '@playwright/test'
 import { test, expect } from './test'
 import { createQaFixture } from './fixtures/tenant'
+import { drawSignatureStroke } from './fixtures/signature-canvas'
 import { observeMicrophoneEvents } from './fixtures/media-events'
 
 type Tenant = ReturnType<typeof createQaFixture>
@@ -183,16 +184,7 @@ test('[QA:MICROPHONE-DENIED] microphone refusal leaves the estimate and capture 
 })
 
 async function drawSignature(page: Page, dialog: Locator) {
-  const canvas = dialog.locator('canvas')
-  await canvas.scrollIntoViewIfNeeded()
-  const box = await canvas.boundingBox()
-  if (!box) throw new Error('Signature canvas is not visible')
-  await page.mouse.move(box.x + box.width * 0.15, box.y + box.height * 0.62)
-  await page.mouse.down()
-  for (const [x, y] of [[0.32, 0.27], [0.48, 0.7], [0.67, 0.34], [0.84, 0.58]]) {
-    await page.mouse.move(box.x + x * box.width, box.y + y * box.height, { steps: 3 })
-  }
-  await page.mouse.up()
+  await drawSignatureStroke(page, dialog.locator('canvas'))
 }
 
 test('[QA:STALE-SIGNATURE] a concurrent estimate edit rejects the stale public signature', async ({ page, baseURL }, info) => {

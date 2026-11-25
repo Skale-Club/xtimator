@@ -1,9 +1,50 @@
 import { test as base, expect } from '@playwright/test'
-import type { ConsoleMessage, Request, Response, WebError } from '@playwright/test'
+import type { ConsoleMessage, Page, Request, Response, WebError } from '@playwright/test'
 import { createBrowserFailureTracker } from './fixtures/browser-failures'
+
+const STREAM_REVEAL_TIMEOUT_MS = 15_000
+
+/**
+ * React streaming SSR leaves the server-rendered copy of a Suspense boundary in a hidden
+ * `<div hidden id="S:n">` for up to ~150 ms after load while the live copy is already in
+ * place, so a locator can match two elements and fail strict mode. Real users never see
+ * the hidden copy, so after a full-document navigation we wait until none is left.
+ */
+async function waitForStreamedSegmentsRevealed(page: Page, response: Response | null) {
+  if (!response || page.isClosed()) return
+  if (!(response.headers()['content-type'] ?? '').toLowerCase().includes('html')) return
+  try {
+    await page.waitForFunction(
+      () => document.querySelector('div[hidden][id^="S:"]') === null,
+      undefined,
+      { timeout: STREAM_REVEAL_TIMEOUT_MS },
+    )
+  } catch (error) {
+    if (page.isClosed()) return
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new Error(`streamed Suspense segment never revealed: ${page.url()}`)
+    }
+    throw error
+  }
+}
 
 /** Apply the same browser boundary to every QA journey, including new specs. */
 export const test = base.extend({
+  page: async ({ page }, use) => {
+    const goto = page.goto.bind(page)
+    const reload = page.reload.bind(page)
+    page.goto = (async (...args: Parameters<Page['goto']>) => {
+      const response = await goto(...args)
+      await waitForStreamedSegmentsRevealed(page, response)
+      return response
+    }) as Page['goto']
+    page.reload = (async (...args: Parameters<Page['reload']>) => {
+      const response = await reload(...args)
+      await waitForStreamedSegmentsRevealed(page, response)
+      return response
+    }) as Page['reload']
+    await use(page)
+  },
   context: async ({ context, baseURL }, use, info) => {
     if (!baseURL) throw new Error('The QA browser boundary requires the local app origin')
     const blocked = new Set<string>()
