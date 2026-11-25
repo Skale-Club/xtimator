@@ -85,3 +85,54 @@ test('sanitized attachments never include exception texts, URLs or request failu
     assert.equal(evidence.includes(privateText), false)
   }
 })
+
+const notifications = `${origin}/api/notifications/list?limit=20`
+const accessError = url => `Fetch API cannot load ${url} due to access control checks.`
+
+test('access-control pageerrors are nonfatal only when the same URL was observed cancelled, in either order', () => {
+  const a = createBrowserFailureTracker(origin)
+  a.assetRequestFailed(notifications, 'fetch', 'cancelled')
+  a.pageError(accessError(notifications))
+  const b = createBrowserFailureTracker(origin)
+  b.pageError(`TypeError: ${accessError(notifications)}`)
+  b.assetRequestFailed(notifications, 'fetch', 'net::ERR_ABORTED')
+  for (const t of [a, b]) {
+    assert.deepEqual(t.summary(), { fatalCount: 0, events: [{ source: 'pageerror', classification: 'cancelled', fatal: false, count: 1 }] })
+  }
+})
+
+test('access-control pageerror without a cancelled request, or cross-origin, stays fatal', () => {
+  const none = createBrowserFailureTracker(origin)
+  none.pageError(accessError(notifications))
+  assert.equal(none.summary().fatalCount, 1)
+  assert.equal(none.summary().events[0].classification, 'unhandled-exception')
+  const cross = createBrowserFailureTracker(origin)
+  const other = 'https://external.invalid/api/x'
+  cross.assetRequestFailed(other, 'fetch', 'cancelled')
+  cross.pageError(accessError(other))
+  assert.equal(cross.summary().fatalCount, 1)
+})
+
+test('truncated access-control URL resolves and a different query string does not match', () => {
+  const t = createBrowserFailureTracker(origin)
+  t.assetRequestFailed(notifications, 'fetch', 'cancelled')
+  t.pageError(accessError('/127.0.0.1:9650/api/notifications/list?limit=20'))
+  assert.equal(t.summary().fatalCount, 0)
+  const q = createBrowserFailureTracker(origin)
+  q.assetRequestFailed(notifications, 'fetch', 'cancelled')
+  q.pageError(accessError(`${origin}/api/notifications/list?limit=50`))
+  assert.equal(q.summary().fatalCount, 1)
+  assert.equal(JSON.stringify(t.summary()).includes('127.0.0.1'), false)
+})
+
+test('the exact WebKit message from run 45649047574 (name split at the scheme colon) resolves', () => {
+  // Error.name was "Fetch API cannot load https"; Error.message is what the fixture receives.
+  const message = '/127.0.0.1:9650/api/notifications/list?limit=20 due to access control checks.'
+  const cancelled = createBrowserFailureTracker(origin)
+  cancelled.pageError(message)
+  cancelled.assetRequestFailed(notifications, 'fetch', 'cancelled')
+  assert.equal(cancelled.summary().fatalCount, 0)
+  const live = createBrowserFailureTracker(origin)
+  live.pageError(message)
+  assert.equal(live.summary().fatalCount, 1)
+})
