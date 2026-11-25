@@ -130,7 +130,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
             <p className="text-sm text-muted-foreground">
               &copy; {year} {branding.appName}. All rights reserved.
             </p>
-            <p className="text-xs text-muted-foreground/60">Developed by Skale Club</p>
+            <p className="text-xs text-muted-foreground">Developed by Skale Club</p>
           </div>
           <div className="flex gap-6 text-muted-foreground">
             <Link

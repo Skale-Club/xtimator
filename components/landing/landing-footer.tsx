@@ -81,7 +81,7 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth, showStoreBadge = t
             <p className="text-[13px] text-muted-foreground sm:text-sm">
               &copy; {new Date().getFullYear()} {appName}. All rights reserved.
             </p>
-            <p className="text-xs text-muted-foreground/60">Developed by Skale Club</p>
+            <p className="text-xs text-muted-foreground">Developed by Skale Club</p>
           </div>
           <Link href="/blog" className="hidden text-sm text-muted-foreground transition-colors hover:text-white sm:block">
             Estimating guides

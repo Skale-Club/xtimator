@@ -19,7 +19,29 @@ async function withTenant(page: Page, baseURL: string, run: (fixture: Tenant) =>
   }
 }
 
+/**
+ * Entrance animations (CSS/WAAPI fades and script-driven inline opacity) make axe measure
+ * half-transparent text. Wait until finite animations finish and inline styles stop changing,
+ * so contrast is judged on what the user sees once the screen settles.
+ */
+async function settleAnimations(page: Page) {
+  await page.waitForFunction(async () => {
+    const running = document.getAnimations().filter(animation => {
+      const timing = animation.effect?.getComputedTiming()
+      return animation.playState === 'running' && timing?.iterations !== Infinity
+    })
+    if (running.length) return false
+    const sample = () => Array.from(document.querySelectorAll<HTMLElement>('[style*="opacity"],[style*="transform"]'),
+      element => `${element.style.opacity}|${element.style.transform}`).join(',')
+    const before = sample()
+    await new Promise(resolve => setTimeout(resolve, 150))
+    return sample() === before && !document.getAnimations().some(animation => animation.playState === 'running'
+      && animation.effect?.getComputedTiming().iterations !== Infinity)
+  }, undefined, { timeout: 15_000, polling: 250 })
+}
+
 async function audit(page: Page, info: TestInfo, surface: string) {
+  await settleAnimations(page)
   const results = await new AxeBuilder({ page }).withTags(WCAG_RULE_TAGS).analyze()
   const impact = { critical: 0, serious: 0, moderate: 0, minor: 0, unclassified: 0 }
   for (const violation of results.violations) impact[violation.impact ?? 'unclassified']++
@@ -172,9 +194,12 @@ test('[QA:AXE-LANDING] anonymous landing page with its consent banner and sign-u
 
     await test.step('Scan the landing page with the sign-up dialog open', async () => {
       // The landing header has no hamburger menu at any width: its only control is the sign-up call to action.
-      await page.locator('header').first().getByRole('button').first().click()
       const dialog = page.locator('[role="dialog"][aria-modal="true"]')
-      await expect(dialog).toBeVisible()
+      // The header CTA ignores clicks until hydrated and the dialog chunk loads on demand.
+      await expect(async () => {
+        if (!await dialog.isVisible()) await page.locator('header').first().getByRole('button').first().click({ timeout: 5_000 })
+        await expect(dialog).toBeVisible({ timeout: 5_000 })
+      }).toPass({ timeout: 30_000 })
       await expect(dialog).toHaveAccessibleName(/\S/)
       await expect.soft(dialog.getByRole('button', { name: 'Close', exact: true })).toBeVisible()
       await audit(page, info, 'landing-auth-dialog')
@@ -234,9 +259,11 @@ test('[QA:AXE-ONBOARDING] a new owned-identity user sees accessible language, co
 })
 
 /** Tab (or Shift+Tab) until the target owns focus, using the same WebKit-aware key as the other keyboard journeys. */
-async function reachByKeyboard(page: Page, target: Locator, label: string, { reverse = false, limit = 200 } = {}) {
+async function reachByKeyboard(page: Page, target: Locator, label: string, { reverse = false, limit = 200, link = false } = {}) {
   await expect(target).toBeVisible()
-  const base = traversalKey(page)
+  // Full keyboard access covers controls only; Safari reaches links with Option+Tab
+  // ("Press Tab to highlight each item" is a separate, default-off preference).
+  const base = link && page.context().browser()?.browserType().name() === 'webkit' ? 'Alt+Tab' : traversalKey(page)
   const key = reverse ? `Shift+${base}` : base
   for (let count = 0; count <= limit; count++) {
     if (await target.evaluate(element => element === document.activeElement)) return
@@ -253,11 +280,19 @@ async function expectVisibleFocusIndicator(page: Page, label: string) {
   const indicator = await page.evaluate(() => {
     const element = document.activeElement
     if (!element || element === document.body) return null
-    const style = getComputedStyle(element)
-    const outline = (style.outlineStyle === 'auto' || (style.outlineStyle !== 'none' && style.outlineStyle !== 'hidden' && parseFloat(style.outlineWidth) > 0))
-      && style.outlineColor !== 'rgba(0, 0, 0, 0)' && style.outlineColor !== 'transparent'
-    const shadow = style.boxShadow !== 'none' && style.boxShadow !== ''
-    return { tag: element.tagName.toLowerCase(), outline, shadow }
+    const drawn = (node: Element) => {
+      const style = getComputedStyle(node)
+      const outline = (style.outlineStyle === 'auto' || (style.outlineStyle !== 'none' && style.outlineStyle !== 'hidden' && parseFloat(style.outlineWidth) > 0))
+        && style.outlineColor !== 'rgba(0, 0, 0, 0)' && style.outlineColor !== 'transparent'
+      return { outline, shadow: style.boxShadow !== 'none' && style.boxShadow !== '' }
+    }
+    const own = drawn(element)
+    // A field may draw its ring on the wrapper through :focus-within (e.g. stepper inputs).
+    let wrapper = { outline: false, shadow: false }
+    for (let node = element.parentElement, depth = 0; node && depth < 3 && !wrapper.outline && !wrapper.shadow; node = node.parentElement, depth++) {
+      if (node.matches(':focus-within')) wrapper = drawn(node)
+    }
+    return { tag: element.tagName.toLowerCase(), outline: own.outline || wrapper.outline, shadow: own.shadow || wrapper.shadow }
   })
   expect(indicator, `${label} must own focus`).not.toBeNull()
   expect(indicator!.outline || indicator!.shadow, `${label} (<${indicator!.tag}>) must show a focus outline or ring`).toBe(true)
@@ -276,7 +311,7 @@ test('[QA:KEYBOARD-WORKSPACE-NAV] Tab and Enter move between the dashboard, clie
     const link = (name: string) => navigation.getByRole('link', { name, exact: true })
 
     await test.step('Reach Clients in the main navigation and open it', async () => {
-      await reachByKeyboard(page, link('Clients'), 'the Clients navigation link')
+      await reachByKeyboard(page, link('Clients'), 'the Clients navigation link', { link: true })
       await expectVisibleFocusIndicator(page, 'Clients navigation link')
       await page.keyboard.press('Enter')
       await expect(page).toHaveURL(/\/clients$/)
@@ -285,7 +320,7 @@ test('[QA:KEYBOARD-WORKSPACE-NAV] Tab and Enter move between the dashboard, clie
     })
 
     await test.step('Go back to the dashboard with Shift+Tab and Enter', async () => {
-      await reachByKeyboard(page, link('Dashboard'), 'the Dashboard navigation link', { reverse: true })
+      await reachByKeyboard(page, link('Dashboard'), 'the Dashboard navigation link', { reverse: true, link: true })
       await expectVisibleFocusIndicator(page, 'Dashboard navigation link')
       await page.keyboard.press('Enter')
       await expect(page).toHaveURL(/\/dashboard$/)

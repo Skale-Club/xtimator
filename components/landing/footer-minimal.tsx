@@ -16,7 +16,7 @@ export function FooterMinimal({ appName }: FooterMinimalProps) {
           <p className="text-[length:var(--font-size-sm)] font-[var(--font-weight-normal)] tracking-[0.04em] text-muted-foreground">
             © 2026 {appName}. All rights reserved.
           </p>
-          <p className="text-xs text-muted-foreground/60">Developed by Skale Club</p>
+          <p className="text-xs text-muted-foreground">Developed by Skale Club</p>
         </div>
       </div>
     </footer>
