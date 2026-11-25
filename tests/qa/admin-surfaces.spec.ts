@@ -2,7 +2,7 @@ import type { BrowserContext, Locator, TestInfo } from '@playwright/test'
 import { createQaFixture } from './fixtures/tenant'
 import { expect, test } from './test'
 
-test.use({ trace: 'off', video: 'off', screenshot: 'off' })
+test.use({ trace: 'off', video: 'off', screenshot: 'off', timezoneId: 'America/Los_Angeles' })
 
 type Tenant = ReturnType<typeof createQaFixture>
 type Surface = {
@@ -152,6 +152,24 @@ test('[QA:ADM-OPERATIONS-SCREENS] administrative monitoring and provisioning scr
 
 test('[QA:ADM-LEGACY-ALIASES] administrative bookmarks redirect to the canonical screens', async ({ context, baseURL }, info) => {
   test.setTimeout(180_000)
+  const probe = await context.newPage()
+  try {
+    const browser = await probe.evaluate(() => ({
+      zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      // Synthetic fixed input only; never read or retain a conversation date.
+      text: new Date('2026-11-20T12:34:00Z').toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      }),
+    }))
+    expect(browser.zone).toBe('America/Los_Angeles')
+    const serverText = new Date('2026-11-20T12:34:00Z').toLocaleDateString('en-US', {
+      timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    })
+    expect(browser.text).not.toBe(serverText)
+    info.annotations.push({ type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' })
+  } finally {
+    await probe.close()
+  }
   const aliases: Surface[] = [
     { route: '/admin/legal', destination: '/admin/pages', redirectStatus: 307, heading: 'Pages', verify: verifyLegalPages },
     { route: '/admin/whatsapp', destination: '/admin/inbox', redirectStatus: 307, heading: 'Inbox', verify: async main => {

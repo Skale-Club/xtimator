@@ -81,6 +81,7 @@ function redactError() {
 function safeAnnotations(annotations) {
   return annotations.flatMap(({ type, description }) => {
     if (['skip', 'fixme', 'fail', 'slow'].includes(type)) return [{ type }]
+    if (type === 'qa-admin-zone-check' && description === 'utc-pacific:distinct') return [{ type, description }]
     // Fixed alias identifiers, React numeric codes and fixed reason enums only.
     // No error text, URL, DOM, company ID or integration metadata is retained.
     if (type === 'qa-admin-alias-error' && typeof description === 'string'

@@ -86,6 +86,8 @@ test('retains only allowlisted browser failure fields alongside admin attachment
 test('retains fixed admin alias failure identifiers while rejecting private diagnostic strings', () => {
   const result = privateResult()
   result.annotations = [
+    { type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' },
+    { type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' + marker },
     { type: 'qa-admin-alias-error', description: 'legal:418:html' },
     { type: 'qa-admin-alias-error', description: 'templates:423:text' },
     { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },
@@ -97,6 +99,7 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
   ]
   redactAdminResult(result)
   assert.deepEqual(result.annotations, [
+    { type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' },
     { type: 'qa-admin-alias-error', description: 'legal:418:html' },
     { type: 'qa-admin-alias-error', description: 'templates:423:text' },
     { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },

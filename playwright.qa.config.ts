@@ -17,6 +17,7 @@ export default defineConfig({
     providerMode: 'synthetic', dataEnvironment: 'development',
     nativeKeyboardNavigation: process.env.XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION === '1' ? 'full' : 'host-default',
     applicationRuntime: 'compiled-standalone', publicTransport: 'loopback-https-front',
+    serverTimeZone: 'UTC', adminSurfacesBrowserTimeZone: 'America/Los_Angeles',
   },
   testDir: './tests/qa', testMatch: '**/*.spec.ts',
   globalSetup: './tests/qa/setup.ts', maxFailures,

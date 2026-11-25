@@ -25,7 +25,7 @@ for (const file of ['.env', '.env.local', '.env.production', '.env.production.lo
   for (const match of readFileSync(file, 'utf8').matchAll(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/gm)) env[match[1]] = ''
 }
 Object.assign(env, {
-  NODE_ENV: 'production', GITHUB_ACTIONS: 'true', XTIMATOR_QA_DEV: '1', XTIMATOR_QA_PRODUCTION_BUILD: '1',
+  NODE_ENV: 'production', TZ: 'UTC', GITHUB_ACTIONS: 'true', XTIMATOR_QA_DEV: '1', XTIMATOR_QA_PRODUCTION_BUILD: '1',
   DATA_API_MODE: 'supabase', DATA_API_UPSTREAM_URL: supabaseOrigin, NEXT_PUBLIC_AUTH_MODE: 'owned',
   NEXT_PUBLIC_SUPABASE_URL: supabaseOrigin,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
