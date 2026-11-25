@@ -10,6 +10,7 @@ import { T } from '@/components/i18n/t'
 import { MessageBubble } from '@/components/whatsapp/message-bubble'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { loadAdminConversationThread } from '@/lib/actions/admin-whatsapp'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { getInitials, getAvatarColor } from '@/lib/utils/avatar'
 import type { ConversationThread } from '@/lib/whatsapp/inbox-types'
 import { AdminWhatsAppFilters, type AdminWhatsAppFiltersProps } from './admin-whatsapp-filters'
@@ -41,6 +42,8 @@ export function AdminWhatsAppClient({
 }) {
   const router = useRouter()
   const sp = useSearchParams()
+  // Browser-local dates must not change the HTML during initial hydration.
+  const clientReady = useClientReady()
   const selectedId = sp.get('conversation') ?? initialConversationId
 
   const [threadResult, setThreadResult] = useState<{
@@ -144,7 +147,7 @@ export function AdminWhatsAppClient({
                             {row.contact_name || <T>(unknown)</T>}
                           </span>
                           <span className={`text-[11px] whitespace-nowrap ${isUnread ? 'text-[hsl(var(--primary))] font-medium' : 'text-muted-foreground'}`}>
-                            {ts ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                            {clientReady && ts ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">

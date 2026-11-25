@@ -18,6 +18,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useClientReady } from '@/hooks/use-client-ready'
 import {
   Dialog,
   DialogContent,
@@ -115,6 +116,8 @@ export function AdminWhatsAppAccounts({
   companySearch,
 }: AdminWhatsAppAccountsProps) {
   const router = useRouter()
+  // Browser-local dates must not change the HTML during initial hydration.
+  const clientReady = useClientReady()
   const companyConfig = configs.find((config) => config.company_id === companyId)
   const companySenders = senders.filter((sender) => sender.company_id === companyId)
   const welcomeTemplateReviews = companySenders.filter((sender) =>
@@ -387,7 +390,7 @@ export function AdminWhatsAppAccounts({
                         {sender.verified_at ? (
                           <span className="flex items-center gap-1 text-green-600">
                             <CheckCircle size={12} />
-                            {new Date(sender.verified_at).toLocaleDateString()}
+                            {clientReady ? new Date(sender.verified_at).toLocaleDateString() : '—'}
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-muted-foreground">

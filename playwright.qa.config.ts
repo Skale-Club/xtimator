@@ -17,7 +17,7 @@ export default defineConfig({
     providerMode: 'synthetic', dataEnvironment: 'development',
     nativeKeyboardNavigation: process.env.XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION === '1' ? 'full' : 'host-default',
     applicationRuntime: 'compiled-standalone', publicTransport: 'loopback-https-front',
-    serverTimeZone: 'UTC', adminSurfacesBrowserTimeZone: 'America/Los_Angeles',
+    serverTimeZone: 'UTC', browserTimeZone: 'America/New_York', adminSurfacesBrowserTimeZone: 'America/Los_Angeles',
   },
   testDir: './tests/qa', testMatch: '**/*.spec.ts',
   globalSetup: './tests/qa/setup.ts', maxFailures,
@@ -26,7 +26,7 @@ export default defineConfig({
   outputDir: 'qa-results/artifacts',
   reporter: [ ['./tests/qa/reporters/privacy.mjs'], ['json', { outputFile: 'qa-results/playwright.json' }],
     ['html', { outputFolder: 'qa-results/html', open: 'never' }], ['junit', { outputFile: 'qa-results/junit.xml' }] ],
-  use: { baseURL: QA_APP_ORIGIN, ignoreHTTPSErrors: true, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure', storageState: { cookies: [], origins: [] } },
+  use: { baseURL: QA_APP_ORIGIN, locale: 'en-US', timezoneId: 'America/New_York', ignoreHTTPSErrors: true, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure', storageState: { cookies: [], origins: [] } },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], ...chromiumTrust } },
     { name: 'mobile-safari', testIgnore: '**/editor-hydration.spec.ts', use: { ...devices['iPhone 13'] } },
