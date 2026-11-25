@@ -15,7 +15,10 @@ async function waitForStreamedSegmentsRevealed(page: Page, response: Response | 
   if (!(response.headers()['content-type'] ?? '').toLowerCase().includes('html')) return
   try {
     await page.waitForFunction(
-      () => document.querySelector('div[hidden][id^="S:"]') === null,
+      // Only segments holding real content can double-match a locator. A route that
+      // calls notFound() after streaming began leaves an empty, template-only S:n
+      // behind forever (React errors the boundary with $RX instead of revealing it).
+      () => ![...document.querySelectorAll('div[hidden][id^="S:"]')].some(segment => segment.querySelector(':not(template)')),
       undefined,
       { timeout: STREAM_REVEAL_TIMEOUT_MS },
     )

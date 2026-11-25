@@ -412,7 +412,15 @@ export function createQaFixture(baseURL: string, {
         throw new Error('QA fixture refused to erase an unmarked company')
       }
       if (captureStorage) await eraseCaptureObjects()
-      check('erase the isolated company', (await db.rpc('erase_company_for_compliance', { p_company_id: companyId })).error)
+      // Parallel workers erase their companies at the same time; Postgres may pick
+      // one transaction as a deadlock victim (40P01), which it expects to be retried.
+      // Any other error, or a deadlock on the last attempt, still fails the case.
+      let erased = await db.rpc('erase_company_for_compliance', { p_company_id: companyId })
+      for (let attempt = 2; erased.error?.code === '40P01' && attempt <= 3; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 250 * attempt + Math.floor(Math.random() * 250)))
+        erased = await db.rpc('erase_company_for_compliance', { p_company_id: companyId })
+      }
+      check('erase the isolated company', erased.error)
     }
 
     // The account delete would cascade into companies. Refuse if another row owns

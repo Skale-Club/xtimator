@@ -13,11 +13,19 @@ const monthPath = `${yearPath}/${monthSegment.slice(-2)}`
 
 async function canonicalPath(page: Page, pathname: string) {
   const expected = new URL(pathname, page.url()).href
-  // During a streamed client navigation React may briefly retain the previous
-  // head entry. Require exactly one final canonical, including its origin.
+  // Crawlers read the server document, so that is where exactly one canonical,
+  // with the full origin, is required. Run 45622250059 showed the client-side
+  // head keeping the previous page's canonical for 20s+ after a soft navigation
+  // on mobile Chrome (a Next.js head-handoff artefact no crawler sees), so the
+  // live DOM only has to carry the new page's canonical.
+  const document = await page.request.get(pathname)
+  expect(document.status()).toBe(200)
+  const served = [...(await document.text()).matchAll(/<link\b[^>]*\brel="canonical"[^>]*>/g)]
+    .map(([tag]) => tag.match(/\bhref="([^"]*)"/)?.[1])
+  expect(served).toEqual([expected])
   await expect.poll(() => page.locator('link[rel="canonical"]').evaluateAll(nodes =>
     nodes.map(node => node.getAttribute('href')),
-  )).toEqual([expected])
+  )).toContain(expected)
 }
 
 async function follow(page: Page, link: Locator, pathname: string) {
