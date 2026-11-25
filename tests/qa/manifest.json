@@ -184,6 +184,42 @@
       "expectedEvidence": "Tab and Enter reach and open Add Client. The name has a label, required state and associated validation message. Escape closes the form and restores focus to its opener. The open invalid form also has full axe output with zero serious or critical violations."
     },
     {
+      "id": "AXE-LANDING",
+      "titleToken": "[QA:AXE-LANDING]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/", "/login"],
+      "hypothesis": "An anonymous first visitor can use the landing page, its cookie consent banner, its sign-up dialog and the sign-in page without serious accessibility barriers.",
+      "expectedEvidence": "The landing page with the consent banner open, the landing page with the sign-up dialog open and the sign-in page each have a full axe report and an impact breakdown for WCAG 2.0 and 2.1 A and AA tags. There are zero serious or critical violations. The banner and dialog have accessible names and Escape closes the dialog. Horizontal overflow is checked."
+    },
+    {
+      "id": "AXE-ONBOARDING",
+      "titleToken": "[QA:AXE-ONBOARDING]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/onboarding"],
+      "hypothesis": "A new owned-identity user who has no company yet sees onboarding steps with named controls and no serious accessibility barriers.",
+      "expectedEvidence": "The language, company name and industry steps each have a full axe report and an impact breakdown for WCAG 2.0 and 2.1 A and AA tags. There are zero serious or critical violations. The synthetic owned account and its draft are removed after the run."
+    },
+    {
+      "id": "KEYBOARD-WORKSPACE-NAV",
+      "titleToken": "[QA:KEYBOARD-WORKSPACE-NAV]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/dashboard", "/clients", "/projects/[id]"],
+      "hypothesis": "A keyboard user can move between the main workspace pages, open a project from its row menu and always see where focus is, without a trap.",
+      "expectedEvidence": "Tab, Shift+Tab, Enter, ArrowDown and Escape reach the Clients and Dashboard navigation links (sidebar on desktop, bottom bar on phones) and open the project through the row Actions menu. Each focused control has a computed outline or ring. Escape closes the menu and returns focus to its trigger, and Tab then leaves it. No pointer event is recorded."
+    },
+    {
+      "id": "KEYBOARD-ESTIMATE-EDIT",
+      "titleToken": "[QA:KEYBOARD-ESTIMATE-EDIT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/projects/[id]"],
+      "hypothesis": "A keyboard user can change a line item quantity in the estimate editor and the change is saved.",
+      "expectedEvidence": "Tab and Enter reach the quantity field (through the item Edit button and sheet on phones), keystrokes replace the value and Tab commits it. The database row shows the new quantity and recomputed line and project totals, and the value survives a reload on desktop. No pointer event is recorded."
+    },
+    {
       "id": "SETTINGS-SCREENS",
       "titleToken": "[QA:SETTINGS-SCREENS]",
       "requiredForExecution": true,

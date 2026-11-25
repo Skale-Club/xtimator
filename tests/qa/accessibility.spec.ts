@@ -3,6 +3,8 @@ import type { Locator, Page, TestInfo } from '@playwright/test'
 import { expect, test } from './test'
 import { createQaFixture } from './fixtures/tenant'
 import { focusTraversalKey } from './fixtures/keyboard-navigation'
+import { createQaOnboardingFixture } from './fixtures/onboarding'
+import { expectNoSignaturePointer, observeSignaturePointers } from './fixtures/keyboard-signature'
 
 const WCAG_RULE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 type Tenant = ReturnType<typeof createQaFixture>
@@ -151,5 +153,220 @@ test('[QA:KEYBOARD-CLIENT] Tab and Enter open Add Client, report required input 
     await expect(dialog).toBeHidden()
     await expect(add).toBeFocused()
     await noHorizontalOverflow(page, 'clients-after-dialog')
+  })
+})
+
+test('[QA:AXE-LANDING] anonymous landing page with its consent banner and sign-up dialog, and the sign-in page, have no major axe violations', async ({ page }, info) => {
+  try {
+    await test.step('Scan the landing page with the cookie consent banner open', async () => {
+      expect((await page.goto('/'))?.status()).toBe(200)
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+      // A fresh browser context has no stored consent, so the banner is part of what a first visitor sees.
+      const consent = page.getByTestId('cookie-consent')
+      await expect(consent).toBeVisible()
+      await expect.soft(consent.getByRole('button', { name: 'Accept', exact: true })).toBeVisible()
+      await expect.soft(consent.getByRole('button', { name: 'Reject', exact: true })).toBeVisible()
+      await noHorizontalOverflow(page, 'landing')
+      await audit(page, info, 'landing-consent-banner')
+    })
+
+    await test.step('Scan the landing page with the sign-up dialog open', async () => {
+      // The landing header has no hamburger menu at any width: its only control is the sign-up call to action.
+      await page.locator('header').first().getByRole('button').first().click()
+      const dialog = page.locator('[role="dialog"][aria-modal="true"]')
+      await expect(dialog).toBeVisible()
+      await expect(dialog).toHaveAccessibleName(/\S/)
+      await expect.soft(dialog.getByRole('button', { name: 'Close', exact: true })).toBeVisible()
+      await audit(page, info, 'landing-auth-dialog')
+      await page.keyboard.press('Escape')
+      await expect(dialog).toBeHidden()
+    })
+
+    await test.step('Scan the sign-in page', async () => {
+      expect((await page.goto('/login'))?.status()).toBe(200)
+      await expect(page.getByRole('heading', { name: /^Sign in to / }).first()).toBeVisible()
+      await expect.soft(page.getByLabel('Phone number', { exact: true })).toBeVisible()
+      await expect.soft(page.getByRole('button', { name: 'Send code', exact: true })).toBeVisible()
+      await noHorizontalOverflow(page, 'login')
+      await audit(page, info, 'login')
+    })
+  } finally {
+    await page.close()
+  }
+})
+
+test('[QA:AXE-ONBOARDING] a new owned-identity user sees accessible language, company and industry onboarding steps', async ({ page, baseURL }, info) => {
+  test.setTimeout(240_000)
+  const fixture = createQaOnboardingFixture(baseURL!)
+  try {
+    await fixture.seed()
+    await page.context().addCookies(fixture.cookies())
+    expect((await page.goto('/onboarding'))?.status()).toBe(200)
+    const next = page.getByRole('button', { name: 'Next', exact: true })
+
+    await test.step('Scan the language step', async () => {
+      await expect(page.getByRole('heading', { name: 'Which language would you like to use Xtimator in?', exact: true })).toBeVisible()
+      await expect.soft(next).toBeVisible()
+      await noHorizontalOverflow(page, 'onboarding-language')
+      await audit(page, info, 'onboarding-language')
+    })
+
+    await test.step('Scan the company name step', async () => {
+      await next.click()
+      const name = page.getByRole('textbox', { name: 'Company Name', exact: true })
+      await expect(name).toBeVisible()
+      await name.fill(fixture.companyName)
+      await noHorizontalOverflow(page, 'onboarding-company')
+      await audit(page, info, 'onboarding-company')
+    })
+
+    await test.step('Scan the industry step', async () => {
+      await next.click()
+      await expect(page.getByRole('heading', { name: "What's your phone number?", exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Skip', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'Which services does your business offer?', exact: true })).toBeVisible()
+      await noHorizontalOverflow(page, 'onboarding-industry')
+      await audit(page, info, 'onboarding-industry')
+    })
+  } finally {
+    try { await page.close() } finally { await fixture.cleanup() }
+  }
+})
+
+/** Tab (or Shift+Tab) until the target owns focus, using the same WebKit-aware key as the other keyboard journeys. */
+async function reachByKeyboard(page: Page, target: Locator, label: string, { reverse = false, limit = 200 } = {}) {
+  await expect(target).toBeVisible()
+  const base = traversalKey(page)
+  const key = reverse ? `Shift+${base}` : base
+  for (let count = 0; count <= limit; count++) {
+    if (await target.evaluate(element => element === document.activeElement)) return
+    await page.keyboard.press(key)
+  }
+  throw new Error(`Keyboard navigation did not reach ${label}`)
+}
+
+function traversalKey(page: Page) {
+  return focusTraversalKey(process.platform, page.context().browser()?.browserType().name(), process.env.XTIMATOR_QA_FULL_KEYBOARD_NAVIGATION === '1')
+}
+
+async function expectVisibleFocusIndicator(page: Page, label: string) {
+  const indicator = await page.evaluate(() => {
+    const element = document.activeElement
+    if (!element || element === document.body) return null
+    const style = getComputedStyle(element)
+    const outline = (style.outlineStyle === 'auto' || (style.outlineStyle !== 'none' && style.outlineStyle !== 'hidden' && parseFloat(style.outlineWidth) > 0))
+      && style.outlineColor !== 'rgba(0, 0, 0, 0)' && style.outlineColor !== 'transparent'
+    const shadow = style.boxShadow !== 'none' && style.boxShadow !== ''
+    return { tag: element.tagName.toLowerCase(), outline, shadow }
+  })
+  expect(indicator, `${label} must own focus`).not.toBeNull()
+  expect(indicator!.outline || indicator!.shadow, `${label} (<${indicator!.tag}>) must show a focus outline or ring`).toBe(true)
+}
+
+test('[QA:KEYBOARD-WORKSPACE-NAV] Tab and Enter move between the dashboard, clients and a project with visible focus and no trap', async ({ page, baseURL }, info) => {
+  test.setTimeout(240_000)
+  const desktop = info.project.name === 'chromium'
+  await withTenant(page, baseURL!, async fixture => {
+    await observeSignaturePointers(page)
+    await page.context().addCookies(fixture.cookies())
+    expect((await page.goto('/dashboard'))?.status()).toBe(200)
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible()
+    // Desktop shows the sidebar; widths below the md breakpoint show the bottom bar instead.
+    const navigation = desktop ? page.getByTestId('app-sidebar') : page.getByTestId('bottom-nav')
+    const link = (name: string) => navigation.getByRole('link', { name, exact: true })
+
+    await test.step('Reach Clients in the main navigation and open it', async () => {
+      await reachByKeyboard(page, link('Clients'), 'the Clients navigation link')
+      await expectVisibleFocusIndicator(page, 'Clients navigation link')
+      await page.keyboard.press('Enter')
+      await expect(page).toHaveURL(/\/clients$/)
+      await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible()
+      await expect(link('Clients')).toHaveAttribute('aria-current', 'page')
+    })
+
+    await test.step('Go back to the dashboard with Shift+Tab and Enter', async () => {
+      await reachByKeyboard(page, link('Dashboard'), 'the Dashboard navigation link', { reverse: true })
+      await expectVisibleFocusIndicator(page, 'Dashboard navigation link')
+      await page.keyboard.press('Enter')
+      await expect(page).toHaveURL(/\/dashboard$/)
+      await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible()
+    })
+
+    await test.step('Open the project row menu, leave it with Tab after Escape, then open the project', async () => {
+      // Start from the top of a fresh document so the key presses below are the only way focus moves.
+      expect((await page.goto('/dashboard'))?.status()).toBe(200)
+      await expect(page.getByText(fixture.projectName, { exact: true }).filter({ visible: true })).toBeVisible()
+      const actions = page.getByRole('button', { name: 'Actions', exact: true })
+      const menu = page.getByRole('menu')
+      await reachByKeyboard(page, actions, 'the project Actions button')
+      await expectVisibleFocusIndicator(page, 'project Actions button')
+      await page.keyboard.press('Enter')
+      await expect(menu).toBeVisible()
+      expect(await menu.evaluate(element => element.contains(document.activeElement)), 'focus moves into the opened menu').toBe(true)
+
+      await page.keyboard.press('Escape')
+      await expect(menu).toBeHidden()
+      await expect(actions).toBeFocused()
+      await page.keyboard.press(traversalKey(page))
+      expect(await actions.evaluate(element => element === document.activeElement), 'Tab leaves the control after the menu closes').toBe(false)
+      await reachByKeyboard(page, actions, 'the project Actions button again', { reverse: true, limit: 5 })
+
+      await page.keyboard.press('Enter')
+      await expect(menu).toBeVisible()
+      const view = page.getByRole('menuitem', { name: 'View', exact: true })
+      for (let step = 0; step < 8 && !(await view.evaluate(element => element === document.activeElement)); step++) await page.keyboard.press('ArrowDown')
+      await expect(view).toBeFocused()
+      await page.keyboard.press('Enter')
+      await expect(page).toHaveURL(new RegExp(`/projects/${fixture.projectId}$`))
+      await expect(page.getByRole('heading', { level: 1, name: fixture.projectName, exact: true })).toBeVisible()
+    })
+    await expectNoSignaturePointer(page)
+  })
+})
+
+test('[QA:KEYBOARD-ESTIMATE-EDIT] a line item quantity is changed with the keyboard alone and persists', async ({ page, baseURL }, info) => {
+  test.setTimeout(240_000)
+  const desktop = info.project.name === 'chromium'
+  await withTenant(page, baseURL!, async fixture => {
+    await observeSignaturePointers(page)
+    await page.context().addCookies(fixture.cookies())
+    expect((await page.goto(`/projects/${fixture.projectId}`))?.status()).toBe(200)
+    await expect(page.getByRole('heading', { level: 1, name: fixture.projectName, exact: true })).toBeVisible()
+    const row = page.locator(`[${desktop ? 'data-item-id' : 'data-mobile-item-id'}="${fixture.itemId}"]`).filter({ visible: true })
+    const sheet = page.getByTestId('item-editor-sheet')
+    let quantity: Locator
+    if (desktop) {
+      quantity = row.getByRole('spinbutton', { name: 'Qty', exact: true })
+    } else {
+      // Phones edit a line in a sheet that the item's Edit button opens.
+      const edit = row.getByRole('button', { name: /^Edit item:/ }).filter({ hasText: fixture.lineDescription })
+      await reachByKeyboard(page, edit, 'the line item Edit button')
+      await expectVisibleFocusIndicator(page, 'line item Edit button')
+      await page.keyboard.press('Enter')
+      await expect(sheet).toBeVisible()
+      quantity = sheet.getByRole('spinbutton', { name: 'Quantity', exact: true })
+    }
+    await expect(quantity).toHaveValue('2')
+    await reachByKeyboard(page, quantity, 'the quantity field')
+    await expectVisibleFocusIndicator(page, 'quantity field')
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type('3')
+    await expect(quantity).toHaveValue('3')
+    await page.keyboard.press('Tab')
+    if (!desktop) {
+      const done = sheet.getByRole('button', { name: 'Done', exact: true })
+      await reachByKeyboard(page, done, 'the Done button', { limit: 30 })
+      await page.keyboard.press('Enter')
+      await expect(sheet).toHaveCount(0)
+    }
+
+    await expect.poll(async () => (await fixture.readOwn('estimate_items', fixture.itemId))?.quantity, { timeout: 20_000 }).toBe(3)
+    expect(await fixture.readOwn('estimate_items', fixture.itemId)).toMatchObject({ description: fixture.lineDescription, quantity: 3, unit_price: 500, total: 1500 })
+    await expect.poll(async () => (await fixture.readProject())?.total, { timeout: 20_000 }).toBe(1500)
+    await expectNoSignaturePointer(page)
+    if (desktop) {
+      expect((await page.reload())?.status()).toBe(200)
+      await expect(row.getByRole('spinbutton', { name: 'Qty', exact: true })).toHaveValue('3')
+    }
   })
 })
