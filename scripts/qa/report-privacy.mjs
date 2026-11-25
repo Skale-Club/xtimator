@@ -87,7 +87,7 @@ function safeAnnotations(annotations) {
       if (type === 'qa-admin-read-failure'
         && /^(?:dashboard|admins|company|events|integrations):(?:navigation|response|url|banner|heading|content|catalog)$/.test(description)) return [{ type, description }]
       if (type === 'qa-admin-step-failure'
-        && /^(?:support:(?:list|row|start|start-signin|start-key|start-other|banner|banner-content|cookie|exit|cleared)|audit:(?:rows|fields))$/.test(description)) return [{ type, description }]
+        && /^(?:support:(?:list|row|start|start-signin|start-key|start-other|start-clicks-(?:0|1|many)|start-at-(?:list|dashboard|onboarding|login|other)|banner|banner-content|cookie|exit|cleared)|audit:(?:rows|fields))$/.test(description)) return [{ type, description }]
       if (type === 'qa-admin-read-react-error'
         && /^(?:dashboard|admins|company|events|integrations):(?:300|310|418|423|other):(?:html|text|unknown)$/.test(description)) return [{ type, description }]
     }

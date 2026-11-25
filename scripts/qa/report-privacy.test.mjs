@@ -102,6 +102,13 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
     { type: 'qa-admin-alias-error', description: '/admin/companies/' + marker },
     { type: 'qa-admin-alias-error', description: 'legal:418:' + marker },
     { type: marker, description: 'legal:418:html' },
+    { type: 'qa-admin-step-failure', description: 'support:start-signin' },
+    { type: 'qa-admin-step-failure', description: 'support:start-clicks-many' },
+    { type: 'qa-admin-step-failure', description: 'support:start-at-dashboard' },
+    { type: 'qa-admin-step-failure', description: 'audit:rows' },
+    { type: 'qa-admin-step-failure', description: 'support:' + marker },
+    { type: 'qa-admin-step-failure', description: 'support:start-at-' + marker },
+    { type: 'qa-admin-step-failure', description: 'support:start-clicks-3' },
   ]
   redactAdminResult(result)
   assert.deepEqual(result.annotations, [
@@ -112,6 +119,10 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
     { type: 'qa-admin-alias-error', description: 'legal:418:html' },
     { type: 'qa-admin-alias-error', description: 'templates:423:text' },
     { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },
+    { type: 'qa-admin-step-failure', description: 'support:start-signin' },
+    { type: 'qa-admin-step-failure', description: 'support:start-clicks-many' },
+    { type: 'qa-admin-step-failure', description: 'support:start-at-dashboard' },
+    { type: 'qa-admin-step-failure', description: 'audit:rows' },
   ])
   assert.equal(JSON.stringify(result).includes(marker), false)
 })

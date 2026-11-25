@@ -22,6 +22,9 @@ export function createBrowserFailureTracker(baseURL: string) {
   // WebKit reports a fetch cancelled by navigation as a pageerror; whether it is benign is only known once the
   // matching request is seen cancelled (either event order), so those are resolved in summary(). URLs never leave here.
   const cancelledRequests = new Set<string>()
+  // WebKit can also report a same-origin fetch whose request answered (the app caught the rejection) when a
+  // navigation tears the page down; a same-origin request cannot fail a CORS check, so an answered URL is benign too.
+  const answeredRequests = new Set<string>()
   const pendingAccessControl: Array<string | null> = []
 
   function record(input: Omit<Observation, 'count'>) {
@@ -66,6 +69,10 @@ export function createBrowserFailureTracker(baseURL: string) {
       if (classification) record({ source: 'console.error', classification, fatal: true })
     },
     assetResponse(url: string, resourceType: string, status: number) {
+      if ((resourceType === 'fetch' || resourceType === 'xhr') && status < 400) {
+        const key = sameOriginKey(url)
+        if (key) answeredRequests.add(key)
+      }
       const asset = firstPartyAsset(url, resourceType)
       if (asset && status >= 400) record({ source: 'asset-response', resourceType: asset,
         classification: status >= 500 ? 'http-5xx' : 'http-4xx', fatal: true })
@@ -87,7 +94,7 @@ export function createBrowserFailureTracker(baseURL: string) {
     summary() {
       const resolved = new Map<string, Observation>(Array.from(observations, ([key, event]) => [key, { ...event }]))
       for (const key of pendingAccessControl) {
-        const cancelled = key !== null && cancelledRequests.has(key)
+        const cancelled = key !== null && (cancelledRequests.has(key) || answeredRequests.has(key))
         const classification = cancelled ? 'cancelled' : 'unhandled-exception'
         const mapKey = `pageerror:${classification}:`
         const existing = resolved.get(mapKey)

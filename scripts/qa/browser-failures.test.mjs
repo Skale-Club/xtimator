@@ -136,3 +136,21 @@ test('the exact WebKit message from run 45649047574 (name split at the scheme co
   live.pageError(message)
   assert.equal(live.summary().fatalCount, 1)
 })
+
+test('the WebKit teardown report from run 45707472434 resolves when the same fetch was answered, not when it failed', () => {
+  // The app caught the rejection and the request itself answered 200; WebKit still reported it on navigation.
+  const config = `${origin}/api/auth/config`
+  const message = '/127.0.0.1:9650/api/auth/config due to access control checks.'
+  const answered = createBrowserFailureTracker(origin)
+  answered.pageError(message)
+  answered.assetResponse(config, 'fetch', 200)
+  assert.equal(answered.summary().fatalCount, 0)
+  const failed = createBrowserFailureTracker(origin)
+  failed.assetResponse(config, 'fetch', 503)
+  failed.pageError(message)
+  assert.equal(failed.summary().fatalCount, 1)
+  const document = createBrowserFailureTracker(origin)
+  document.assetResponse(config, 'document', 200)
+  document.pageError(message)
+  assert.equal(document.summary().fatalCount, 1)
+})

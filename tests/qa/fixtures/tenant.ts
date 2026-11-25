@@ -15,9 +15,11 @@ const STORAGE_PAGE_SIZE = 100
 type BrowserCookies = Parameters<BrowserContext['addCookies']>[0]
 type TenantTable = 'clients' | 'projects' | 'estimates' | 'estimate_sections' | 'estimate_items'
 
-function check(operation: string, error: { code?: string } | null) {
+function check(operation: string, error: { code?: string; message?: string } | null) {
   if (!error) return
-  const code = error.code && /^[A-Z0-9_]{1,24}$/i.test(error.code) ? ` (${error.code})` : ''
+  // Fixed labels only: a database code, or "network" when supabase-js reports a failed fetch (no response at all).
+  const code = error.code && /^[A-Z0-9_]{1,24}$/i.test(error.code) ? ` (${error.code})`
+    : /fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(error.message ?? '') ? ' (network)' : ''
   throw new Error(`QA fixture could not ${operation}${code}`)
 }
 

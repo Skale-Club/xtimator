@@ -105,19 +105,35 @@ async function startSupportViaUi(page: Page, company: Tenant) {
   const banner = supportBanner(page)
   // The button ignores clicks until hydrated. Click again only while still on the list;
   // once the action ran, the app navigates to /dashboard and the row no longer exists.
-  await step('support:start', async () => {
-    await expect(async () => {
-      if (/\/admin\/companies/.test(new URL(page.url()).pathname)) {
-        const failure = await supportStartFailure(page)
-        if (failure) {
-          test.info().annotations.push({ type: 'qa-admin-step-failure', description: `support:start-${failure}` })
-          throw new Error('Support mode start was rejected')
+  let clicks = 0
+  try {
+    await step('support:start', async () => {
+      await expect(async () => {
+        if (/\/admin\/companies/.test(new URL(page.url()).pathname)) {
+          const failure = await supportStartFailure(page)
+          if (failure) {
+            test.info().annotations.push({ type: 'qa-admin-step-failure', description: `support:start-${failure}` })
+            throw new Error('Support mode start was rejected')
+          }
+          if (await start.isVisible()) {
+            await start.click({ timeout: 5_000 })
+            clicks++
+          }
         }
-        if (await start.isVisible()) await start.click({ timeout: 5_000 })
-      }
-      await expect(page).toHaveURL(/\/dashboard$/, { timeout: 10_000 })
-    }).toPass({ timeout: 45_000 })
-  })
+        await expect(page).toHaveURL(/\/dashboard$/, { timeout: 10_000 })
+      }).toPass({ timeout: 45_000 })
+    })
+  } catch (error) {
+    // Fixed, data-free labels: how many clicks landed and which kind of page the browser ended on.
+    const path = new URL(page.url()).pathname
+    const at = /^\/admin\/companies/.test(path) ? 'list' : /^\/dashboard/.test(path) ? 'dashboard'
+      : /^\/onboarding/.test(path) ? 'onboarding' : /^\/(?:login|sign-?in)/.test(path) ? 'login' : 'other'
+    test.info().annotations.push(
+      { type: 'qa-admin-step-failure', description: `support:start-clicks-${Math.min(clicks, 2) === 2 ? 'many' : clicks}` },
+      { type: 'qa-admin-step-failure', description: `support:start-at-${at}` },
+    )
+    throw error
+  }
   await step('support:banner', () => expect(banner).toBeVisible({ timeout: 20_000 }))
   return banner
 }
