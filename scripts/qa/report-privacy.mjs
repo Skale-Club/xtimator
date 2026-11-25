@@ -82,6 +82,12 @@ function safeAnnotations(annotations) {
   return annotations.flatMap(({ type, description }) => {
     if (['skip', 'fixme', 'fail', 'slow'].includes(type)) return [{ type }]
     if (type === 'qa-admin-zone-check' && description === 'utc-pacific:distinct') return [{ type, description }]
+    if (typeof description === 'string' && description.trim() === description) {
+      if (type === 'qa-admin-read-failure'
+        && /^(?:dashboard|admins|company|events|integrations):(?:navigation|response|url|banner|heading|content|catalog)$/.test(description)) return [{ type, description }]
+      if (type === 'qa-admin-read-react-error'
+        && /^(?:dashboard|admins|company|events|integrations):(?:300|310|418|423|other):(?:html|text|unknown)$/.test(description)) return [{ type, description }]
+    }
     // Fixed alias identifiers, React numeric codes and fixed reason enums only.
     // No error text, URL, DOM, company ID or integration metadata is retained.
     if (type === 'qa-admin-alias-error' && typeof description === 'string'

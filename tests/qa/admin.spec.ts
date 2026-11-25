@@ -122,7 +122,13 @@ test('[QA:ADM-READONLY] a marked DEV platform admin can read the admin screens w
       { route: '/admin/admins', heading: 'Platform admins', verify: async screen => {
         const ownRow = screen.getByRole('row').filter({ has: screen.getByText(tenant.userEmail, { exact: true }) })
         await expect(ownRow.getByText('You', { exact: true })).toBeVisible()
-        await expect(screen.getByRole('button', { name: 'Add admin', exact: true })).toBeVisible()
+        const trigger = screen.getByRole('button', { name: 'Add admin', exact: true })
+        await trigger.click()
+        const dialog = screen.getByRole('dialog', { name: 'Add platform admin', exact: true })
+        await expect(dialog.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
+        await screen.keyboard.press('Escape')
+        await expect(dialog).toHaveCount(0)
+        await expect(trigger).toBeFocused()
       } },
       { route: '/admin/companies/[id]', path: `/admin/companies/${tenant.companyId}`, heading: tenant.companyName, verify: async screen => {
         await expect(screen.getByRole('heading', { name: 'Client features', exact: true })).toBeVisible()
@@ -155,18 +161,32 @@ test('[QA:ADM-READONLY] a marked DEV platform admin can read the admin screens w
             : null
           const evidence = { route, status: null as number | null, ready: false, pageErrors: 0, serverErrors: 0 }
           visits.push(evidence)
-          screen.on('pageerror', () => { evidence.pageErrors++ })
+          const surface = ({ '/admin': 'dashboard', '/admin/admins': 'admins', '/admin/companies/[id]': 'company', '/admin/events': 'events', '/admin/integrations': 'integrations' } as Record<string, string>)[route]
+          let stage = 'navigation'
+          screen.on('pageerror', error => {
+            evidence.pageErrors++
+            const code = error.message.match(/(?:minified react error|react\.dev\/errors\/)\s*#?(300|310|418|423)\b/i)?.[1] ?? 'other'
+            const kind = /args(?:\[\]|%5B%5D)=HTML\b/i.test(error.message) ? 'html'
+              : /args(?:\[\]|%5B%5D)=text\b/i.test(error.message) ? 'text' : 'unknown'
+            info.annotations.push({ type: 'qa-admin-read-react-error', description: `${surface}:${code}:${kind}` })
+          })
           screen.on('response', response => {
             if (new URL(response.url()).origin === baseURL && response.status() >= 500) evidence.serverErrors++
           })
           try {
             evidence.status = (await screen.goto(path, { waitUntil: 'load', timeout: 30_000 }))?.status() ?? null
+            stage = 'response'
             expect(evidence.status).toBe(200)
+            stage = 'url'
             await expect(screen).toHaveURL(new URL(path, baseURL).href)
+            stage = 'banner'
             await expect(screen.getByText(`Super Admin Mode - ${tenant.userEmail}`, { exact: true })).toBeVisible()
+            stage = 'heading'
             await expect(screen.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible()
+            stage = 'content'
             await verify(screen)
             if (catalog) {
+              stage = 'catalog'
               const loaded = await catalog
               expect(loaded?.status).toBe(200)
               expect(loaded?.body?.models).toContainEqual(expect.objectContaining({
@@ -174,6 +194,9 @@ test('[QA:ADM-READONLY] a marked DEV platform admin can read the admin screens w
               }))
             }
             evidence.ready = true
+          } catch (error) {
+            info.annotations.push({ type: 'qa-admin-read-failure', description: `${surface}:${stage}` })
+            throw error
           } finally {
             await screen.close()
           }

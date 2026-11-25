@@ -88,6 +88,12 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
   result.annotations = [
     { type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' },
     { type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' + marker },
+    { type: 'qa-admin-read-failure', description: 'admins:content' },
+    { type: 'qa-admin-read-failure', description: 'integrations:catalog' },
+    { type: 'qa-admin-read-react-error', description: 'admins:418:text' },
+    { type: 'qa-admin-read-failure', description: 'admins:content\n' + marker },
+    { type: 'qa-admin-read-react-error', description: 'company:418:' + marker },
+    { type: 'qa-admin-read-failure', description: marker + ':content' },
     { type: 'qa-admin-alias-error', description: 'legal:418:html' },
     { type: 'qa-admin-alias-error', description: 'templates:423:text' },
     { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },
@@ -100,6 +106,9 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
   redactAdminResult(result)
   assert.deepEqual(result.annotations, [
     { type: 'qa-admin-zone-check', description: 'utc-pacific:distinct' },
+    { type: 'qa-admin-read-failure', description: 'admins:content' },
+    { type: 'qa-admin-read-failure', description: 'integrations:catalog' },
+    { type: 'qa-admin-read-react-error', description: 'admins:418:text' },
     { type: 'qa-admin-alias-error', description: 'legal:418:html' },
     { type: 'qa-admin-alias-error', description: 'templates:423:text' },
     { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },

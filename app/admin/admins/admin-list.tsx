@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { removePlatformAdmin } from './actions'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type AdminRow = {
@@ -52,6 +53,7 @@ type Props = {
 export function AdminList({ admins, currentUserId }: Props) {
   const [pendingRow, setPendingRow] = useState<AdminRow | null>(null)
   const [isPending, startTransition] = useTransition()
+  const clientReady = useClientReady()
   const { t } = useTranslation()
 
   const onlyAdmin = admins.length === 1
@@ -101,7 +103,7 @@ export function AdminList({ admins, currentUserId }: Props) {
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="font-normal">
-                      {t('Admin since')} {format(new Date(row.created_at), 'MMM d, yyyy')}
+                      {t('Admin since')} {clientReady ? format(new Date(row.created_at), 'MMM d, yyyy') : '—'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/lib/utils/format'
+import { formatDate } from '@/lib/utils/format-date'
 import type { ChangeOrderStatus } from '@/lib/change-orders/types'
 
 /** Typographic minus, used for credits everywhere in the change order UI. */
@@ -11,11 +12,10 @@ export function formatSigned(value: number, currencyCode: string): string {
   return formatCurrency(0, currencyCode)
 }
 
-/** Short date for status lines ("Nov 16"). Empty string for a missing or bad value. */
+/** Short status date on the same UTC contract day as public and PDF documents. */
 export function shortDate(iso?: string | null): string {
   if (!iso) return ''
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return formatDate(iso, { month: 'short', day: 'numeric' })
 }
 
 /** Where a change order stands. A view proves it was shared, like for estimates. */

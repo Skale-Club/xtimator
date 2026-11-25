@@ -12,6 +12,14 @@ type Order = { title: string; reason: string; lines: Line[]; total: number }
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
 const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+const UTC_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function utcResponseDate(value: unknown) {
+  if (typeof value !== 'string') throw new Error('Missing persisted response timestamp')
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) throw new Error('Invalid persisted response timestamp')
+  return `${UTC_MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`
+}
 
 async function drawSignature(page: Page, dialog: Locator, signer: string) {
   await dialog.getByLabel('Your full name').fill(signer)
@@ -262,6 +270,9 @@ test('[QA:CO-APPROVE-CONTRACT] a signed change order amends the contract, locks 
       await expect(editor.getByRole('textbox', { name: 'Item 1 description', exact: true })).toBeDisabled()
       await expect(editor.getByRole('button', { name: 'Add item', exact: true })).toHaveCount(0)
       await expect(editor.getByTestId('change-order-signature')).toContainText(signer)
+      const saved = await fixture.readOwnChangeOrderEvidence(id)
+      await expect(editor.getByTestId('change-order-status-chip')).toHaveText(`Approved · ${utcResponseDate(saved.order?.responded_at)}`)
+      await expect(editor.getByTestId('change-order-top-bar')).toContainText(`Signed by ${signer} · ${utcResponseDate(saved.signature?.signed_at)}`)
     })
   })
 })
@@ -293,6 +304,8 @@ test('[QA:CO-DECLINE-CONTRACT] a declined change order leaves the contract and s
     const banner = page.getByTestId('change-order-lock-banner')
     await expect(banner).toContainText('Declined.')
     await expect(banner.getByRole('button', { name: 'Revise and reopen', exact: true })).toBeVisible()
+    const saved = await fixture.readOwnChangeOrderEvidence(id)
+    await expect(page.getByTestId('change-order-status-chip')).toHaveText(`Declined · ${utcResponseDate(saved.order?.responded_at)}`)
   })
 })
 

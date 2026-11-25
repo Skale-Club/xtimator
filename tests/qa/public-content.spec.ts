@@ -12,7 +12,12 @@ const yearPath = `/blog/archive/${year}`
 const monthPath = `${yearPath}/${monthSegment.slice(-2)}`
 
 async function canonicalPath(page: Page, pathname: string) {
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', new URL(pathname, page.url()).href)
+  const expected = new URL(pathname, page.url()).href
+  // During a streamed client navigation React may briefly retain the previous
+  // head entry. Require exactly one final canonical, including its origin.
+  await expect.poll(() => page.locator('link[rel="canonical"]').evaluateAll(nodes =>
+    nodes.map(node => node.getAttribute('href')),
+  )).toEqual([expected])
 }
 
 async function follow(page: Page, link: Locator, pathname: string) {
