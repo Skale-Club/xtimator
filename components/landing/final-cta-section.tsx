@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -48,7 +47,7 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
               variant="outline"
               className="h-9 text-sm px-1 font-semibold sm:h-14 sm:text-lg sm:px-6 border-white/10 bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
             >
-              <Link href="/demo/entry" data-xt-cta="demo" data-xt-cta-placement="final_cta">See Demo</Link>
+              <a href="/demo/entry" data-xt-cta="demo" data-xt-cta-placement="final_cta">See Demo</a>
             </Button>
           </div>
         </motion.div>

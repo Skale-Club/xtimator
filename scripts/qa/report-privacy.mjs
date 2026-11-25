@@ -10,6 +10,7 @@ const ADMIN_SPEC_FILES = new Set([
   'admin-learner.spec.ts',
   'admin-route-denial.spec.ts',
   'admin-surfaces.spec.ts',
+  'admin-content-details.spec.ts',
 ].map(name => resolve(QA_SOURCE_DIR, name)))
 
 export const REDACTED_ADMIN_ERROR = 'Admin QA error details redacted.'
@@ -78,8 +79,17 @@ function redactError() {
 }
 
 function safeAnnotations(annotations) {
-  return annotations.filter(entry => ['skip', 'fixme', 'fail', 'slow'].includes(entry.type))
-    .map(({ type }) => ({ type }))
+  return annotations.flatMap(({ type, description }) => {
+    if (['skip', 'fixme', 'fail', 'slow'].includes(type)) return [{ type }]
+    // Fixed alias identifiers, React numeric codes and fixed reason enums only.
+    // No error text, URL, DOM, company ID or integration metadata is retained.
+    if (type === 'qa-admin-alias-error' && typeof description === 'string'
+      && description.trim() === description
+      && /^(?:legal|inbox|templates):(?:300|310|418|423|other):(?:html|text|unknown)$/.test(description)) {
+      return [{ type, description }]
+    }
+    return []
+  })
 }
 
 function safeBrowserFailures(attachments) {

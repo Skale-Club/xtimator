@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FileText, Minus, Plus, Receipt, Share2, Trash2 } from 'lucide-react'
@@ -114,6 +114,16 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
   const [fields, setFields] = useState<Fields>(() => fieldsFromChangeOrder(changeOrder))
   const fieldsRef = useRef(fields)
   fieldsRef.current = fields
+  const editorRef = useRef<HTMLDivElement>(null)
+  const pendingLineFocus = useRef<string | null>(null)
+  // Focus the committed new row before another input can receive user input.
+  // A deferred focus can steal the quantity/price field during fast editing.
+  useLayoutEffect(() => {
+    const key = pendingLineFocus.current
+    if (key === null) return
+    pendingLineFocus.current = null
+    editorRef.current?.querySelector<HTMLInputElement>(`[data-line-key="${key}"] input`)?.focus()
+  }, [fields.lines])
 
   // Server-owned state that changes without an edit (share, answer).
   const [meta, setMeta] = useState({
@@ -324,12 +334,8 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
   const addLine = useCallback(
     (credit: boolean) => {
       const line = blankLine(credit, true)
+      pendingLineFocus.current = line.key
       edit((f) => ({ ...f, lines: [...f.lines, line] }))
-      // The new line takes the focus so typing right after "Add item" fills it
-      // (a timer, not requestAnimationFrame, which stalls in a background tab).
-      setTimeout(() => {
-        document.querySelector<HTMLInputElement>(`[data-line-key="${line.key}"] input`)?.focus()
-      }, 30)
     },
     [edit],
   )
@@ -420,7 +426,7 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
   const newTotal = baseContract !== null ? baseContract + totals.total : null
 
   return (
-    <div data-testid="change-order-editor" className="flex min-h-full flex-1 flex-col">
+    <div ref={editorRef} data-testid="change-order-editor" className="flex min-h-full flex-1 flex-col">
       <ChangeOrderTopBar
         projectId={project.id}
         projectName={project.name}

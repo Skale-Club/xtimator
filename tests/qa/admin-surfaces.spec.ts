@@ -26,7 +26,16 @@ async function visitSurfaces(context: BrowserContext, baseURL: string, info: Tes
         const screen = await context.newPage()
         const evidence = { route, status: null as number | null, ready: false, pageErrors: 0, serverErrors: 0 }
         visits.push(evidence)
-        screen.on('pageerror', () => { evidence.pageErrors++ })
+        screen.on('pageerror', error => {
+          evidence.pageErrors++
+          const alias = ({ '/admin/legal': 'legal', '/admin/whatsapp': 'inbox', '/admin/whatsapp-templates': 'templates' } as Record<string, string>)[route]
+          if (alias) {
+            const code = error.message.match(/(?:minified react error|react\.dev\/errors\/)\s*#?(300|310|418|423)\b/i)?.[1] ?? 'other'
+            const kind = /args(?:\[\]|%5B%5D)=HTML\b/i.test(error.message) ? 'html'
+              : /args(?:\[\]|%5B%5D)=text\b/i.test(error.message) ? 'text' : 'unknown'
+            info.annotations.push({ type: 'qa-admin-alias-error', description: `${alias}:${code}:${kind}` })
+          }
+        })
         screen.on('response', response => {
           if (new URL(response.url()).origin === origin && response.status() >= 500) evidence.serverErrors++
         })
@@ -143,7 +152,7 @@ test('[QA:ADM-OPERATIONS-SCREENS] administrative monitoring and provisioning scr
 
 test('[QA:ADM-LEGACY-ALIASES] administrative bookmarks redirect to the canonical screens', async ({ context, baseURL }, info) => {
   test.setTimeout(180_000)
-  await visitSurfaces(context, baseURL!, info, () => [
+  const aliases: Surface[] = [
     { route: '/admin/legal', destination: '/admin/pages', redirectStatus: 307, heading: 'Pages', verify: verifyLegalPages },
     { route: '/admin/whatsapp', destination: '/admin/inbox', redirectStatus: 307, heading: 'Inbox', verify: async main => {
       await expect(main.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('href', '/admin/inbox/settings')
@@ -153,5 +162,7 @@ test('[QA:ADM-LEGACY-ALIASES] administrative bookmarks redirect to the canonical
       await expect(main.getByRole('tab', { name: 'Templates', exact: true })).toHaveAttribute('aria-selected', 'true')
       await expect(main.getByRole('link', { name: 'Back to Inbox', exact: true })).toHaveAttribute('href', '/admin/inbox')
     } },
-  ])
+  ]
+  // Cold and repeated document visits must ALL pass; these are not retries.
+  await visitSurfaces(context, baseURL!, info, () => Array.from({ length: 3 }, () => aliases).flat())
 })

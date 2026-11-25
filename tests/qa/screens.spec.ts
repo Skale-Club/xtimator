@@ -22,6 +22,7 @@ async function visitSurfaces(page: Page, baseURL: string, info: TestInfo, surfac
   const serverErrors: Array<{ path: string; url: string; status: number }> = []
   const visits: Array<{ path: string; expectedPath: string; actualUrl: string; status: number | null; redirect: number | null; horizontalOverflow: number | null }> = []
   const context = page.context()
+  const origin = new URL(baseURL).origin
 
   try {
     for (const { path, destination = path, redirectStatus, verify } of surfaces) {
@@ -30,6 +31,13 @@ async function visitSurfaces(page: Page, baseURL: string, info: TestInfo, surfac
         // session and browser egress boundary, with no previous page fetching
         // or attempting a recovery navigation during the next visit.
         const screen = await context.newPage()
+        let demoEntryRequests = 0
+        if (path === '/') {
+          screen.on('request', request => {
+            const url = new URL(request.url())
+            if (url.origin === origin && url.pathname === '/demo/entry') demoEntryRequests++
+          })
+        }
         screen.on('pageerror', error => browserErrors.push({
           path, url: screen.url(), error: error.message, stack: error.stack?.split('\n').slice(0, 8).join('\n'),
         }))
@@ -73,6 +81,7 @@ async function visitSurfaces(page: Page, baseURL: string, info: TestInfo, surfac
           } finally {
             await screen.close()
           }
+          if (path === '/') expect.soft(demoEntryRequests, 'Landing must not request the demo before activation').toBe(0)
         }
       })
     }

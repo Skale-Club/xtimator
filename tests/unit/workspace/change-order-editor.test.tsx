@@ -138,6 +138,26 @@ function renderEditor(
 const lineAt = (index: number) => screen.getAllByTestId('change-order-line')[index]
 
 describe('ChangeOrderEditor', () => {
+  it('focuses a new line on commit and never steals the next field after typing begins', () => {
+    renderEditor(buildChangeOrder())
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    const description = screen.getByLabelText('Item 1 description')
+    expect(description).toHaveFocus()
+    fireEvent.change(description, { target: { value: 'Additional gate hardware' } })
+    const quantity = screen.getByLabelText('Item 1 quantity')
+    act(() => quantity.focus())
+    act(() => vi.advanceTimersByTime(31))
+    expect(quantity).toHaveFocus()
+    fireEvent.change(quantity, { target: { value: '2' } })
+    expect(description).toHaveValue('Additional gate hardware')
+    expect(quantity).toHaveValue(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add credit' }))
+    expect(screen.getByLabelText('Item 2 description')).toHaveFocus()
+    expect(description).toHaveValue('Additional gate hardware')
+    expect(quantity).toHaveValue(2)
+  })
+
   it('Add item and Add credit change the totals with the right signs', () => {
     renderEditor(buildChangeOrder())
 

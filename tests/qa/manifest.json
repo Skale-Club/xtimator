@@ -514,6 +514,24 @@
       "expectedEvidence": "Actual row menus and Active/Archived filters toggle archived_at while deleted_at remains null. Reload preserves each state, client/estimate/current share token remain intact, and the public document works while archived and after restoration. An unrelated marked tenant remains unchanged."
     },
     {
+      "id": "PUBLIC-CONTENT-ROUTES",
+      "titleToken": "[QA:PUBLIC-CONTENT-ROUTES]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/blog", "/blog/[slug]", "/blog/tag/[slug]", "/blog/author/[slug]", "/blog/archive/[year]", "/blog/archive/[year]/[month]"],
+      "hypothesis": "Published articles remain discoverable through real author, tag, year and month links while draft content remains private.",
+      "expectedEvidence": "Four managed synthetic DEV posts distinguish a published primary article, another year, another month in the primary year and a past-dated draft with the primary author/tag. Actual links, exact canonical origins, structured metadata, filtered date periods and direct draft body/head/URL denial must agree. Empty or missing fixtures fail prerequisites."
+    },
+    {
+      "id": "ADM-BLOG-DETAIL",
+      "titleToken": "[QA:ADM-BLOG-DETAIL]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": ["/admin/blog/[id]", "/admin/knowledge/[id]"],
+      "hypothesis": "A platform admin sees the managed published article's exact prefilled form and cannot target a private company overlay through industry curation.",
+      "expectedEvidence": "The real article detail shows synthetic title, slug, content, excerpt and Published status with no dirty save controls. The same admin's owned company knowledge row is rejected by the industry editor with404/noindex, no form/content and unchanged persistence. Only the marked tenant is cleaned. No positive industry-curation or global-write evidence is claimed."
+    },
+    {
       "id": "DISABLED-SURFACES",
       "titleToken": "[QA:DISABLED-SURFACES]",
       "requiredForExecution": true,
@@ -571,7 +589,7 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
-      "reason": "Five read-only admin surfaces and post-denial login have passing browser evidence; request-level denial covers all28 routes. Three new screen scenarios add19 surfaces and one new real learner-detail journey awaits browser validation. Positive dynamic article/industry-knowledge details, grant/revoke, global writes, support mode and audit interactions still require isolated acceptance."
+      "reason": "The full154case campaign exercises all declared scenarios but has a Safari alias hydration failure. Request-level denial covers all28 admin routes; positive screens and real learner detail run in all3profiles. New managed article detail and own-overlay rejection require fresh evidence. Positive industry detail, grant/revoke, global writes, support mode and broader audit interactions remain open."
     },
     {
       "id": "DEPENDENCY-READINESS",

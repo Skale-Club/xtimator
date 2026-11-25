@@ -83,6 +83,27 @@ test('retains only allowlisted browser failure fields alongside admin attachment
   assert.equal(result.errors.length, 2)
 })
 
+test('retains fixed admin alias failure identifiers while rejecting private diagnostic strings', () => {
+  const result = privateResult()
+  result.annotations = [
+    { type: 'qa-admin-alias-error', description: 'legal:418:html' },
+    { type: 'qa-admin-alias-error', description: 'templates:423:text' },
+    { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },
+    { type: 'qa-admin-alias-error', description: 'legal:418:html\n' + marker },
+    { type: 'qa-admin-alias-error', description: 'legal:418:html\n' },
+    { type: 'qa-admin-alias-error', description: '/admin/companies/' + marker },
+    { type: 'qa-admin-alias-error', description: 'legal:418:' + marker },
+    { type: marker, description: 'legal:418:html' },
+  ]
+  redactAdminResult(result)
+  assert.deepEqual(result.annotations, [
+    { type: 'qa-admin-alias-error', description: 'legal:418:html' },
+    { type: 'qa-admin-alias-error', description: 'templates:423:text' },
+    { type: 'qa-admin-alias-error', description: 'inbox:other:unknown' },
+  ])
+  assert.equal(JSON.stringify(result).includes(marker), false)
+})
+
 test('falls back to counts for malformed, oversized or spoofed browser evidence', () => {
   const event = { source: 'pageerror', classification: 'fetch-rejection', fatal: true, count: 1 }
   const report = { fatalCount: 1, events: [event] }

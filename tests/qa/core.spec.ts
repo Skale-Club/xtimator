@@ -203,15 +203,20 @@ test('[QA:SIGNATURE-PDF] public signing persists frozen evidence and produces a 
   const signer = 'QA Synthetic Signer'
   await dialog.getByLabel('Your full name').fill(signer)
   const canvas = dialog.locator('canvas')
+  // The phone sheet animates from below the viewport. Pointer coordinates
+  // must be taken after layout is stable, as in the change-order draw journey.
+  await canvas.scrollIntoViewIfNeeded()
   const box = await canvas.boundingBox()
   if (!box) throw new Error('Signature canvas is not visible')
   await page.mouse.move(box.x + box.width * .1, box.y + box.height * .6)
   await page.mouse.down()
   for (const [x, y] of [[.25, .3], [.4, .7], [.6, .25], [.8, .6]]) await page.mouse.move(box.x + box.width * x, box.y + box.height * y, { steps: 3 })
   await page.mouse.up()
+  const submit = dialog.getByRole('button', { name: 'Sign & Accept Estimate', exact: true })
+  await expect(submit).toBeEnabled()
   const [signed] = await Promise.all([
-    page.waitForResponse(response => response.url().includes(`/api/estimates/${fixture.estimateId}/sign`) && response.request().method() === 'POST'),
-    dialog.getByRole('button', { name: 'Sign & Accept Estimate', exact: true }).click(),
+    page.waitForResponse(response => response.url().includes(`/api/estimates/${fixture.estimateId}/sign`) && response.request().method() === 'POST', { timeout: 30_000 }),
+    submit.click(),
   ])
   expect(signed.status()).toBe(200)
   await expect.poll(async () => (await fixture.readSignature())?.signer_name).toBe(signer)
