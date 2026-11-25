@@ -532,6 +532,53 @@
       "expectedEvidence": "The real article detail shows synthetic title, slug, content, excerpt and Published status with no dirty save controls. The same admin's owned company knowledge row is rejected by the industry editor with404/noindex, no form/content and unchanged persistence. Only the marked tenant is cleaned. No positive industry-curation or global-write evidence is claimed."
     },
     {
+      "id": "ADM-INDUSTRY-DETAIL",
+      "titleToken": "[QA:ADM-INDUSTRY-DETAIL]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/admin/knowledge",
+        "/admin/knowledge/[id]"
+      ],
+      "hypothesis": "A platform admin can open one industry knowledge entry from the curation list and read its real persisted content.",
+      "expectedEvidence": "A synthetic industry entry with no embedding is listed with its source and Needs reindex state; opening it shows the Edit knowledge entry heading, the Painting industry, exact title, body and source, a noindex robots tag and unchanged persistence. Only the generated entry and tenant are removed."
+    },
+    {
+      "id": "ADM-GRANT-REVOKE",
+      "titleToken": "[QA:ADM-GRANT-REVOKE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/admin/admins"
+      ],
+      "hypothesis": "A platform admin can grant platform admin to a synthetic user, see the grant listed and revoke it again.",
+      "expectedEvidence": "A second generated account is absent from platform_admins, appears in the Platform admins table after the dialog grant with an Admin since badge and a persisted grant, then disappears after the confirmed removal with the grant deleted. The caller keeps its own row. Only generated accounts are touched and any leftover grant is removed in teardown."
+    },
+    {
+      "id": "ADM-SUPPORT-MODE",
+      "titleToken": "[QA:ADM-SUPPORT-MODE]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/admin/companies",
+        "/dashboard"
+      ],
+      "hypothesis": "A platform admin can view a synthetic company as support, see the support banner and exit the session.",
+      "expectedEvidence": "Starting View as Company on a generated company shows the Viewing banner naming that company and the admin, with an httpOnly signed support cookie. Exit view returns to Companies, clears the cookie and the banner no longer renders in the tenant shell. No other company is selected."
+    },
+    {
+      "id": "ADM-AUDIT",
+      "titleToken": "[QA:ADM-AUDIT]",
+      "requiredForExecution": true,
+      "requiredForLaunch": true,
+      "routes": [
+        "/admin/admins",
+        "/admin/companies"
+      ],
+      "hypothesis": "Admin grant, revoke and support mode each append an audit row attributed to the acting admin.",
+      "expectedEvidence": "After a UI grant, revoke, support start and support exit the generated admin has admin.add, admin.remove, company.support_mode_start and company.support_mode_end rows with its email, exact target type and id, the granted email and an integer session duration, in chronological order. No admin screen shows the audit log, so rows are read by actor id through the fixture and removed in teardown."
+    },
+    {
       "id": "DISABLED-SURFACES",
       "titleToken": "[QA:DISABLED-SURFACES]",
       "requiredForExecution": true,

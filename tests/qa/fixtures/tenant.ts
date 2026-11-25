@@ -50,6 +50,7 @@ export function createQaFixture(baseURL: string, {
   const itemId = randomUUID()
   const exemptItemId = randomUUID()
   const knowledgeEntryId = randomUUID()
+  const industryEntryId = randomUUID()
   const adminAttemptId = randomUUID()
   const shareToken = randomUUID()
   const sessionId = randomUUID()
@@ -71,6 +72,10 @@ export function createQaFixture(baseURL: string, {
   const exemptLineDescription = 'Exempt site consultation'
   const knowledgeTitle = `${prefix}installation guidelines`
   const knowledgeBody = 'Inspect cedar railings before preparing a synthetic estimate.'
+  const industryEntryTitle = `${prefix}industry curation guide`
+  const industryEntryBody = 'Synthetic industry curation text. Verify masking before painting a synthetic porch.'
+  const industryEntrySource = `QA industry source ${runId}`
+  const industryEntryIndustryId = 'painting'
   const adminAttemptSearchText = `qa-error-${runId}`
   const adminAttemptError = `Synthetic transcription timeout ${adminAttemptSearchText}`
   const initialLineTotal = 1000
@@ -264,6 +269,40 @@ export function createQaFixture(baseURL: string, {
     ])).error)
   }
 
+  async function seedIndustryEntry() {
+    await assertMarkedTenant()
+    // No embedding: the entry is never ranked into a tenant's generation context.
+    check('insert the synthetic industry knowledge entry', (await db.from('knowledge_entries').insert({
+      id: industryEntryId, scope: 'industry', company_id: null, industry_id: industryEntryIndustryId,
+      title: industryEntryTitle, body: industryEntryBody, source: industryEntrySource, embedding: null,
+    })).error)
+  }
+
+  async function readIndustryEntry() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its industry entry')
+    const row = await db.from('knowledge_entries').select('industry_id, title, body, source, embedding')
+      .eq('id', industryEntryId).eq('scope', 'industry').maybeSingle()
+    check('read the synthetic industry knowledge entry', row.error)
+    return row.data
+  }
+
+  async function readPlatformAdminGrant() {
+    if (!cookieExpiry || closing) throw new Error('Seed the QA fixture before reading its platform admin grant')
+    const row = await db.from('platform_admins').select('user_id').eq('user_id', userId).maybeSingle()
+    check('read the fixture platform admin grant', row.error)
+    return row.data
+  }
+
+  /** Audit rows written by this fixture's own admin session. Rows are removed at cleanup. */
+  async function readAuditRows() {
+    if (!platformAdmin || !cookieExpiry || closing) throw new Error('Seed the marked admin before reading its audit rows')
+    const rows = await db.from('admin_audit_log')
+      .select('action, actor_email, target_type, target_id, metadata, created_at')
+      .eq('actor_id', userId).order('created_at')
+    check('read the fixture audit rows', rows.error)
+    return rows.data ?? []
+  }
+
   async function readAdminAttempt() {
     if (!platformAdmin || !cookieExpiry || closing) throw new Error('Seed the marked admin before reading its attempt')
     const attempt = await db.from('pipeline_attempts')
@@ -402,6 +441,18 @@ export function createQaFixture(baseURL: string, {
       }
     }
 
+    if (await hasMarkedAccount()) {
+      // Targets of the grant journey are ordinary fixtures that a platform admin promoted.
+      // Remove only the grant of this generated, marked account.
+      if (!platformAdmin) {
+        check('remove the fixture platform admin grant', (await db.from('platform_admins').delete().eq('user_id', userId)).error)
+      }
+      // The audit trail has no UI. Remove only rows whose actor is this generated admin.
+      check('remove the fixture audit rows', (await db.from('admin_audit_log').delete().eq('actor_id', userId)).error)
+      check('remove the synthetic industry knowledge entry', (await db.from('knowledge_entries').delete()
+        .eq('id', industryEntryId).eq('scope', 'industry').like('title', `${prefix}%`)).error)
+    }
+
     check('remove the owned session', (await db.from('xtimator_sessions').delete()
       .eq('id', sessionId).eq('user_id', userId).eq('token_hash', tokenHash)).error)
 
@@ -451,6 +502,8 @@ export function createQaFixture(baseURL: string, {
     seed, cookies, readOwn, readCapture, readCompany, readPriceBook, reviseOwnEstimateLine,
     readGenerationEvidence, readOwnChangeOrder, readOwnChangeOrderEvidence, tryReviseOwnAcceptedLine, cleanup,
     knowledgeEntryId, knowledgeTitle, knowledgeBody, seedKnowledgeEntry, readKnowledgeEntry,
+    industryEntryId, industryEntryTitle, industryEntryBody, industryEntrySource, industryEntryIndustryId,
+    seedIndustryEntry, readIndustryEntry, readPlatformAdminGrant, readAuditRows,
     readAcademyProgress, readMemberships, adminAttemptId, adminAttemptSearchText, adminAttemptError, seedAdminAttempt, readAdminAttempt,
     readClient: (id: string = clientId) => readOwn('clients', id),
     readProject: (id: string = projectId) => readOwn('projects', id),
