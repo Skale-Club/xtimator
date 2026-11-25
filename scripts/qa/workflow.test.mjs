@@ -164,6 +164,8 @@ test('the isolated acceptance job requires test types before opening a browser',
   const acceptance = source.split('\n  acceptance:')[1]?.split('\n  payment-sandbox:')[0]
   const typeCheck = acceptance?.match(/name: Verify acceptance test types\r?\n\s+run: npx tsc --noEmit/)?.[0]
   assert.ok(typeCheck)
+  // Whole-repo tsc runs out of memory at Node's default heap on the runner.
+  assert.match(acceptance.slice(acceptance.indexOf(typeCheck)), /^[^]*?NODE_OPTIONS: --max-old-space-size=\d{4,}\r?\n\s+- name:/)
   assert.ok(acceptance.indexOf(typeCheck) < acceptance.indexOf('name: Exercise required initial scenarios'))
   assert.match(source, /name: Bare typecheck \(advisory, non-blocking\)\r?\n\s+continue-on-error: true/)
   for (const event_name of ['push', 'workflow_dispatch']) {

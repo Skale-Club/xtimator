@@ -265,6 +265,9 @@ jobs:
       # the separate main/deploy unit job keeps its existing advisory check.
       - name: Verify acceptance test types
         run: npx tsc --noEmit
+        # The whole-repo check exceeds Node's default ~2 GB heap (OOM, exit 134).
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
       - name: Verify browser fixture loading without browser startup
         run: npm run qa:loader
       - name: Retain the resolved dependency lock for review
