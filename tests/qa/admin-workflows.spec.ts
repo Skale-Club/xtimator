@@ -71,25 +71,63 @@ function supportBanner(page: Page) {
     .filter({ has: page.getByRole('button', { name: 'Exit view', exact: true }) })
 }
 
+/**
+ * Admin errors are redacted from reports, so each step records a fixed, data-free
+ * label when it fails (whitelisted in scripts/qa/report-privacy.mjs).
+ */
+async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    test.info().annotations.push({ type: 'qa-admin-step-failure', description: label })
+    throw error
+  }
+}
+
+async function supportStartFailure(page: Page) {
+  const toast = page.getByText(/^Couldn't view as this company\./).first()
+  if (!await toast.isVisible().catch(() => false)) return null
+  const text = await toast.textContent().catch(() => '') ?? ''
+  return /Sign in again/.test(text) ? 'signin' : /APP_ENCRYPTION_KEY/.test(text) ? 'key' : 'other'
+}
+
 async function startSupportViaUi(page: Page, company: Tenant) {
-  await page.goto(`/admin/companies?q=${encodeURIComponent(company.companyName)}`)
-  await expect(page.getByRole('heading', { level: 1, name: 'Companies', exact: true })).toBeVisible()
+  await step('support:list', async () => {
+    await page.goto(`/admin/companies?q=${encodeURIComponent(company.companyName)}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Companies', exact: true })).toBeVisible()
+  })
   const row = page.getByRole('row').filter({ hasText: company.companyName })
-  await expect(row).toHaveCount(1)
   const start = row.getByRole('button', { name: /View as Company/ })
+  await step('support:row', async () => {
+    await expect(row).toHaveCount(1)
+    await expect(start).toBeVisible()
+  })
   const banner = supportBanner(page)
-  // The button ignores clicks until hydrated; the grant itself is idempotent for the same company.
-  await expect(async () => {
-    await start.click({ timeout: 5_000 })
-    await expect(banner).toBeVisible({ timeout: 12_000 })
-  }).toPass({ timeout: 45_000 })
+  // The button ignores clicks until hydrated. Click again only while still on the list;
+  // once the action ran, the app navigates to /dashboard and the row no longer exists.
+  await step('support:start', async () => {
+    await expect(async () => {
+      if (/\/admin\/companies/.test(new URL(page.url()).pathname)) {
+        const failure = await supportStartFailure(page)
+        if (failure) {
+          test.info().annotations.push({ type: 'qa-admin-step-failure', description: `support:start-${failure}` })
+          throw new Error('Support mode start was rejected')
+        }
+        if (await start.isVisible()) await start.click({ timeout: 5_000 })
+      }
+      await expect(page).toHaveURL(/\/dashboard$/, { timeout: 10_000 })
+    }).toPass({ timeout: 45_000 })
+  })
+  await step('support:banner', () => expect(banner).toBeVisible({ timeout: 20_000 }))
   return banner
 }
 
 async function exitSupportViaUi(page: Page) {
-  await supportBanner(page).getByRole('button', { name: 'Exit view', exact: true }).click()
-  await expect(page).toHaveURL(/\/admin\/companies$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Companies', exact: true })).toBeVisible()
+  await step('support:exit', async () => {
+    await supportBanner(page).getByRole('button', { name: 'Exit view', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/companies$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Companies', exact: true })).toBeVisible()
+  })
 }
 
 async function supportCookie(page: Page) {
@@ -160,16 +198,22 @@ test('[QA:ADM-SUPPORT-MODE] an admin views a synthetic company as support and ex
     expect(await supportCookie(page)).toBeUndefined()
 
     const banner = await startSupportViaUi(page, company)
-    await expect(banner).toContainText(company.companyName)
-    await expect(banner).toContainText(admin.userEmail)
-    const cookie = await supportCookie(page)
-    expect(cookie?.httpOnly).toBe(true)
-    expect(cookie?.value.length).toBeGreaterThan(20)
+    await step('support:banner-content', async () => {
+      await expect(banner).toContainText(company.companyName)
+      await expect(banner).toContainText(admin.userEmail)
+    })
+    await step('support:cookie', async () => {
+      const cookie = await supportCookie(page)
+      expect(cookie?.httpOnly).toBe(true)
+      expect(cookie?.value.length).toBeGreaterThan(20)
+    })
 
     await exitSupportViaUi(page)
-    expect(await supportCookie(page)).toBeUndefined()
-    await page.goto('/dashboard')
-    await expect(supportBanner(page)).toHaveCount(0)
+    await step('support:cleared', async () => {
+      expect(await supportCookie(page)).toBeUndefined()
+      await page.goto('/dashboard')
+      await expect(supportBanner(page)).toHaveCount(0)
+    })
     await info.attach('admin-support-mode-evidence.json', {
       body: JSON.stringify({ started: true, bannerNamedCompanyAndAdmin: true, cookieHttpOnly: true, exited: true, cookieCleared: true }),
       contentType: 'application/json',
@@ -190,8 +234,17 @@ test('[QA:ADM-AUDIT] grant, revoke and support mode each leave an audit row attr
 
     // The audit log has no admin screen, so read the append-only rows through the fixture's own actor scope.
     // The grant and support logs are fire-and-forget on the server, hence the poll.
-    await expect.poll(async () => (await admin.readAuditRows()).map(row => row.action).sort(), { timeout: 20_000 })
-      .toEqual(expect.arrayContaining(['admin.add', 'admin.remove', 'company.support_mode_start', 'company.support_mode_end']))
+    await step('audit:rows', () => expect.poll(async () => (await admin.readAuditRows()).map(row => row.action).sort(), { timeout: 20_000 })
+      .toEqual(expect.arrayContaining(['admin.add', 'admin.remove', 'company.support_mode_start', 'company.support_mode_end'])))
+    await step('audit:fields', () => assertAuditFields(admin, user, company))
+    await info.attach('admin-audit-evidence.json', {
+      body: JSON.stringify({ actions: (await admin.readAuditRows()).map(row => row.action), actorMatchesAdmin: true, uiSurface: 'none' }),
+      contentType: 'application/json',
+    })
+  })
+})
+
+async function assertAuditFields(admin: Tenant, user: Tenant, company: Tenant) {
     const rows = await admin.readAuditRows()
     const only = (action: string) => rows.filter(row => row.action === action)
     expect(rows.every(row => row.actor_email === admin.userEmail)).toBe(true)
@@ -207,9 +260,4 @@ test('[QA:ADM-AUDIT] grant, revoke and support mode each leave an audit row attr
     // Revocation is recorded after the grant, and the support session ends after it starts.
     expect(Date.parse(removed.created_at)).toBeGreaterThanOrEqual(Date.parse(added.created_at))
     expect(Date.parse(ended.created_at)).toBeGreaterThanOrEqual(Date.parse(only('company.support_mode_start')[0].created_at))
-    await info.attach('admin-audit-evidence.json', {
-      body: JSON.stringify({ actions: rows.map(row => row.action), actorMatchesAdmin: true, uiSurface: 'none' }),
-      contentType: 'application/json',
-    })
-  })
-})
+}

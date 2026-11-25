@@ -86,6 +86,8 @@ function safeAnnotations(annotations) {
     if (typeof description === 'string' && description.trim() === description) {
       if (type === 'qa-admin-read-failure'
         && /^(?:dashboard|admins|company|events|integrations):(?:navigation|response|url|banner|heading|content|catalog)$/.test(description)) return [{ type, description }]
+      if (type === 'qa-admin-step-failure'
+        && /^(?:support:(?:list|row|start|start-signin|start-key|start-other|banner|banner-content|cookie|exit|cleared)|audit:(?:rows|fields))$/.test(description)) return [{ type, description }]
       if (type === 'qa-admin-read-react-error'
         && /^(?:dashboard|admins|company|events|integrations):(?:300|310|418|423|other):(?:html|text|unknown)$/.test(description)) return [{ type, description }]
     }
