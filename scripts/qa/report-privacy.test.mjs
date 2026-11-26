@@ -109,6 +109,8 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
     { type: 'qa-admin-step-failure', description: 'support:' + marker },
     { type: 'qa-admin-step-failure', description: 'support:start-at-' + marker },
     { type: 'qa-admin-step-failure', description: 'support:start-clicks-3' },
+    { type: 'qa-admin-step-failure', description: 'learner:page-errors' },
+    { type: 'qa-admin-step-failure', description: 'learner:' + marker },
   ]
   redactAdminResult(result)
   assert.deepEqual(result.annotations, [
@@ -123,6 +125,7 @@ test('retains fixed admin alias failure identifiers while rejecting private diag
     { type: 'qa-admin-step-failure', description: 'support:start-clicks-many' },
     { type: 'qa-admin-step-failure', description: 'support:start-at-dashboard' },
     { type: 'qa-admin-step-failure', description: 'audit:rows' },
+    { type: 'qa-admin-step-failure', description: 'learner:page-errors' },
   ])
   assert.equal(JSON.stringify(result).includes(marker), false)
 })

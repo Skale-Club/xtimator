@@ -9,6 +9,16 @@ const lessonId = FIXTURE_LESSON_IDS.text
 const lessonTitle = 'Pricing tips (text only)'
 const lessonRoute = `/academy/${FIXTURE_COURSE_ID}/${lessonId}`
 
+/** Admin errors are redacted from reports; a failing step records a fixed, data-free label (report-privacy.mjs). */
+async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    test.info().annotations.push({ type: 'qa-admin-step-failure', description: `learner:${label}` })
+    throw error
+  }
+}
+
 async function observeLessonTrack(page: Page, field: 'event' | 'completeSource', value: string, completed: boolean) {
   const response = await page.waitForResponse(candidate => {
     const request = candidate.request()
@@ -41,19 +51,23 @@ test('[QA:ADM-LEARNER-DETAIL] an administrator reads the synthetic learner’s p
     await context.addCookies(learner.cookies())
     const learnerPage = await context.newPage()
     watchErrors(learnerPage)
-    const [, lesson] = await Promise.all([
-      observeLessonTrack(learnerPage, 'event', 'lesson_open', false),
-      learnerPage.goto(lessonRoute),
-    ])
-    expect(lesson?.status()).toBe(200)
-    await expect(learnerPage.getByRole('heading', { level: 1, name: lessonTitle, exact: true })).toBeVisible()
-    await Promise.all([
+    await step('open', async () => {
+      const [, lesson] = await Promise.all([
+        observeLessonTrack(learnerPage, 'event', 'lesson_open', false),
+        learnerPage.goto(lessonRoute),
+      ])
+      expect(lesson?.status()).toBe(200)
+      await expect(learnerPage.getByRole('heading', { level: 1, name: lessonTitle, exact: true })).toBeVisible()
+    })
+    await step('complete', () => Promise.all([
       observeLessonTrack(learnerPage, 'completeSource', 'manual', true),
       learnerPage.getByRole('button', { name: 'Mark as complete', exact: true }).click(),
-    ])
-    const persisted = await learner.readAcademyProgress(lessonId)
-    expect(persisted.progress?.course_id === FIXTURE_COURSE_ID && typeof persisted.progress.completed_at === 'string').toBe(true)
-    expect(persisted.events.filter(event => event.type === 'lesson_complete').map(event => event.payload)).toEqual([{ source: 'manual' }])
+    ]))
+    await step('persisted', async () => {
+      const persisted = await learner.readAcademyProgress(lessonId)
+      expect(persisted.progress?.course_id === FIXTURE_COURSE_ID && typeof persisted.progress.completed_at === 'string').toBe(true)
+      expect(persisted.events.filter(event => event.type === 'lesson_complete').map(event => event.payload)).toEqual([{ source: 'manual' }])
+    })
     evidence.manualCompletion = true
 
     await learnerPage.close()
@@ -86,17 +100,21 @@ test('[QA:ADM-LEARNER-DETAIL] an administrator reads the synthetic learner’s p
       return completion
     }
 
-    const detail = await screen.goto(path).catch(() => { throw new Error('Could not navigate to the synthetic learner detail') })
-    expect(detail?.status()).toBe(200)
-    const completion = await verifyDetail()
+    const completion = await step('detail', async () => {
+      const detail = await screen.goto(path).catch(() => { throw new Error('Could not navigate to the synthetic learner detail') })
+      expect(detail?.status()).toBe(200)
+      return verifyDetail()
+    })
     evidence.adminView = true
-    const reload = await screen.reload().catch(() => { throw new Error('Could not reload the synthetic learner detail') })
-    expect(reload?.status()).toBe(200)
-    expect(await verifyDetail() === completion).toBe(true)
+    await step('reload', async () => {
+      const reload = await screen.reload().catch(() => { throw new Error('Could not reload the synthetic learner detail') })
+      expect(reload?.status()).toBe(200)
+      expect(await verifyDetail() === completion).toBe(true)
+    })
     evidence.stableAfterReload = true
     await screen.close()
-    expect(evidence.pageErrors).toBe(0)
-    expect(evidence.serverErrors).toBe(0)
+    await step('page-errors', async () => expect(evidence.pageErrors).toBe(0))
+    await step('server-errors', async () => expect(evidence.serverErrors).toBe(0))
   } finally {
     const closes = await Promise.allSettled(context.pages().map(page => page.close()))
     const cleanups = await Promise.allSettled([learner.cleanup(), admin.cleanup()])
