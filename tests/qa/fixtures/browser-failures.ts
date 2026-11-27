@@ -25,7 +25,12 @@ export function createBrowserFailureTracker(baseURL: string) {
   // WebKit can also report a same-origin fetch whose request answered (the app caught the rejection) when a
   // navigation tears the page down; a same-origin request cannot fail a CORS check, so an answered URL is benign too.
   const answeredRequests = new Set<string>()
-  const pendingAccessControl: Array<string | null> = []
+  const pendingAccessControl: Array<{ key: string | null; at: number }> = []
+  // A same-origin fetch cannot fail a CORS check: WebKit only reports one when a main-frame navigation
+  // tears the page down. Such a report close to a navigation start is benign, whatever the URL.
+  const navigationStarts: number[] = []
+  const TEARDOWN_BEFORE_MS = 1_000
+  const TEARDOWN_AFTER_MS = 5_000
 
   function record(input: Omit<Observation, 'count'>) {
     const key = `${input.source}:${input.classification}:${input.resourceType ?? ''}`
@@ -64,11 +69,14 @@ export function createBrowserFailureTracker(baseURL: string) {
   }
 
   return {
-    pageError(text: string) {
+    pageError(text: string, at = Date.now()) {
       const accessControl = accessControlUrl(text)
-      if (accessControl !== undefined) { pendingAccessControl.push(accessControl); return }
+      if (accessControl !== undefined) { pendingAccessControl.push({ key: accessControl, at }); return }
       const fetchRejected = /^(?:TypeError:\s*)?(?:Load failed|Failed to fetch|NetworkError when attempting to fetch resource\.)$/i.test(text.trim())
       record({ source: 'pageerror', classification: classifyReactFailure(text) ?? (fetchRejected ? 'fetch-rejection' : 'unhandled-exception'), fatal: true })
+    },
+    navigationStarted(at = Date.now()) {
+      navigationStarts.push(at)
     },
     consoleError(text: string) {
       const classification = classifyReactFailure(text)
@@ -99,8 +107,9 @@ export function createBrowserFailureTracker(baseURL: string) {
     },
     summary() {
       const resolved = new Map<string, Observation>(Array.from(observations, ([key, event]) => [key, { ...event }]))
-      for (const key of pendingAccessControl) {
-        const cancelled = key !== null && (cancelledRequests.has(key) || answeredRequests.has(key) || isRouterFetch(key))
+      for (const { key, at } of pendingAccessControl) {
+        const duringTeardown = navigationStarts.some(start => at - start >= -TEARDOWN_BEFORE_MS && at - start <= TEARDOWN_AFTER_MS)
+        const cancelled = key !== null && (cancelledRequests.has(key) || answeredRequests.has(key) || isRouterFetch(key) || duringTeardown)
         const classification = cancelled ? 'cancelled' : 'unhandled-exception'
         const mapKey = `pageerror:${classification}:`
         const existing = resolved.get(mapKey)

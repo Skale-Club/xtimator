@@ -78,6 +78,9 @@ export const test = base.extend({
       const request = response.request()
       failures.assetResponse(response.url(), request.resourceType(), response.status())
     }
+    const handleRequest = (request: Request) => {
+      if (request.isNavigationRequest() && request.frame() === request.frame().page()?.mainFrame()) failures.navigationStarted()
+    }
     const handleRequestFailed = (request: Request) => {
       failures.assetRequestFailed(request.url(), request.resourceType(), request.failure()?.errorText)
     }
@@ -86,6 +89,7 @@ export const test = base.extend({
     context.on('console', handleConsole)
     context.on('response', handleResponse)
     context.on('requestfailed', handleRequestFailed)
+    context.on('request', handleRequest)
     try {
       await use(context)
     } finally {
@@ -93,6 +97,7 @@ export const test = base.extend({
       context.off('console', handleConsole)
       context.off('response', handleResponse)
       context.off('requestfailed', handleRequestFailed)
+      context.off('request', handleRequest)
       if (blocked.size) await info.attach('blocked-browser-hosts.json', {
         body: JSON.stringify({ hosts: [...blocked].sort(), actualExternalRequestsAllowed: false }), contentType: 'application/json',
       })
