@@ -154,3 +154,15 @@ test('the WebKit teardown report from run 45707472434 resolves when the same fet
   document.pageError(message)
   assert.equal(document.summary().fatalCount, 1)
 })
+
+test('the WebKit report of a cancelled Next.js router fetch from run 46014318319 is nonfatal, other unseen fetches stay fatal', () => {
+  const rsc = createBrowserFailureTracker(origin)
+  rsc.pageError('/127.0.0.1:9650/dashboard?_rsc=3V0594I9yyFXG-zx due to access control checks.')
+  assert.equal(rsc.summary().fatalCount, 0)
+  const plain = createBrowserFailureTracker(origin)
+  plain.pageError('/127.0.0.1:9650/dashboard?tab=rsc due to access control checks.')
+  assert.equal(plain.summary().fatalCount, 1)
+  const cross = createBrowserFailureTracker(origin)
+  cross.pageError(accessError('https://external.invalid/page?_rsc=1'))
+  assert.equal(cross.summary().fatalCount, 1)
+})

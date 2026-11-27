@@ -57,3 +57,17 @@ The hygiene changes on offer are:
 Either one needs another lock regression and acceptance run. Moderate and low entries have not been triaged individually.
 
 Keep `INNGEST_DEV` unset in production.
+
+## Decision (2026-11-27)
+
+The owner delegated this decision to the agent session. The decision is to **accept the two documented residual advisories for launch** and to defer both hygiene changes until after launch. The reasons:
+- Neither chain is reachable.
+- Either change would mean a fresh lock regression and acceptance run in the release window.
+- The `firebase` swap touches sign-in.
+
+The preferred hygiene change after launch is the `@firebase/app` + `@firebase/auth` swap, because it removes Firestore and its gRPC chain from the tree entirely.
+
+Re-open this decision if any of these happens:
+- Firestore is imported.
+- `INNGEST_DEV` is set in production.
+- An advisory reaches a package that production code actually loads.

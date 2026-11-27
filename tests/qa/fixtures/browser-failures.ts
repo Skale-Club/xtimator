@@ -52,6 +52,12 @@ export function createBrowserFailureTracker(baseURL: string) {
     return sameOriginKey(absolute)
   }
 
+  // Next.js App Router fetches (prefetch and soft navigation) carry `_rsc`; the router catches their
+  // failures itself, and WebKit reports one it cancelled when a navigation tears the page down.
+  function isRouterFetch(key: string): boolean {
+    try { return new URL(key).searchParams.has('_rsc') } catch { return false }
+  }
+
   function firstPartyAsset(url: string, resourceType: string): AssetType | null {
     if (resourceType !== 'script' && resourceType !== 'stylesheet') return null
     return new URL(url).origin === origin ? resourceType : null
@@ -94,7 +100,7 @@ export function createBrowserFailureTracker(baseURL: string) {
     summary() {
       const resolved = new Map<string, Observation>(Array.from(observations, ([key, event]) => [key, { ...event }]))
       for (const key of pendingAccessControl) {
-        const cancelled = key !== null && (cancelledRequests.has(key) || answeredRequests.has(key))
+        const cancelled = key !== null && (cancelledRequests.has(key) || answeredRequests.has(key) || isRouterFetch(key))
         const classification = cancelled ? 'cancelled' : 'unhandled-exception'
         const mapKey = `pageerror:${classification}:`
         const existing = resolved.get(mapKey)
