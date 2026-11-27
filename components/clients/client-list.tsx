@@ -18,6 +18,7 @@ import { ClientSheet } from '@/components/clients/client-sheet'
 import type { ClientDetail, ClientStats } from '@/lib/queries/clients'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 import { formatClientPhone } from '@/lib/phone/format'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +70,8 @@ export function formatShortDate(iso: string, locale: string): string {
 export function ClientList({ clients, companyId, currencyCode = DEFAULT_CURRENCY_CODE }: ClientListProps) {
   const { t, language } = useTranslation()
   const locale = localeFor(language)
+  // Dates use the viewer's time zone, which the server (UTC) cannot know: format them after hydration.
+  const clientReady = useClientReady()
   const url = useListUrlState()
   const [search, setSearchState] = useState(() => url.read('q') ?? '')
   function setSearch(value: string) {
@@ -235,7 +238,7 @@ export function ClientList({ clients, companyId, currencyCode = DEFAULT_CURRENCY
                     key={client.id}
                     client={client}
                     totalLabel={money(client.total_value ?? 0)}
-                    lastLabel={client.last_activity_at ? formatShortDate(client.last_activity_at, locale) : ''}
+                    lastLabel={clientReady && client.last_activity_at ? formatShortDate(client.last_activity_at, locale) : ''}
                     projectsLabel={`${client.project_count} ${client.project_count === 1 ? t('project') : t('projects')}`}
                     noPhone={t('No phone')}
                     noEmail={t('No email')}

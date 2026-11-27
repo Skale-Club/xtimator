@@ -197,3 +197,32 @@ describe('ClientList', () => {
     expect(screen.queryByText('Beta LLC')).toBeNull()
   })
 })
+
+describe('ClientList: viewer time zone dates', () => {
+  it('hydrates without a text mismatch when the server (UTC) and the browser fall on different days', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const { hydrateRoot } = await import('react-dom/client')
+    const { act } = await import('@testing-library/react')
+    const previousTz = process.env.TZ
+    // 01:30 UTC on Nov 26 is still the evening of Nov 25 in New York.
+    const client = { ...mockClients[0], last_activity_at: '2026-11-26T01:30:00.000Z', total_value: 0 }
+    const tree = <ClientList clients={[client]} companyId="c1" />
+    const container = document.createElement('div')
+    document.body.append(container)
+    let root: ReturnType<typeof hydrateRoot> | undefined
+    try {
+      process.env.TZ = 'UTC'
+      container.innerHTML = renderToString(tree)
+      expect(container.textContent).not.toContain('Nov 26')
+      process.env.TZ = 'America/New_York'
+      const onRecoverableError = vi.fn()
+      await act(async () => { root = hydrateRoot(container, tree, { onRecoverableError }) })
+      expect(onRecoverableError).not.toHaveBeenCalled()
+      expect(container.textContent).toContain('Nov 25')
+    } finally {
+      if (root) await act(async () => { root?.unmount() })
+      container.remove()
+      process.env.TZ = previousTz
+    }
+  })
+})

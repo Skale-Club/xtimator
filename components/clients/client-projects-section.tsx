@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge'
 import { formatMoney } from '@/lib/money/currency'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
@@ -34,6 +35,7 @@ export function ClientProjectsSection({
   currencyCode,
 }: ClientProjectsSectionProps) {
   const { t } = useTranslation()
+  const clientReady = useClientReady()
 
   const columns: Column<ClientProjectRow>[] = [
     {
@@ -75,11 +77,7 @@ export function ClientProjectsSection({
       key: 'date',
       header: t('Date'),
       cell: (project) =>
-        new Date(project.created_at).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }),
+        projectDate(project.created_at, clientReady),
     },
   ]
 
@@ -144,6 +142,11 @@ export function ClientProjectsSection({
   )
 }
 
+/** Viewer-time-zone date, formatted only after hydration (the server renders in UTC). */
+function projectDate(iso: string, clientReady: boolean): string {
+  return clientReady ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+}
+
 function ClientProjectCard({
   project,
   currencyCode,
@@ -151,6 +154,7 @@ function ClientProjectCard({
   project: ClientProjectRow
   currencyCode: string
 }) {
+  const clientReady = useClientReady()
   return (
     // py-0: Card ships py-6, which on top of the inner p-4 made these rows 40px
     // taller than their content.
@@ -164,11 +168,7 @@ function ClientProjectCard({
         <div className="mb-3 space-y-1 text-sm text-muted-foreground">
           {project.project_type && <p>{project.project_type}</p>}
           <p>
-            {new Date(project.created_at).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
+            {projectDate(project.created_at, clientReady)}
           </p>
         </div>
         <div className="flex items-center justify-between gap-3">

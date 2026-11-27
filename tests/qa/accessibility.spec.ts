@@ -26,6 +26,8 @@ async function withTenant(page: Page, baseURL: string, run: (fixture: Tenant) =>
  */
 async function settleAnimations(page: Page) {
   await page.waitForFunction(async () => {
+    // A class-driven CSS transition starts on the next frame; let two frames pass before sampling.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     const running = document.getAnimations().filter(animation => {
       const timing = animation.effect?.getComputedTiming()
       return animation.playState === 'running' && timing?.iterations !== Infinity
@@ -349,8 +351,12 @@ test('[QA:KEYBOARD-WORKSPACE-NAV] Tab and Enter move between the dashboard, clie
       await page.keyboard.press('Enter')
       await expect(menu).toBeVisible()
       const view = page.getByRole('menuitem', { name: 'View', exact: true })
-      for (let step = 0; step < 8 && !(await view.evaluate(element => element === document.activeElement)); step++) await page.keyboard.press('ArrowDown')
-      await expect(view).toBeFocused()
+      // Radix moves focus into the menu a frame after it opens; arrow keys pressed before that land on the trigger.
+      await expect.poll(() => menu.evaluate(element => element.contains(document.activeElement))).toBe(true)
+      await expect(async () => {
+        if (!await view.evaluate(element => element === document.activeElement)) await page.keyboard.press('ArrowDown')
+        await expect(view).toBeFocused({ timeout: 500 })
+      }).toPass({ timeout: 10_000 })
       await page.keyboard.press('Enter')
       await expect(page).toHaveURL(new RegExp(`/projects/${fixture.projectId}$`))
       await expect(page.getByRole('heading', { level: 1, name: fixture.projectName, exact: true })).toBeVisible()

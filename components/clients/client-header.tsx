@@ -7,6 +7,7 @@ import { ClientNewProjectButton } from '@/components/clients/client-new-project-
 import { formatShortDate, localeFor } from '@/components/clients/client-list'
 import { formatMoney } from '@/lib/money/currency'
 import type { ClientDetail } from '@/lib/queries/clients'
+import { useClientReady } from '@/hooks/use-client-ready'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 
@@ -29,7 +30,9 @@ export function ClientHeader({ client, companyId, currencyCode, totalValue, acti
   const { t, language } = useTranslation()
   const locale = localeFor(language)
   const place = [client.city, client.state].filter(Boolean).join(', ')
-  const since = new Date(client.created_at).toLocaleDateString(locale, { month: 'short', year: 'numeric' })
+  // Viewer-time-zone dates are formatted only after hydration (the server renders in UTC).
+  const clientReady = useClientReady()
+  const since = clientReady ? new Date(client.created_at).toLocaleDateString(locale, { month: 'short', year: 'numeric' }) : '—'
 
   const contacts = [
     client.phone && { key: 'call', href: `tel:${client.phone}`, icon: Phone, label: t('Call') },
@@ -41,7 +44,7 @@ export function ClientHeader({ client, companyId, currencyCode, totalValue, acti
     { label: t('Total in estimates'), value: formatMoney(totalValue, currencyCode, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) },
     { label: t('Active projects'), value: String(activeCount) },
     { label: t('Projects'), value: String(client.project_count) },
-    { label: t('Last activity'), value: lastActivityAt ? formatShortDate(lastActivityAt, locale) : '—' },
+    { label: t('Last activity'), value: clientReady && lastActivityAt ? formatShortDate(lastActivityAt, locale) : '—' },
   ]
 
   return (
