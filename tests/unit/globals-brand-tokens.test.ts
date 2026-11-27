@@ -9,14 +9,14 @@ const adminLayout  = readFileSync(resolve(root, 'app/admin/layout.tsx'), 'utf8')
 const systemColors = readFileSync(resolve(root, 'lib/system-colors.ts'), 'utf8')
 
 describe('Global brand tokens (Phase 10)', () => {
-  describe('BRAND-01 — authenticated app pages use #406EF1 primary', () => {
-    it('--system-primary is defined as 224 86% 60% (single source of truth)', () => {
+  describe('BRAND-01 — authenticated app pages use the system primary (224 86% 57%)', () => {
+    it('--system-primary is defined as 224 86% 57% (single source of truth)', () => {
       // Brand triplet lives in --system-primary; all --primary vars reference it via var().
-      expect(globalsCss).toMatch(/--system-primary:\s*224 86% 60%/)
+      expect(globalsCss).toMatch(/--system-primary:\s*224 86% 57%/)
     })
 
-    it('lib/system-colors.ts exports primaryHsl as "224 86% 60%"', () => {
-      expect(systemColors).toContain("primaryHsl: '224 86% 60%'")
+    it('lib/system-colors.ts exports primaryHsl as "224 86% 57%"', () => {
+      expect(systemColors).toContain("primaryHsl: '224 86% 57%'")
     })
 
     it(':root --primary resolves through var(--system-primary)', () => {
@@ -35,7 +35,7 @@ describe('Global brand tokens (Phase 10)', () => {
     })
   })
 
-  describe('BRAND-02 — admin panel default accent is #406EF1', () => {
+  describe('BRAND-02 — admin panel default accent is the system primary', () => {
     it('app/admin/layout.tsx fallback uses SYSTEM_COLORS.primaryHsl', () => {
       // Layout resolves brand triplet via SYSTEM_COLORS constant (not a hardcoded literal).
       expect(adminLayout).toContain('SYSTEM_COLORS.primaryHsl')
@@ -73,5 +73,40 @@ describe('Global brand tokens (Phase 10)', () => {
     it('runtime override path var(--platform-primary, ...) is preserved in globals.css', () => {
       expect(globalsCss).toMatch(/var\(--platform-primary,/)
     })
+  })
+})
+
+describe('Primary contrast (WCAG AA, axe scans of 2026-11-25)', () => {
+  const hslToHex = (triplet: string) => {
+    const [h, s, l] = triplet.replace(/%/g, '').trim().split(/\s+/).map(Number)
+    const a = (s / 100) * Math.min(l / 100, 1 - l / 100)
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12
+      const v = l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+      return Math.round(v * 255).toString(16).padStart(2, '0')
+    }
+    return `#${f(0)}${f(8)}${f(4)}`
+  }
+  const token = (name: string) => {
+    const match = globalsCss.match(new RegExp(`--${name}:\\s*([\\d.]+ [\\d.]+% [\\d.]+%)`))
+    expect(match, `--${name} must be an HSL triplet`).not.toBeNull()
+    return hslToHex(match![1])
+  }
+
+  it('white text on the system primary fill reaches 4.5:1', async () => {
+    const { contrastRatio } = await import('@/lib/color/contrast')
+    expect(contrastRatio(token('system-primary'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('primary text on the darkest app surfaces reaches 4.5:1', async () => {
+    const { contrastRatio } = await import('@/lib/color/contrast')
+    for (const surface of ['#09090b', '#101218', '#1f1f23']) {
+      expect(contrastRatio(token('primary-text'), surface), surface).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('text-primary reads the dark-surface tone and forced-light scopes reset it', () => {
+    expect(globalsCss).toMatch(/\.text-primary\s*\{\s*color:\s*hsl\(var\(--primary-text,\s*var\(--primary\)\)\)/)
+    expect(globalsCss).toMatch(/\[data-theme="light"\]\s*\{[^}]*--primary-text:\s*initial/)
   })
 })

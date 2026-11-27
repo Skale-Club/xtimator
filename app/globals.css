@@ -189,7 +189,8 @@
 
 @layer base {
   :root {
-    --system-primary: 224 86% 60%;
+    /* 57% lightness: white text on a primary fill reads at 4.9:1 (WCAG AA). */
+    --system-primary: 224 86% 57%;
     --system-secondary: 221 84% 73%;
     --app-sidebar-width: 213px;
     /* Shared bottom-bar height for the main sidebar footer (company switcher)
@@ -270,6 +271,8 @@
     /* Destructive TEXT (menu items, links): --destructive is a button fill and is too dark to read as text in dark themes. */
     --destructive-text: 0 91% 71%;
     --destructive-foreground: 0 0% 98%;
+    /* Primary TEXT on dark surfaces: --primary is a fill and reads at ~4:1 as text there (5:1+ here). */
+    --primary-text: 224 92% 68%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
@@ -325,6 +328,7 @@
     /* Destructive TEXT (menu items, links): --destructive is a button fill and is too dark to read as text in dark themes. */
     --destructive-text: 0 91% 71%;
     --destructive-foreground: 0 0% 98%;
+    --primary-text: 224 92% 68%;
     --ring: var(--platform-primary, var(--system-primary));
 
     /* --- Phase 9 (09-04): semantic status palette — scoped dark (matches .dark) --- */
@@ -347,6 +351,8 @@
      brand colors cascade into gradient-brand + gradient-hero on the share page
      (RESEARCH G6 + G7). Falls back to --system-primary when tenant has none. */
   [data-theme="light"] {
+    /* Back to the fill color for text inside a forced-light scope nested in a dark page. */
+    --primary-text: initial;
     --scrollbar-thumb: 240 4% 52%;
     --scrollbar-thumb-hover: 240 4% 44%;
     --scrollbar-thumb-active: 240 4% 36%;
@@ -754,6 +760,8 @@
    (bg-[var(--glass-bg)], backdrop-blur-[var(--glass-blur)]) in components,
    or apply these shorthand utilities. */
 @layer utilities {
+  /* text-primary uses the dark-surface text tone where a scope defines one, else the primary fill. */
+  .text-primary     { color: hsl(var(--primary-text, var(--primary))); }
   .gradient-brand   { background-image: var(--gradient-brand); }
   .gradient-hero    { background-image: var(--gradient-hero); }
   .gradient-success { background-image: var(--gradient-success); }

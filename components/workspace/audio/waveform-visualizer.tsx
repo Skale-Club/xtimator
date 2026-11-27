@@ -109,7 +109,7 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
       const v = getComputedStyle(canvas).getPropertyValue(name).trim()
       return v.length > 0 ? v : fallback
     }
-    const primary = readVar('--primary', '224 86% 60%')
+    const primary = readVar('--primary', '224 86% 57%')
     const secondary = readVar('--secondary', '200 95% 55%')
     const mutedFg = readVar('--muted-foreground', '215 16% 47%')
 
