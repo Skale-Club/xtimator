@@ -665,14 +665,14 @@
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/", "/dashboard", "/clients", "/onboarding", "/projects/[id]", "/estimate/[token]"],
-      "reason": "Automated scans, client keyboard interaction and keyboard-only estimate/change-order signing have passing browser evidence. A fresh complete final-revision matrix, broader keyboard journeys and real screen-reader validation remain open. Automated rules do not establish WCAG conformance."
+      "reason": "Automated axe scans (landing with consent banner, sign-in dialog and login; onboarding steps; workspace; share and signing) pass with zero serious or critical WCAG 2.0/2.1 A/AA violations in all 3 profiles after the 2026-11-27 primary-contrast change (f94a9bba). Keyboard-only journeys pass: client, workspace navigation, estimate line edit, estimate/change-order signing. Still open: real screen-reader validation and a fresh final-revision matrix at the release candidate. Automated rules do not establish WCAG conformance."
     },
     {
       "id": "ADMIN",
       "state": "blocked",
       "requiredForLaunch": true,
       "routes": ["/admin", "/admin/admins", "/admin/companies", "/admin/events", "/admin/integrations", "/admin/inbox"],
-      "reason": "The full154case campaign exercises all declared scenarios but has a Safari alias hydration failure. Request-level denial covers all28 admin routes; positive screens and real learner detail run in all3profiles. New managed article detail and own-overlay rejection require fresh evidence. Positive industry detail, grant/revoke, global writes, support mode and broader audit interactions remain open."
+      "reason": "Request-level denial covers all 28 admin routes. Positive screens, learner detail, managed article detail, own-overlay rejection, industry detail, platform-admin grant/revoke, View as Company support mode (including a real broken-form fix, 71d2b991) and audit rows for those actions pass in all 3 profiles in the 184-case campaign (2026-11-25 to 27, docs/qa/RUN-2026-11-24.md). Still open: global writes, which have no safe restorable target on the shared dev database; an audit-log UI, which does not exist; and addPlatformAdmin's 1,000-user listing limit."
     },
     {
       "id": "DEPENDENCY-READINESS",
