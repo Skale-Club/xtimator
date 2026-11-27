@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import type { Page } from '@playwright/test'
+import type { Page, Response } from '@playwright/test'
 import { expect, test } from './test'
 import { createQaFixture } from './fixtures/tenant'
 import { observeMicrophoneEvents } from './fixtures/media-events'
@@ -243,9 +243,16 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
       await expect(page.getByTestId('capture-timer')).toHaveText(/^(?!00:0[01]$)\d{2}:\d{2}$/, { timeout: 15_000 })
       recordingDiagnostics = await readMicrophoneDiagnostics(page)
 
-      const uploadPromise = page.waitForResponse(response => new URL(response.url()).pathname
+      // The app retries a signed upload up to 3 times on 5xx (lib/storage/browser-upload.ts), so the journey
+      // passes on the first successful attempt; earlier 5xx answers are recorded, not hidden.
+      const isAudioUpload = (response: Response) => new URL(response.url()).pathname
         .startsWith(`/storage/v1/object/upload/sign/audio/${objectDirectory}`)
-        && response.request().method() === 'PUT', { timeout: 45_000 }).catch(() => null)
+        && response.request().method() === 'PUT'
+      const uploadStatuses: number[] = []
+      const recordUpload = (response: Response) => { if (isAudioUpload(response)) uploadStatuses.push(response.status()) }
+      page.on('response', recordUpload)
+      const uploadPromise = page.waitForResponse(response => isAudioUpload(response) && response.ok(), { timeout: 45_000 })
+        .catch(() => null)
       const [ticket] = await Promise.all([
         page.waitForResponse(response => new URL(response.url()).pathname === '/api/storage/upload-ticket'
           && response.request().method() === 'POST', { timeout: 30_000 }),
@@ -259,7 +266,10 @@ test('[QA:CAPTURE-PIPELINE] synthetic microphone and photo produce a persisted e
       expect(strategy).toBe('supabase-signed-upload')
       expect(typeof key === 'string' && key.startsWith(objectDirectory)).toBe(true)
       const upload = await uploadPromise
-      if (!upload) throw new Error('The browser did not complete the signed audio upload')
+      page.off('response', recordUpload)
+      const retried = uploadStatuses.filter(status => status >= 500).length
+      if (retried) info.annotations.push({ type: 'qa-storage-retry', description: `audio upload succeeded after ${retried} storage 5xx` })
+      if (!upload) throw new Error(`The browser did not complete the signed audio upload (attempt statuses: ${uploadStatuses.join(', ') || 'none'})`)
       expect(upload.ok()).toBe(true)
       expect(new URL(upload.url()).pathname.endsWith(`/audio/${key}`)).toBe(true)
       return key as string
